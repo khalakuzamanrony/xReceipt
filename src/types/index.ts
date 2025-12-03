@@ -1,0 +1,119 @@
+// User types
+export type UserRole = 'super_admin' | 'admin'
+
+export interface User {
+  id: string
+  email: string
+  name: string
+  phone?: string
+  role: UserRole
+  profile_image_url?: string
+  created_at: string
+  updated_at: string
+}
+
+// Admin Permissions
+export interface AdminPermissions {
+  id: string
+  admin_id: string
+  
+  // Product permissions
+  can_view_products: boolean
+  can_create_products: boolean
+  assigned_product_ids: string[]
+  
+  // Category permissions
+  can_view_categories: boolean
+  can_create_categories: boolean
+  can_assign_categories: boolean
+  assigned_category_ids: string[]
+  
+  // Receipt permissions
+  can_view_receipts: boolean
+  can_create_receipts: boolean
+  can_assign_receipt_templates: boolean
+  
+  // Template permissions
+  can_view_templates: boolean
+  can_create_templates: boolean
+  can_assign_templates: boolean
+  assigned_template_ids: string[]
+  
+  created_at: string
+  updated_at: string
+}
+
+// Product types
+export interface Product {
+  id: string
+  name: string
+  description?: string
+  price: number
+  category_id: string
+  image_url?: string
+  created_at: string
+  updated_at: string
+}
+
+// Category types
+export interface Category {
+  id: string
+  name: string
+  image_url?: string
+  created_at: string
+  updated_at: string
+}
+
+// Receipt Template types
+export interface ReceiptTemplate {
+  id: string
+  name: string
+  description?: string
+  template_html: string
+  created_by: string
+  created_at: string
+  updated_at: string
+}
+
+// Receipt types
+export interface Receipt {
+  id: string
+  created_at: string
+  updated_at: string
+  receipt_number: string
+  template_id: string
+  items: ReceiptItem[]
+  subtotal: number
+  tax: number
+  total: number
+  customer_name?: string
+  customer_email?: string
+  notes?: string
+  created_by: string
+}
+
+export interface ReceiptItem {
+  id: string
+  product_id: string
+  name: string
+  quantity: number
+  unit_price: number
+  total: number
+}
+
+// Form types
+export interface CreateAdminFormData {
+  name: string
+  email: string
+  phone?: string
+  profile_image?: File
+  permissions: AdminPermissions
+}
+
+export interface CreateReceiptFormData {
+  template_id: string
+  items: ReceiptItem[]
+  customer_name?: string
+  customer_email?: string
+  notes?: string
+}

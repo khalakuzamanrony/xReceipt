@@ -1,0 +1,19 @@
+{
+  "name": "xReceipt - Receipt Generator",
+  "short_name": "xReceipt",
+  "description": "PWA Receipt Generator for Your Online Shop",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "theme_color": "#2563eb",
+  "background_color": "#ffffff",
+  "icons": [
+    {
+      "src": "/vite.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}
