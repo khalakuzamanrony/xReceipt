@@ -1,4 +1,6 @@
 import type { AdminPermissions } from '@/types'
+import { Checkbox } from '@/components/ui/Checkbox'
+import { Label } from '@/components/ui/Label'
 
 interface ReceiptAccessGroupProps {
   permissions: Partial<AdminPermissions>
@@ -14,39 +16,52 @@ export default function ReceiptAccessGroup({
   }
 
   return (
-    <div className="border border-gray-200 rounded-lg p-4 space-y-4">
-      <h4 className="font-semibold text-gray-900">Receipt Access</h4>
+    <div className="border border-gray-200 rounded-lg p-5 space-y-4 bg-white">
+      <div className="flex items-center gap-2">
+        <h4 className="font-semibold text-gray-900">Receipt Access</h4>
+        <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded">Optional</span>
+      </div>
 
-      <div className="space-y-3">
-        <label className="flex items-center gap-3 cursor-pointer">
-          <input
-            type="checkbox"
+      <div className="space-y-4">
+        {/* View Receipt Checkbox */}
+        <div className="flex items-center gap-3">
+          <Checkbox
+            id="can_view_receipts"
             checked={permissions.can_view_receipts || false}
-            onChange={(e) => handleCheckboxChange('can_view_receipts', e.target.checked)}
-            className="w-4 h-4 rounded border-gray-300"
+            onCheckedChange={(checked) => handleCheckboxChange('can_view_receipts', checked as boolean)}
           />
-          <span className="text-gray-700">View Receipt</span>
-        </label>
+          <Label htmlFor="can_view_receipts" className="cursor-pointer font-medium">
+            View Receipt
+          </Label>
+        </div>
 
-        <label className="flex items-center gap-3 cursor-pointer">
-          <input
-            type="checkbox"
-            checked={permissions.can_create_receipts || false}
-            onChange={(e) => handleCheckboxChange('can_create_receipts', e.target.checked)}
-            className="w-4 h-4 rounded border-gray-300"
-          />
-          <span className="text-gray-700">Create Receipt</span>
-        </label>
+        {/* Conditional: Create Receipt Checkbox */}
+        {permissions.can_view_receipts && (
+          <div className="ml-6 space-y-4 pt-2 border-l-2 border-blue-200 pl-4">
+            <div className="flex items-center gap-3">
+              <Checkbox
+                id="can_create_receipts"
+                checked={permissions.can_create_receipts || false}
+                onCheckedChange={(checked) => handleCheckboxChange('can_create_receipts', checked as boolean)}
+              />
+              <Label htmlFor="can_create_receipts" className="cursor-pointer font-medium">
+                Create Receipt
+              </Label>
+            </div>
 
-        <label className="flex items-center gap-3 cursor-pointer">
-          <input
-            type="checkbox"
-            checked={permissions.can_assign_receipt_templates || false}
-            onChange={(e) => handleCheckboxChange('can_assign_receipt_templates', e.target.checked)}
-            className="w-4 h-4 rounded border-gray-300"
-          />
-          <span className="text-gray-700">Assign Template</span>
-        </label>
+            {/* Assign Receipt Templates Checkbox */}
+            <div className="flex items-center gap-3">
+              <Checkbox
+                id="can_assign_receipt_templates"
+                checked={permissions.can_assign_receipt_templates || false}
+                onCheckedChange={(checked) => handleCheckboxChange('can_assign_receipt_templates', checked as boolean)}
+              />
+              <Label htmlFor="can_assign_receipt_templates" className="cursor-pointer font-medium">
+                Assign Receipt Templates
+              </Label>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )

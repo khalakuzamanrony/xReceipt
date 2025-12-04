@@ -1,7 +1,12 @@
 import { useState } from 'react'
 import Sidebar from '@/components/layout/Sidebar'
 import Header from '@/components/layout/Header'
+import Dashboard from '@/components/dashboard/Dashboard'
 import AdminList from '@/components/admin/AdminList'
+import ProductList from '@/components/products/ProductList'
+import CategoryList from '@/components/categories/CategoryList'
+import ReceiptList from '@/components/receipts/ReceiptList'
+import TemplateList from '@/components/templates/TemplateList'
 
 export default function App() {
   const [currentPage, setCurrentPage] = useState('admin')
@@ -9,40 +14,15 @@ export default function App() {
   const renderPage = () => {
     switch (currentPage) {
       case 'dashboard':
-        return (
-          <div className="text-center py-12">
-            <h2 className="text-2xl font-bold text-gray-900">Dashboard</h2>
-            <p className="text-gray-600 mt-2">Coming soon...</p>
-          </div>
-        )
+        return <Dashboard />
       case 'receipts':
-        return (
-          <div className="text-center py-12">
-            <h2 className="text-2xl font-bold text-gray-900">Receipts</h2>
-            <p className="text-gray-600 mt-2">Coming soon...</p>
-          </div>
-        )
+        return <ReceiptList />
       case 'templates':
-        return (
-          <div className="text-center py-12">
-            <h2 className="text-2xl font-bold text-gray-900">Receipt Templates</h2>
-            <p className="text-gray-600 mt-2">Coming soon...</p>
-          </div>
-        )
+        return <TemplateList />
       case 'products':
-        return (
-          <div className="text-center py-12">
-            <h2 className="text-2xl font-bold text-gray-900">Products</h2>
-            <p className="text-gray-600 mt-2">Coming soon...</p>
-          </div>
-        )
+        return <ProductList />
       case 'categories':
-        return (
-          <div className="text-center py-12">
-            <h2 className="text-2xl font-bold text-gray-900">Categories</h2>
-            <p className="text-gray-600 mt-2">Coming soon...</p>
-          </div>
-        )
+        return <CategoryList />
       case 'admin':
       default:
         return <AdminList />

@@ -23,10 +23,15 @@ export const templateService = {
     return data || null
   },
 
-  async createTemplate(template: Omit<ReceiptTemplate, 'id' | 'created_at' | 'updated_at'>): Promise<ReceiptTemplate> {
+  async createTemplate(template: Omit<ReceiptTemplate, 'id' | 'created_at' | 'updated_at' | 'created_by'> & { created_by?: string }): Promise<ReceiptTemplate> {
+    const { data: { user } } = await supabase.auth.getUser()
+
     const { data, error } = await supabase
       .from('receipt_templates')
-      .insert(template)
+      .insert({
+        ...template,
+        created_by: template.created_by || user?.id || null,
+      })
       .select()
       .single()
 

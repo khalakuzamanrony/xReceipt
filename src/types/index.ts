@@ -59,6 +59,7 @@ export interface Product {
 export interface Category {
   id: string
   name: string
+  parent_id?: string | null
   image_url?: string
   created_at: string
   updated_at: string
@@ -78,18 +79,17 @@ export interface ReceiptTemplate {
 // Receipt types
 export interface Receipt {
   id: string
+  receipt_number: string
+  customer_name: string
+  customer_email: string
+  template_id: string
+  subtotal?: number
+  tax?: number
+  total?: number
+  status: 'draft' | 'sent' | 'paid'
+  items?: ReceiptItem[]
   created_at: string
   updated_at: string
-  receipt_number: string
-  template_id: string
-  items: ReceiptItem[]
-  subtotal: number
-  tax: number
-  total: number
-  customer_name?: string
-  customer_email?: string
-  notes?: string
-  created_by: string
 }
 
 export interface ReceiptItem {

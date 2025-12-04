@@ -32,9 +32,13 @@ CREATE TABLE IF NOT EXISTS products (
   price DECIMAL(10, 2) NOT NULL,
   category_id UUID REFERENCES categories(id) ON DELETE SET NULL,
   image_url VARCHAR(500),
+  tax_enabled BOOLEAN DEFAULT TRUE,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
+
+-- Add tax_enabled column to existing products table if it doesn't exist
+ALTER TABLE products ADD COLUMN IF NOT EXISTS tax_enabled BOOLEAN DEFAULT TRUE;
 
 -- Receipt templates table
 CREATE TABLE IF NOT EXISTS receipt_templates (
@@ -90,9 +94,13 @@ CREATE TABLE IF NOT EXISTS receipts (
   subtotal DECIMAL(10, 2) DEFAULT 0,
   tax DECIMAL(10, 2) DEFAULT 0,
   total DECIMAL(10, 2) DEFAULT 0,
+  status VARCHAR(50) DEFAULT 'draft' CHECK (status IN ('draft', 'sent', 'paid')),
   created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
+
+-- Add status column to existing receipts table if it doesn't exist
+ALTER TABLE receipts ADD COLUMN IF NOT EXISTS status VARCHAR(50) DEFAULT 'draft' CHECK (status IN ('draft', 'sent', 'paid'));
 
 -- Receipt items table
 CREATE TABLE IF NOT EXISTS receipt_items (

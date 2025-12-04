@@ -1,6 +1,9 @@
 import { useState, useEffect } from 'react'
 import type { AdminPermissions } from '@/types'
 import { categoryService } from '@/services/categoryService'
+import { Checkbox } from '@/components/ui/Checkbox'
+import { Label } from '@/components/ui/Label'
+import { AlertCircle } from 'lucide-react'
 
 interface CategoryAccessGroupProps {
   permissions: Partial<AdminPermissions>
@@ -13,6 +16,7 @@ export default function CategoryAccessGroup({
 }: CategoryAccessGroupProps) {
   const [categories, setCategories] = useState<any[]>([])
   const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     if (permissions.can_view_categories) {
@@ -23,9 +27,11 @@ export default function CategoryAccessGroup({
   const loadCategories = async () => {
     try {
       setLoading(true)
+      setError(null)
       const data = await categoryService.getAllCategories()
       setCategories(data)
     } catch (err) {
+      setError('Failed to load categories')
       console.error('Failed to load categories:', err)
     } finally {
       setLoading(false)
@@ -39,77 +45,95 @@ export default function CategoryAccessGroup({
     }
   }
 
-  const handleCategorySelect = (categoryIds: string[]) => {
-    onChange('assigned_category_ids', categoryIds)
+  const handleCategorySelect = (categoryId: string, checked: boolean) => {
+    const current = permissions.assigned_category_ids || []
+    const updated = checked
+      ? [...current, categoryId]
+      : current.filter(id => id !== categoryId)
+    onChange('assigned_category_ids', updated)
   }
 
   return (
-    <div className="border border-gray-200 rounded-lg p-4 space-y-4">
-      <h4 className="font-semibold text-gray-900">Category Access</h4>
+    <div className="border border-gray-200 rounded-lg p-5 space-y-4 bg-white">
+      <div className="flex items-center gap-2">
+        <h4 className="font-semibold text-gray-900">Category Access</h4>
+        <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded">Optional</span>
+      </div>
 
-      <div className="space-y-3">
-        <label className="flex items-center gap-3 cursor-pointer">
-          <input
-            type="checkbox"
+      <div className="space-y-4">
+        {/* View Categories Checkbox */}
+        <div className="flex items-center gap-3">
+          <Checkbox
+            id="can_view_categories"
             checked={permissions.can_view_categories || false}
-            onChange={(e) => handleCheckboxChange('can_view_categories', e.target.checked)}
-            className="w-4 h-4 rounded border-gray-300"
+            onCheckedChange={(checked) => handleCheckboxChange('can_view_categories', checked as boolean)}
           />
-          <span className="text-gray-700">View Category</span>
-        </label>
+          <Label htmlFor="can_view_categories" className="cursor-pointer font-medium">
+            View Category
+          </Label>
+        </div>
 
+        {/* Conditional: Create & Assign Category Checkboxes */}
         {permissions.can_view_categories && (
-          <>
-            <label className="flex items-center gap-3 cursor-pointer ml-6">
-              <input
-                type="checkbox"
+          <div className="ml-6 space-y-4 pt-2 border-l-2 border-blue-200 pl-4">
+            <div className="flex items-center gap-3">
+              <Checkbox
+                id="can_create_categories"
                 checked={permissions.can_create_categories || false}
-                onChange={(e) => handleCheckboxChange('can_create_categories', e.target.checked)}
-                className="w-4 h-4 rounded border-gray-300"
+                onCheckedChange={(checked) => handleCheckboxChange('can_create_categories', checked as boolean)}
               />
-              <span className="text-gray-700">Create Category</span>
-            </label>
+              <Label htmlFor="can_create_categories" className="cursor-pointer font-medium">
+                Create Category
+              </Label>
+            </div>
 
-            <label className="flex items-center gap-3 cursor-pointer ml-6">
-              <input
-                type="checkbox"
-                checked={permissions.can_assign_categories || false}
-                onChange={(e) => handleCheckboxChange('can_assign_categories', e.target.checked)}
-                className="w-4 h-4 rounded border-gray-300"
-              />
-              <span className="text-gray-700">Assign Category</span>
-            </label>
-
-            {permissions.can_assign_categories && (
-              <div className="ml-6">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Assign Categories
-                </label>
-                {loading ? (
-                  <div className="text-gray-500 text-sm">Loading categories...</div>
-                ) : (
-                  <select
-                    multiple
-                    value={permissions.assigned_category_ids || []}
-                    onChange={(e) =>
-                      handleCategorySelect(
-                        Array.from(e.target.selectedOptions, (option) => option.value)
-                      )
-                    }
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    size={Math.min(categories.length, 5)}
-                  >
-                    {categories.map((category) => (
-                      <option key={category.id} value={category.id}>
-                        {category.name}
-                      </option>
-                    ))}
-                  </select>
-                )}
-                <p className="text-xs text-gray-500 mt-1">Hold Ctrl/Cmd to select multiple</p>
+            {/* Assign Categories Section */}
+            <div className="space-y-3">
+              <div className="flex items-center gap-3">
+                <Checkbox
+                  id="can_assign_categories"
+                  checked={permissions.can_assign_categories || false}
+                  onCheckedChange={(checked) => handleCheckboxChange('can_assign_categories', checked as boolean)}
+                />
+                <Label htmlFor="can_assign_categories" className="cursor-pointer font-medium">
+                  Assign Specific Categories
+                </Label>
               </div>
-            )}
-          </>
+
+              {permissions.can_assign_categories && (
+                <div className="ml-6 space-y-2">
+                  {loading ? (
+                    <div className="flex items-center gap-2 text-gray-600 text-sm">
+                      <div className="animate-spin h-4 w-4 border-2 border-blue-500 border-t-transparent rounded-full"></div>
+                      Loading categories...
+                    </div>
+                  ) : error ? (
+                    <div className="flex items-center gap-2 text-red-600 text-sm bg-red-50 p-2 rounded">
+                      <AlertCircle size={16} />
+                      {error}
+                    </div>
+                  ) : categories.length === 0 ? (
+                    <div className="text-gray-500 text-sm">No categories available</div>
+                  ) : (
+                    <div className="space-y-2 max-h-48 overflow-y-auto border border-gray-200 rounded-lg p-3 bg-gray-50">
+                      {categories.map((category) => (
+                        <div key={category.id} className="flex items-center gap-2">
+                          <Checkbox
+                            id={`category-${category.id}`}
+                            checked={(permissions.assigned_category_ids || []).includes(category.id)}
+                            onCheckedChange={(checked) => handleCategorySelect(category.id, checked as boolean)}
+                          />
+                          <Label htmlFor={`category-${category.id}`} className="cursor-pointer text-sm flex-1">
+                            {category.name}
+                          </Label>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
         )}
       </div>
     </div>
