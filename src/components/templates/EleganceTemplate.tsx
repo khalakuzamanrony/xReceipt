@@ -389,108 +389,157 @@ export default function EleganceTemplate({ open, onClose, onSave }: EleganceTemp
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>Create Elegance Invoice Template</DialogTitle>
+      <DialogContent className="max-w-7xl bg-white h-[90vh] flex flex-col p-0">
+        {/* Header */}
+        <DialogHeader className="border-b border-gray-200 px-8 py-6">
+          <div className="flex flex-col gap-1">
+            <DialogTitle className="text-2xl font-bold text-gray-900">Create Elegance Invoice Template</DialogTitle>
+            <p className="text-sm text-gray-500">Customize your invoice template with company information</p>
+          </div>
         </DialogHeader>
 
-        <div className="space-y-6 py-4">
-          {/* Preview */}
-          <div className="border rounded-lg bg-gray-50 p-4 max-h-96 overflow-y-auto">
-            <div
-              dangerouslySetInnerHTML={{ __html: generateTemplate() }}
-              className="bg-white"
-            />
+        <div className="flex flex-1 overflow-hidden">
+          {/* Left Column - Inputs (35%) */}
+          <div className="w-[35%] border-r border-gray-200 overflow-y-auto bg-white">
+            <div className="px-8 py-6 space-y-6">
+              {/* Section Header */}
+              <div className="pb-4 border-b border-gray-200">
+                <h3 className="text-sm font-bold text-gray-900 uppercase tracking-wide">Company Information</h3>
+                <p className="text-xs text-gray-500 mt-1">Enter your company details</p>
+              </div>
+
+              {/* Form Fields */}
+              <div className="space-y-5">
+                {/* Company Name */}
+                <div className="space-y-2">
+                  <Label htmlFor="company-name" className="text-sm font-semibold text-gray-900">
+                    Company Name <span className="text-red-500">*</span>
+                  </Label>
+                  <Input
+                    id="company-name"
+                    value={companyName}
+                    onChange={e => setCompanyName(e.target.value)}
+                    placeholder="e.g., Maison Élégance"
+                    className="w-full"
+                  />
+                </div>
+
+                {/* Subtitle */}
+                <div className="space-y-2">
+                  <Label htmlFor="company-subtitle" className="text-sm font-semibold text-gray-900">
+                    Subtitle
+                  </Label>
+                  <Input
+                    id="company-subtitle"
+                    value={companySubtitle}
+                    onChange={e => setCompanySubtitle(e.target.value)}
+                    placeholder="e.g., ATELIER"
+                    className="w-full"
+                  />
+                </div>
+
+                {/* Address */}
+                <div className="space-y-2">
+                  <Label htmlFor="company-address" className="text-sm font-semibold text-gray-900">
+                    Street Address
+                  </Label>
+                  <Input
+                    id="company-address"
+                    value={companyAddress}
+                    onChange={e => setCompanyAddress(e.target.value)}
+                    placeholder="e.g., 45 East 78th Street"
+                    className="w-full"
+                  />
+                </div>
+
+                {/* City, State, ZIP */}
+                <div className="space-y-2">
+                  <Label htmlFor="company-city" className="text-sm font-semibold text-gray-900">
+                    City, State, ZIP
+                  </Label>
+                  <Input
+                    id="company-city"
+                    value={companyCity}
+                    onChange={e => setCompanyCity(e.target.value)}
+                    placeholder="e.g., New York, NY 10075"
+                    className="w-full"
+                  />
+                </div>
+
+                {/* Email */}
+                <div className="space-y-2">
+                  <Label htmlFor="company-email" className="text-sm font-semibold text-gray-900">
+                    Email Address
+                  </Label>
+                  <Input
+                    id="company-email"
+                    type="email"
+                    value={companyEmail}
+                    onChange={e => setCompanyEmail(e.target.value)}
+                    placeholder="e.g., contact@company.com"
+                    className="w-full"
+                  />
+                </div>
+
+                {/* Phone */}
+                <div className="space-y-2">
+                  <Label htmlFor="company-phone" className="text-sm font-semibold text-gray-900">
+                    Phone Number
+                  </Label>
+                  <Input
+                    id="company-phone"
+                    type="tel"
+                    value={companyPhone}
+                    onChange={e => setCompanyPhone(e.target.value)}
+                    placeholder="e.g., +1 (212) 555-0123"
+                    className="w-full"
+                  />
+                </div>
+              </div>
+
+              {/* Error Message */}
+              {error && (
+                <div className="p-4 bg-red-50 border border-red-200 rounded-lg space-y-2">
+                  <p className="text-sm font-semibold text-red-900">Error</p>
+                  <p className="text-sm text-red-700">{error}</p>
+                </div>
+              )}
+            </div>
           </div>
 
-          {/* Configuration */}
-          <div className="space-y-4 border-t pt-4">
-            <h3 className="font-semibold text-sm">Company Information</h3>
-            
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="company-name">Company Name</Label>
-                <Input
-                  id="company-name"
-                  value={companyName}
-                  onChange={e => setCompanyName(e.target.value)}
-                  placeholder="Enter company name"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="company-subtitle">Subtitle (e.g., ATELIER)</Label>
-                <Input
-                  id="company-subtitle"
-                  value={companySubtitle}
-                  onChange={e => setCompanySubtitle(e.target.value)}
-                  placeholder="Enter subtitle"
-                />
+          {/* Right Column - Preview (65%) */}
+          <div className="w-[65%] bg-gray-50 overflow-y-auto">
+            <div className="px-8 py-6 h-full">
+              <div className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden h-full">
+                <div className="p-4 overflow-y-auto h-full">
+                  {/* Use iframe so template CSS is sandboxed and cannot override app layout */}
+                  <iframe
+                    title="Elegance template preview"
+                    srcDoc={generateTemplate()}
+                    className="w-full h-[640px] border-0 rounded-md bg-white"
+                  />
+                </div>
               </div>
             </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="company-address">Address</Label>
-              <Input
-                id="company-address"
-                value={companyAddress}
-                onChange={e => setCompanyAddress(e.target.value)}
-                placeholder="Enter street address"
-              />
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="company-city">City, State, ZIP</Label>
-                <Input
-                  id="company-city"
-                  value={companyCity}
-                  onChange={e => setCompanyCity(e.target.value)}
-                  placeholder="Enter city, state, ZIP"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="company-email">Email</Label>
-                <Input
-                  id="company-email"
-                  value={companyEmail}
-                  onChange={e => setCompanyEmail(e.target.value)}
-                  placeholder="Enter email"
-                />
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="company-phone">Phone</Label>
-              <Input
-                id="company-phone"
-                value={companyPhone}
-                onChange={e => setCompanyPhone(e.target.value)}
-                placeholder="Enter phone number"
-              />
-            </div>
-
-            {error && (
-              <div className="p-3 bg-red-100 border border-red-400 text-red-700 rounded text-sm">
-                {error}
-              </div>
-            )}
           </div>
+        </div>
 
-          {/* Actions */}
-          <div className="flex gap-3 justify-end border-t pt-4">
-            <Button variant="outline" onClick={onClose}>
-              Cancel
-            </Button>
-            <Button
-              onClick={handleSave}
-              disabled={loading}
-              className="bg-blue-600 hover:bg-blue-700 text-white"
-            >
-              {loading ? 'Saving...' : 'Save Template'}
-            </Button>
-          </div>
+        {/* Footer Actions */}
+        <div className="border-t border-gray-200 px-8 py-4 flex gap-3 justify-end bg-gray-50">
+          <Button 
+            variant="outline" 
+            onClick={onClose}
+            className="px-6 py-2 text-sm font-medium"
+          >
+            Cancel
+          </Button>
+          <Button
+            onClick={handleSave}
+            disabled={loading}
+            className="px-6 py-2 text-sm font-medium"
+          >
+            {loading ? 'Saving...' : 'Save Template'}
+          </Button>
         </div>
       </DialogContent>
     </Dialog>

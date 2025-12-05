@@ -141,115 +141,116 @@ export default function AdminForm({ admin, onClose }: AdminFormProps) {
 
   return (
     <Dialog open={true} onOpenChange={onClose}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle className="text-2xl">
-            {admin ? 'Edit Admin' : 'Create New Admin'}
-          </DialogTitle>
-        </DialogHeader>
+      <DialogContent className="max-w-2xl w-full h-[90vh] p-0 flex flex-col">
+        <form onSubmit={handleSubmit} className="flex flex-col h-full">
+          <DialogHeader className="px-6 pt-6 pb-4 border-b bg-white">
+            <DialogTitle className="text-2xl">
+              {admin ? 'Edit Admin' : 'Create New Admin'}
+            </DialogTitle>
+          </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-6">
-          {error && (
-            <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
-              {error}
-            </div>
-          )}
-
-          {warning && (
-            <div className="bg-yellow-50 border border-yellow-200 text-yellow-700 px-4 py-3 rounded-lg text-sm">
-              {warning}
-            </div>
-          )}
-
-          {/* Basic Information */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg">Basic Information</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="name">Name *</Label>
-                  <Input
-                    id="name"
-                    type="text"
-                    name="name"
-                    value={formData.name}
-                    onChange={handleInputChange}
-                    required
-                    placeholder="Admin name"
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="email">Email *</Label>
-                  <Input
-                    id="email"
-                    type="email"
-                    name="email"
-                    value={formData.email}
-                    onChange={handleInputChange}
-                    required
-                    disabled={!!admin}
-                    placeholder="admin@example.com"
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="phone">Phone</Label>
-                  <Input
-                    id="phone"
-                    type="tel"
-                    name="phone"
-                    value={formData.phone}
-                    onChange={handleInputChange}
-                    placeholder="+1 (555) 000-0000"
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="image">Profile Image</Label>
-                  <Input
-                    id="image"
-                    type="file"
-                    accept="image/*"
-                    onChange={handleImageChange}
-                  />
-                </div>
+          <div className="flex-1 overflow-y-auto px-6 py-4 space-y-6 bg-gray-50/40">
+            {error && (
+              <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
+                {error}
               </div>
-            </CardContent>
-          </Card>
+            )}
 
-          {/* Permissions */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg">Permissions</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <ProductAccessGroup
-                permissions={permissions}
-                onChange={handlePermissionChange}
-              />
+            {warning && (
+              <div className="bg-yellow-50 border border-yellow-200 text-yellow-700 px-4 py-3 rounded-lg text-sm">
+                {warning}
+              </div>
+            )}
 
-              <CategoryAccessGroup
-                permissions={permissions}
-                onChange={handlePermissionChange}
-              />
+            {/* Basic Information */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">Basic Information</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="name">Name *</Label>
+                    <Input
+                      id="name"
+                      type="text"
+                      name="name"
+                      value={formData.name}
+                      onChange={handleInputChange}
+                      required
+                      placeholder="Admin name"
+                    />
+                  </div>
 
-              <ReceiptAccessGroup
-                permissions={permissions}
-                onChange={handlePermissionChange}
-              />
+                  <div className="space-y-2">
+                    <Label htmlFor="email">Email *</Label>
+                    <Input
+                      id="email"
+                      type="email"
+                      name="email"
+                      value={formData.email}
+                      onChange={handleInputChange}
+                      required
+                      disabled={!!admin}
+                      placeholder="admin@example.com"
+                    />
+                  </div>
 
-              <TemplateAccessGroup
-                permissions={permissions}
-                onChange={handlePermissionChange}
-              />
-            </CardContent>
-          </Card>
+                  <div className="space-y-2">
+                    <Label htmlFor="phone">Phone</Label>
+                    <Input
+                      id="phone"
+                      type="tel"
+                      name="phone"
+                      value={formData.phone}
+                      onChange={handleInputChange}
+                      placeholder="+1 (555) 000-0000"
+                    />
+                  </div>
 
-          {/* Form Actions */}
-          <DialogFooter className="gap-3">
+                  <div className="space-y-2">
+                    <Label htmlFor="image">Profile Image</Label>
+                    <Input
+                      id="image"
+                      type="file"
+                      accept="image/*"
+                      onChange={handleImageChange}
+                    />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Permissions */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">Permissions</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <ProductAccessGroup
+                  permissions={permissions}
+                  onChange={handlePermissionChange}
+                />
+
+                <CategoryAccessGroup
+                  permissions={permissions}
+                  onChange={handlePermissionChange}
+                />
+
+                <ReceiptAccessGroup
+                  permissions={permissions}
+                  onChange={handlePermissionChange}
+                />
+
+                <TemplateAccessGroup
+                  permissions={permissions}
+                  onChange={handlePermissionChange}
+                />
+              </CardContent>
+            </Card>
+          </div>
+
+          <DialogFooter className="gap-3 px-6 py-4 border-t bg-white flex justify-end">
             <Button
               type="button"
               variant="outline"

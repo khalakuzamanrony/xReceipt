@@ -3,7 +3,7 @@ import type { Receipt, ReceiptTemplate } from '@/types'
 import { receiptService } from '@/services/receiptService'
 import { templateService } from '@/services/templateService'
 import { Button } from '@/components/ui/Button'
-import { ArrowLeft, Download, Mail, Copy, Loader } from 'lucide-react'
+import { ArrowLeft, Download, Mail, Copy, Loader, Image } from 'lucide-react'
 import html2canvas from 'html2canvas'
 import jsPDF from 'jspdf'
 
@@ -13,14 +13,13 @@ interface ReceiptDetailsPageProps {
 }
 
 export default function ReceiptDetailsPage({ receiptId, onBack }: ReceiptDetailsPageProps) {
-  const contentRef = useRef<HTMLDivElement>(null)
+  const iframeRef = useRef<HTMLIFrameElement>(null)
 
   const [receipt, setReceipt] = useState<Receipt | null>(null)
   const [template, setTemplate] = useState<ReceiptTemplate | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [downloading, setDownloading] = useState(false)
-  const [copied, setCopied] = useState(false)
 
   useEffect(() => {
     loadReceiptDetails()
@@ -44,10 +43,11 @@ export default function ReceiptDetailsPage({ receiptId, onBack }: ReceiptDetails
 
       setReceipt(receiptData)
 
-      // Load template
-      const templateData = await templateService.getTemplateById(receiptData.template_id)
-      if (templateData) {
-        setTemplate(templateData)
+      if (receiptData.template_id) {
+        const templateData = await templateService.getTemplateById(receiptData.template_id)
+        if (templateData) {
+          setTemplate(templateData)
+        }
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load receipt')
@@ -63,7 +63,6 @@ export default function ReceiptDetailsPage({ receiptId, onBack }: ReceiptDetails
     const tax = receipt.tax || 0
     const total = receipt.total || 0
 
-    // Build items HTML
     let itemsHTML = ''
     if (receipt.items && receipt.items.length > 0) {
       itemsHTML = receipt.items
@@ -95,6 +94,9 @@ export default function ReceiptDetailsPage({ receiptId, onBack }: ReceiptDetails
       .replace(/{{DATE}}/g, new Date(receipt.created_at).toLocaleDateString())
       .replace(/{{CUSTOMER_NAME}}/g, receipt.customer_name || '')
       .replace(/{{CUSTOMER_EMAIL}}/g, receipt.customer_email || '')
+      .replace(/{{CUSTOMER_COMPANY}}/g, receipt.customer_company || '')
+      .replace(/{{CUSTOMER_PHONE}}/g, receipt.customer_phone || '')
+      .replace(/{{CUSTOMER_ADDRESS}}/g, receipt.customer_address || '')
       .replace(/{{ITEMS}}/g, itemsHTML)
       .replace(/{{TOTAL}}/g, total.toFixed(2))
       .replace(/{{SUBTOTAL}}/g, subtotal.toFixed(2))
@@ -111,12 +113,23 @@ export default function ReceiptDetailsPage({ receiptId, onBack }: ReceiptDetails
     return html
   }
 
+  const getIframeBody = () => {
+    const iframe = iframeRef.current
+    if (!iframe) return null
+    const doc = iframe.contentDocument || iframe.contentWindow?.document
+    if (!doc) return null
+    return doc.body as HTMLElement
+  }
+
   const downloadPDF = async () => {
-    if (!contentRef.current || !receipt) return
+    if (!receipt) return
+
+    const target = getIframeBody()
+    if (!target) return
 
     try {
       setDownloading(true)
-      const canvas = await html2canvas(contentRef.current, {
+      const canvas = await html2canvas(target, {
         scale: 2,
         useCORS: true,
         backgroundColor: '#ffffff',
@@ -141,11 +154,14 @@ export default function ReceiptDetailsPage({ receiptId, onBack }: ReceiptDetails
   }
 
   const downloadPNG = async () => {
-    if (!contentRef.current || !receipt) return
+    if (!receipt) return
+
+    const target = getIframeBody()
+    if (!target) return
 
     try {
       setDownloading(true)
-      const canvas = await html2canvas(contentRef.current, {
+      const canvas = await html2canvas(target, {
         scale: 2,
         useCORS: true,
         backgroundColor: '#ffffff',
@@ -166,8 +182,6 @@ export default function ReceiptDetailsPage({ receiptId, onBack }: ReceiptDetails
     try {
       const link = `${window.location.origin}/receipts/${receipt?.id}`
       await navigator.clipboard.writeText(link)
-      setCopied(true)
-      setTimeout(() => setCopied(false), 2000)
     } catch (err) {
       setError('Failed to copy link')
     }
@@ -175,121 +189,128 @@ export default function ReceiptDetailsPage({ receiptId, onBack }: ReceiptDetails
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-center">
-          <Loader className="w-12 h-12 animate-spin text-blue-600 mx-auto mb-4" />
-          <p className="text-gray-600">Loading receipt...</p>
-        </div>
+      <div className="flex justify-center items-center py-20">
+        <Loader className="w-8 h-8 animate-spin text-blue-600" />
       </div>
     )
   }
 
   if (error || !receipt) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-center">
-          <p className="text-red-600 mb-4">{error || 'Receipt not found'}</p>
-          <Button onClick={onBack} variant="outline">
-            <ArrowLeft size={16} />
-            Back to Receipts
-          </Button>
-        </div>
+      <div className="text-center py-20">
+        <p className="text-red-600 mb-4">{error || 'Receipt not found'}</p>
+        <Button onClick={onBack} variant="outline">
+          <ArrowLeft size={16} />
+          Back
+        </Button>
       </div>
     )
   }
 
   return (
-    <div className="space-y-6">
-      {/* Action Bar */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4 bg-white p-4 rounded-lg border border-gray-200">
-        <div className="flex items-center gap-2 sm:gap-4 flex-wrap">
+    <div className="space-y-4">
+      {/* Header with Title and Actions */}
+      <div className="flex items-center justify-between gap-4 bg-white p-4 rounded-lg border border-gray-200">
+        <div className="flex items-center gap-3 flex-1">
           <button
             onClick={onBack}
-            className="text-blue-600 hover:text-blue-700 flex items-center gap-1 sm:gap-2 text-sm sm:text-base font-medium"
+            className="p-2 hover:bg-gray-100 rounded-lg text-gray-600"
           >
-            <ArrowLeft size={16} className="sm:w-5 sm:h-5" />
-            Back
+            <ArrowLeft size={20} />
           </button>
-          <div className="hidden sm:block w-px h-6 bg-gray-300"></div>
-          <h2 className="text-base sm:text-lg font-bold text-gray-900">
-            Receipt #{receipt.id.slice(0, 8)}
-          </h2>
-          <span className="px-2 sm:px-3 py-1 bg-green-100 text-green-700 rounded-full text-xs sm:text-sm font-medium">
-            {receipt.status}
+          <div className="flex-1">
+            <h1 className="text-xl font-bold text-gray-900">Receipt #{receipt.id.slice(0, 8)}</h1>
+            <p className="text-sm text-gray-500">{receipt.customer_name}</p>
+          </div>
+          <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
+            receipt.status === 'paid' ? 'bg-green-100 text-green-700' :
+            receipt.status === 'sent' ? 'bg-blue-100 text-blue-700' :
+            'bg-gray-100 text-gray-700'
+          }`}>
+            {receipt.status.charAt(0).toUpperCase() + receipt.status.slice(1)}
           </span>
         </div>
 
         {/* Action Buttons */}
-        <div className="flex gap-2 flex-wrap w-full sm:w-auto">
+        <div className="flex gap-2">
           <Button
             onClick={copyLink}
             variant="outline"
             size="sm"
-            className="flex items-center gap-1 text-xs sm:text-sm flex-1 sm:flex-none justify-center sm:justify-start"
+            title="Copy link"
           >
-            <Copy size={14} />
-            {copied ? 'Copied!' : 'Copy Link'}
+            <Copy size={16} />
           </Button>
           <Button
             onClick={() => {}}
             variant="outline"
             size="sm"
-            className="flex items-center gap-1 text-xs sm:text-sm flex-1 sm:flex-none justify-center sm:justify-start"
+            title="Send email"
           >
-            <Mail size={14} />
-            <span className="hidden sm:inline">Email</span>
-          </Button>
-          <Button
-            onClick={downloadPDF}
-            disabled={downloading}
-            size="sm"
-            className="bg-black hover:bg-gray-800 text-white flex items-center gap-1 text-xs sm:text-sm flex-1 sm:flex-none justify-center sm:justify-start"
-          >
-            <Download size={14} />
-            PDF
+            <Mail size={16} />
           </Button>
           <Button
             onClick={downloadPNG}
             disabled={downloading}
             variant="outline"
             size="sm"
-            className="flex items-center gap-1 text-xs sm:text-sm flex-1 sm:flex-none justify-center sm:justify-start"
+            title="Download PNG"
           >
-            <Download size={14} />
-            PNG
+            <Image size={16} />
+          </Button>
+          <Button
+            onClick={downloadPDF}
+            disabled={downloading}
+            size="sm"
+            className="bg-blue-600 hover:bg-blue-700 text-white"
+          >
+            <Download size={16} />
+            PDF
           </Button>
         </div>
       </div>
 
-      {/* Receipt Container */}
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
-        <div
-          ref={contentRef}
-          className="p-4 sm:p-6 md:p-8 bg-white overflow-x-auto"
-          dangerouslySetInnerHTML={{ __html: getPreviewHTML() }}
-        />
-      </div>
+      {/* Main Content: Info on left, Receipt on right */}
+      <div className="grid gap-4 lg:grid-cols-2 items-start">
+        {/* Left: Info Cards */}
+        <div className="space-y-3">
+          <div className="grid grid-cols-2 md:grid-cols-2 gap-3">
+            <div className="bg-white p-4 rounded-lg border border-gray-200">
+              <p className="text-xs text-gray-600 font-semibold uppercase mb-2">Customer</p>
+              <p className="text-sm font-medium text-gray-900">{receipt.customer_name}</p>
+              <p className="text-xs text-gray-500 mt-1 truncate">{receipt.customer_email}</p>
+            </div>
 
-      {/* Receipt Info Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-        <div className="bg-white p-4 sm:p-6 rounded-lg border border-gray-200">
-          <h3 className="text-xs sm:text-sm font-semibold text-gray-600 mb-2">Customer</h3>
-          <p className="text-sm sm:text-base font-medium text-gray-900 truncate">{receipt.customer_name}</p>
-          <p className="text-xs sm:text-sm text-gray-600 truncate">{receipt.customer_email}</p>
+            <div className="bg-white p-4 rounded-lg border border-gray-200">
+              <p className="text-xs text-gray-600 font-semibold uppercase mb-2">Total</p>
+              <p className="text-lg font-bold text-blue-600">${receipt.total?.toFixed(2) || '0.00'}</p>
+            </div>
+
+            <div className="bg-white p-4 rounded-lg border border-gray-200">
+              <p className="text-xs text-gray-600 font-semibold uppercase mb-2">Items</p>
+              <p className="text-lg font-bold text-gray-900">{receipt.items?.length || 0}</p>
+            </div>
+
+            <div className="bg-white p-4 rounded-lg border border-gray-200">
+              <p className="text-xs text-gray-600 font-semibold uppercase mb-2">Date</p>
+              <p className="text-sm font-medium text-gray-900">
+                {new Date(receipt.created_at).toLocaleDateString()}
+              </p>
+            </div>
+          </div>
         </div>
 
-        <div className="bg-white p-4 sm:p-6 rounded-lg border border-gray-200">
-          <h3 className="text-xs sm:text-sm font-semibold text-gray-600 mb-2">Amount</h3>
-          <p className="text-sm sm:text-base font-medium text-gray-900">${receipt.total?.toFixed(2) || '0.00'}</p>
-          <p className="text-xs sm:text-sm text-gray-600">Total</p>
-        </div>
-
-        <div className="bg-white p-4 sm:p-6 rounded-lg border border-gray-200">
-          <h3 className="text-xs sm:text-sm font-semibold text-gray-600 mb-2">Date</h3>
-          <p className="text-sm sm:text-base font-medium text-gray-900">
-            {new Date(receipt.created_at).toLocaleDateString()}
-          </p>
-          <p className="text-xs sm:text-sm text-gray-600">{new Date(receipt.created_at).toLocaleTimeString()}</p>
+        {/* Right: Receipt Content */}
+        <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+          <div className="p-4 md:p-8 overflow-x-auto">
+            <iframe
+              ref={iframeRef}
+              title="Receipt preview"
+              className="w-full border-0 rounded-md bg-white"
+              style={{ minHeight: '600px' }}
+              srcDoc={getPreviewHTML()}
+            />
+          </div>
         </div>
       </div>
     </div>

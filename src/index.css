@@ -1,1 +1,42 @@
 @import "tailwindcss";
+
+@layer components {
+  /* Header Section */
+  .template-builder-header {
+    @apply bg-gradient-to-r from-blue-50 to-indigo-50 border-b border-indigo-200 px-8 py-5;
+  }
+
+  /* Content Area */
+  .template-builder-content {
+    @apply bg-gradient-to-b from-white to-gray-50;
+  }
+
+  /* Toggle Cards - Modern glassmorphism style */
+  .template-builder-toggle {
+    @apply bg-gradient-to-br from-blue-50 to-indigo-50 backdrop-blur-sm border border-blue-200 rounded-lg p-5 transition-all duration-300 hover:border-blue-300 hover:-translate-y-0.5 hover:shadow-md;
+  }
+
+  /* Nested Content */
+  .template-builder-nested {
+    @apply bg-gradient-to-r from-blue-50/30 to-gray-50/20 border-l-4 border-indigo-300 rounded-r-lg p-4 pl-5 mt-3;
+  }
+
+  /* Preview Section */
+  .template-builder-preview {
+    @apply bg-gradient-to-br from-gray-50 to-gray-100;
+  }
+
+  /* Tab buttons */
+  .template-builder-tab-active {
+    @apply text-xs font-semibold px-3 py-1.5 rounded-full bg-blue-600 text-white shadow-sm;
+  }
+
+  .template-builder-tab-inactive {
+    @apply text-xs font-semibold px-3 py-1.5 rounded-full text-gray-600 hover:bg-gray-100;
+  }
+
+  /* Dialog Container */
+  .template-builder-dialog {
+    @apply rounded-2xl overflow-hidden shadow-2xl;
+  }
+}

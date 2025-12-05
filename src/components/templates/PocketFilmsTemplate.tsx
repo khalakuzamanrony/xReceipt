@@ -97,9 +97,10 @@ export default function PocketFilmsTemplate({ open, onClose, onSave }: PocketFil
     }
     
     .invoice-number {
-      font-size: 14px;
-      color: #666;
+      font-size: 12px;
+      color: #999;
       margin-bottom: 20px;
+      font-weight: 400;
     }
     
     .dates-grid {
@@ -395,68 +396,113 @@ export default function PocketFilmsTemplate({ open, onClose, onSave }: PocketFil
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="max-w-2xl">
-        <DialogHeader>
-          <DialogTitle>Create Pocket Films Invoice Template</DialogTitle>
+      <DialogContent className="max-w-7xl bg-white h-[90vh] flex flex-col p-0">
+        {/* Header */}
+        <DialogHeader className="border-b border-gray-200 px-8 py-6">
+          <div className="flex flex-col gap-1">
+            <DialogTitle className="text-2xl font-bold text-gray-900">Create Pocket Films Invoice Template</DialogTitle>
+            <p className="text-sm text-gray-500">Customize your invoice template with company branding</p>
+          </div>
         </DialogHeader>
 
-        <div className="space-y-6 py-4">
-          {/* Preview */}
-          <div className="border rounded-lg bg-gray-50 p-4 max-h-96 overflow-y-auto">
-            <div
-              dangerouslySetInnerHTML={{ __html: generateTemplate() }}
-              className="bg-white"
-            />
-          </div>
+        <div className="flex flex-1 overflow-hidden">
+          {/* Left Column - Inputs (35%) */}
+          <div className="w-[35%] border-r border-gray-200 overflow-y-auto bg-white">
+            <div className="px-8 py-6 space-y-6">
+              {/* Section Header */}
+              <div className="pb-4 border-b border-gray-200">
+                <h3 className="text-sm font-bold text-gray-900 uppercase tracking-wide">Company Details</h3>
+                <p className="text-xs text-gray-500 mt-1">Add your company name and logo</p>
+              </div>
 
-          {/* Configuration */}
-          <div className="space-y-4 border-t pt-4">
-            <div className="space-y-2">
-              <Label htmlFor="company-name">Company Name</Label>
-              <Input
-                id="company-name"
-                value={companyName}
-                onChange={e => setCompanyName(e.target.value)}
-                placeholder="Enter company name"
-              />
-            </div>
+              {/* Form Fields */}
+              <div className="space-y-5">
+                {/* Company Name */}
+                <div className="space-y-2">
+                  <Label htmlFor="company-name" className="text-sm font-semibold text-gray-900">
+                    Company Name <span className="text-red-500">*</span>
+                  </Label>
+                  <Input
+                    id="company-name"
+                    value={companyName}
+                    onChange={e => setCompanyName(e.target.value)}
+                    placeholder="e.g., Pocket Films"
+                    className="w-full"
+                  />
+                </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="logo-url">Logo URL</Label>
-              <Input
-                id="logo-url"
-                value={logoUrl}
-                onChange={e => setLogoUrl(e.target.value)}
-                placeholder="Enter logo image URL"
-              />
-              {logoUrl && (
-                <div className="mt-2 p-2 bg-gray-100 rounded flex items-center gap-2">
-                  <img src={logoUrl} alt="Logo preview" className="h-12 w-12 object-contain" />
-                  <span className="text-sm text-gray-600">Logo preview</span>
+                {/* Logo URL */}
+                <div className="space-y-2">
+                  <Label htmlFor="logo-url" className="text-sm font-semibold text-gray-900">
+                    Logo URL
+                  </Label>
+                  <Input
+                    id="logo-url"
+                    type="url"
+                    value={logoUrl}
+                    onChange={e => setLogoUrl(e.target.value)}
+                    placeholder="https://example.com/logo.png"
+                    className="w-full"
+                  />
+                  {logoUrl && (
+                    <div className="mt-3 p-4 bg-blue-50 border border-blue-200 rounded-lg flex items-center gap-3">
+                      <img 
+                        src={logoUrl} 
+                        alt="Logo preview" 
+                        className="h-12 w-12 object-contain rounded border border-blue-300 bg-white p-1" 
+                        onError={(e) => {
+                          e.currentTarget.src = 'https://via.placeholder.com/48?text=Logo'
+                        }}
+                      />
+                      <span className="text-xs text-gray-600 flex-1">Logo preview</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Error Message */}
+              {error && (
+                <div className="p-4 bg-red-50 border border-red-200 rounded-lg space-y-2">
+                  <p className="text-sm font-semibold text-red-900">Error</p>
+                  <p className="text-sm text-red-700">{error}</p>
                 </div>
               )}
             </div>
+          </div>
 
-            {error && (
-              <div className="p-3 bg-red-100 border border-red-400 text-red-700 rounded text-sm">
-                {error}
+          {/* Right Column - Preview (65%) */}
+          <div className="w-[65%] bg-gray-50 overflow-y-auto">
+            <div className="px-8 py-6 h-full">
+              <div className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden h-full">
+                <div className="p-4 overflow-y-auto h-full">
+                  {/* Use iframe so template CSS is sandboxed and cannot override app layout */}
+                  <iframe
+                    title="Pocket Films template preview"
+                    srcDoc={generateTemplate()}
+                    className="w-full h-[640px] border-0 rounded-md bg-white"
+                  />
+                </div>
               </div>
-            )}
+            </div>
           </div>
+        </div>
 
-          {/* Actions */}
-          <div className="flex gap-3 justify-end border-t pt-4">
-            <Button variant="outline" onClick={onClose}>
-              Cancel
-            </Button>
-            <Button
-              onClick={handleSave}
-              disabled={loading}
-              className="bg-blue-600 hover:bg-blue-700 text-white"
-            >
-              {loading ? 'Saving...' : 'Save Template'}
-            </Button>
-          </div>
+        {/* Footer Actions */}
+        <div className="border-t border-gray-200 px-8 py-4 flex gap-3 justify-end bg-gray-50">
+          <Button 
+            variant="outline" 
+            onClick={onClose}
+            className="px-6 py-2 text-sm font-medium"
+          >
+            Cancel
+          </Button>
+          <Button
+            onClick={handleSave}
+            disabled={loading}
+            className="px-6 py-2 text-sm font-medium"
+          >
+            {loading ? 'Saving...' : 'Save Template'}
+          </Button>
         </div>
       </DialogContent>
     </Dialog>

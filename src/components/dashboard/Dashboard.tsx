@@ -4,7 +4,7 @@ import { adminService } from '@/services/adminService'
 import { productService } from '@/services/productService'
 import { categoryService } from '@/services/categoryService'
 import { templateService } from '@/services/templateService'
-import { Users, Package, FolderOpen, FileCode, TrendingUp } from 'lucide-react'
+import { Users, Package, FolderOpen, FileCode } from 'lucide-react'
 
 export default function Dashboard() {
   const [stats, setStats] = useState({
@@ -55,17 +55,6 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-start gap-3">
-        <div className="p-3 bg-blue-100 rounded-lg">
-          <TrendingUp size={24} className="text-blue-600" />
-        </div>
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
-          <p className="text-gray-600 mt-1">Overview of your receipt system</p>
-        </div>
-      </div>
-
       {/* Error Message */}
       {error && (
         <div className="bg-red-50 border-l-4 border-red-500 text-red-700 px-4 py-4 rounded-lg">

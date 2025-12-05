@@ -5,12 +5,13 @@ import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Label } from '@/components/ui/Label'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/Dialog'
-import { Plus, Edit, Trash2, AlertCircle, FolderOpen } from 'lucide-react'
+import { Plus, Edit, Trash2, AlertCircle, FolderOpen, Search } from 'lucide-react'
 
 export default function CategoryList() {
   const [categories, setCategories] = useState<Category[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [searchTerm, setSearchTerm] = useState('')
   const [showForm, setShowForm] = useState(false)
   const [selectedCategory, setSelectedCategory] = useState<Category | null>(null)
   const [formData, setFormData] = useState({
@@ -90,12 +91,21 @@ export default function CategoryList() {
     }
   }
 
+  const filteredCategories = categories.filter(
+    (category) =>
+      category.name.toLowerCase().includes(searchTerm.toLowerCase())
+  )
+
   const getRootCategories = () => {
-    return categories.filter(c => !c.parent_id)
+    return filteredCategories.filter(c => !c.parent_id)
   }
 
   const getChildCategories = (parentId: string) => {
-    return categories.filter(c => c.parent_id === parentId)
+    return filteredCategories.filter(c => c.parent_id === parentId)
+  }
+
+  const getParentCategoryName = (parentId: string) => {
+    return categories.find(c => c.id === parentId)?.name || 'Unknown'
   }
 
   if (loading) {
@@ -108,20 +118,17 @@ export default function CategoryList() {
   }
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex justify-between items-start gap-4">
-        <div className="flex items-start gap-3">
-          <div className="p-3 bg-blue-100 rounded-lg">
-            <FolderOpen size={24} className="text-blue-600" />
-          </div>
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900">Categories</h1>
-            <p className="text-gray-600 mt-1">Organize your products with categories</p>
-          </div>
+    <div className="space-y-4">
+      {/* Header with Title and Buttons */}
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-white p-4 rounded-lg border border-gray-200">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Categories</h1>
+          <p className="text-sm text-gray-500 mt-1">Manage your product categories</p>
         </div>
-        <Button onClick={handleAddNew} size="lg">
-          <Plus size={20} />
+
+        {/* Add Button */}
+        <Button onClick={handleAddNew} size="sm">
+          <Plus size={16} />
           Add Category
         </Button>
       </div>
@@ -137,19 +144,35 @@ export default function CategoryList() {
         </div>
       )}
 
+      {/* Search Bar */}
+      <div className="flex flex-col sm:flex-row gap-3">
+        <div className="flex-1 bg-white rounded-lg border border-gray-200 p-3">
+          <div className="flex items-center gap-2">
+            <Search size={18} className="text-gray-400" />
+            <Input
+              type="text"
+              placeholder="Search categories..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="flex-1 border-0 focus:ring-0 p-0"
+            />
+          </div>
+        </div>
+      </div>
+
       {/* Category Form Modal */}
       {showForm && (
         <Dialog open={true} onOpenChange={setShowForm}>
-          <DialogContent className="max-w-md">
-            <DialogHeader>
-              <DialogTitle>
+          <DialogContent className="max-w-md bg-white">
+            <DialogHeader className="border-b border-gray-200 pb-4">
+              <DialogTitle className="text-xl font-bold text-gray-900">
                 {selectedCategory ? 'Edit Category' : 'Add New Category'}
               </DialogTitle>
             </DialogHeader>
 
-            <form onSubmit={handleSubmit} className="space-y-4">
+            <form onSubmit={handleSubmit} className="space-y-4 py-4">
               <div className="space-y-2">
-                <Label htmlFor="name">Category Name *</Label>
+                <Label htmlFor="name" className="text-sm font-semibold text-gray-900">Category Name *</Label>
                 <Input
                   id="name"
                   type="text"
@@ -161,12 +184,12 @@ export default function CategoryList() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="parent">Parent Category (Optional)</Label>
+                <Label htmlFor="parent" className="text-sm font-semibold text-gray-900">Parent Category (Optional)</Label>
                 <select
                   id="parent"
                   value={formData.parent_id}
                   onChange={(e) => setFormData({ ...formData, parent_id: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full h-10 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm text-gray-900"
                 >
                   <option value="">No parent (Root category)</option>
                   {categories
@@ -179,16 +202,20 @@ export default function CategoryList() {
                 </select>
               </div>
 
-              <DialogFooter className="gap-3">
+              <DialogFooter className="gap-3 border-t border-gray-200 pt-4 flex justify-end">
                 <Button
                   type="button"
                   variant="outline"
                   onClick={() => setShowForm(false)}
+                  className="px-4 py-2"
                 >
                   Cancel
                 </Button>
-                <Button type="submit">
-                  {selectedCategory ? 'Update' : 'Create'} Category
+                <Button 
+                  type="submit"
+                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white"
+                >
+                  {selectedCategory ? 'Update' : 'Create'}
                 </Button>
               </DialogFooter>
             </form>
@@ -196,87 +223,78 @@ export default function CategoryList() {
         </Dialog>
       )}
 
-      {/* Categories List */}
-      {categories.length === 0 ? (
-        <div className="bg-white rounded-xl shadow-md overflow-hidden border border-gray-200">
-          <div className="text-center py-16 px-4">
-            <div className="inline-flex items-center justify-center w-16 h-16 bg-blue-100 rounded-full mb-4">
-              <FolderOpen size={32} className="text-blue-600" />
-            </div>
-            <p className="text-gray-600 text-lg font-medium">No categories yet</p>
-            <p className="text-gray-500 text-sm mt-2">Create your first category to get started.</p>
-            <Button onClick={handleAddNew} className="mt-6">
-              <Plus size={18} />
-              Create First Category
-            </Button>
-          </div>
+      {/* Categories Table */}
+      {filteredCategories.length === 0 ? (
+        <div className="bg-white rounded-lg border border-gray-200 text-center py-12">
+          <FolderOpen size={32} className="text-gray-400 mx-auto mb-3" />
+          <p className="text-gray-600 font-medium">
+            {searchTerm ? 'No categories found' : 'No categories yet'}
+          </p>
+          <p className="text-gray-500 text-sm mt-1">
+            {searchTerm
+              ? 'Try adjusting your search terms'
+              : 'Create your first category to get started.'}
+          </p>
         </div>
       ) : (
-        <div className="space-y-3">
-          {getRootCategories().map((category) => {
-            const children = getChildCategories(category.id)
-            return (
-              <div key={category.id} className="bg-white rounded-lg border border-gray-200 overflow-hidden hover:shadow-md transition-shadow">
-                <div className="p-4 flex justify-between items-center">
-                  <div className="flex-1">
-                    <h3 className="font-semibold text-gray-900">{category.name}</h3>
-                    {children.length > 0 && (
-                      <p className="text-xs text-gray-500 mt-1">
-                        {children.length} subcategory{children.length !== 1 ? 'ies' : ''}
-                      </p>
-                    )}
-                  </div>
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => handleEdit(category)}
-                      className="p-2 hover:bg-blue-100 text-blue-600 rounded-lg transition"
-                      title="Edit category"
-                    >
-                      <Edit size={18} />
-                    </button>
-                    <button
-                      onClick={() => handleDelete(category.id)}
-                      className="p-2 hover:bg-red-100 text-red-600 rounded-lg transition"
-                      title="Delete category"
-                    >
-                      <Trash2 size={18} />
-                    </button>
-                  </div>
-                </div>
-
-                {/* Child Categories */}
-                {children.length > 0 && (
-                  <div className="bg-gray-50 border-t border-gray-200 divide-y divide-gray-200">
-                    {children.map((child) => (
-                      <div key={child.id} className="p-4 pl-8 flex justify-between items-center hover:bg-gray-100 transition">
-                        <div className="flex-1">
-                          <p className="text-sm font-medium text-gray-700">
-                            └ {child.name}
-                          </p>
-                        </div>
-                        <div className="flex gap-2">
-                          <button
-                            onClick={() => handleEdit(child)}
-                            className="p-2 hover:bg-blue-100 text-blue-600 rounded-lg transition"
-                            title="Edit category"
+        <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead className="bg-gray-50 border-b border-gray-200">
+                <tr>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Name</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Parent Category</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Subcategories</th>
+                  <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600 uppercase">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-200">
+                {filteredCategories.map((category) => {
+                  const children = getChildCategories(category.id)
+                  return (
+                    <tr key={category.id} className="hover:bg-gray-50 transition-colors">
+                      <td className="px-4 py-3">
+                        <p className="text-sm font-medium text-gray-900">
+                          {category.parent_id ? '└ ' : ''}{category.name}
+                        </p>
+                      </td>
+                      <td className="px-4 py-3">
+                        <p className="text-sm text-gray-600">
+                          {category.parent_id ? getParentCategoryName(category.parent_id) : '—'}
+                        </p>
+                      </td>
+                      <td className="px-4 py-3">
+                        <p className="text-sm text-gray-600">
+                          {children.length > 0 ? `${children.length} item${children.length !== 1 ? 's' : ''}` : '—'}
+                        </p>
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex gap-2 justify-end">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleEdit(category)}
+                            title="Edit"
                           >
-                            <Edit size={16} />
-                          </button>
-                          <button
-                            onClick={() => handleDelete(child.id)}
-                            className="p-2 hover:bg-red-100 text-red-600 rounded-lg transition"
-                            title="Delete category"
+                            <Edit size={14} />
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleDelete(category.id)}
+                            className="text-red-600 hover:text-red-700"
+                            title="Delete"
                           >
-                            <Trash2 size={16} />
-                          </button>
+                            <Trash2 size={14} />
+                          </Button>
                         </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )
-          })}
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
     </div>

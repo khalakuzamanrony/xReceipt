@@ -19,7 +19,7 @@ export default function ReceiptPreviewModal({
   template,
   onClose,
 }: ReceiptPreviewModalProps) {
-  const contentRef = useRef<HTMLDivElement>(null)
+  const iframeRef = useRef<HTMLIFrameElement>(null)
   const [isDownloading, setIsDownloading] = useState(false)
 
   const getPreviewHTML = () => {
@@ -63,6 +63,9 @@ export default function ReceiptPreviewModal({
       .replace(/{{DATE}}/g, new Date(receipt.created_at).toLocaleDateString())
       .replace(/{{CUSTOMER_NAME}}/g, receipt.customer_name || '')
       .replace(/{{CUSTOMER_EMAIL}}/g, receipt.customer_email || '')
+      .replace(/{{CUSTOMER_COMPANY}}/g, receipt.customer_company || '')
+      .replace(/{{CUSTOMER_PHONE}}/g, receipt.customer_phone || '')
+      .replace(/{{CUSTOMER_ADDRESS}}/g, receipt.customer_address || '')
       .replace(/{{ITEMS}}/g, itemsHTML)
       .replace(/{{TOTAL}}/g, total.toFixed(2))
       .replace(/{{SUBTOTAL}}/g, subtotal.toFixed(2))
@@ -80,12 +83,23 @@ export default function ReceiptPreviewModal({
     return html
   }
 
+  const getIframeBody = () => {
+    const iframe = iframeRef.current
+    if (!iframe) return null
+    const doc = iframe.contentDocument || iframe.contentWindow?.document
+    if (!doc) return null
+    return doc.body as HTMLElement
+  }
+
   const downloadPDF = async () => {
-    if (!contentRef.current || !receipt) return
+    if (!receipt) return
+
+    const target = getIframeBody()
+    if (!target) return
 
     try {
       setIsDownloading(true)
-      const canvas = await html2canvas(contentRef.current, {
+      const canvas = await html2canvas(target, {
         scale: 2,
         useCORS: true,
         logging: false,
@@ -111,11 +125,14 @@ export default function ReceiptPreviewModal({
   }
 
   const downloadPNG = async () => {
-    if (!contentRef.current || !receipt) return
+    if (!receipt) return
+
+    const target = getIframeBody()
+    if (!target) return
 
     try {
       setIsDownloading(true)
-      const canvas = await html2canvas(contentRef.current, {
+      const canvas = await html2canvas(target, {
         scale: 2,
         useCORS: true,
         logging: false,
@@ -144,11 +161,15 @@ export default function ReceiptPreviewModal({
         </DialogHeader>
 
         <div className="flex-1 overflow-auto px-6 py-4 bg-gray-50">
-          <div
-            ref={contentRef}
-            className="bg-white p-8 rounded-lg shadow-sm"
-            dangerouslySetInnerHTML={{ __html: getPreviewHTML() }}
-          />
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 md:p-6">
+            <iframe
+              ref={iframeRef}
+              title="Receipt preview"
+              className="w-full border-0 rounded-md bg-white"
+              style={{ minHeight: '600px' }}
+              srcDoc={getPreviewHTML()}
+            />
+          </div>
         </div>
 
         <div className="border-t px-6 py-4 flex gap-3 justify-end bg-white">

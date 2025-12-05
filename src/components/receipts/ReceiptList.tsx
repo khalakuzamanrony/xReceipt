@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import type { Receipt, ReceiptTemplate, ReceiptItem } from '@/types'
+import type { Receipt, ReceiptItem } from '@/types'
 import { receiptService } from '@/services/receiptService'
 import { templateService } from '@/services/templateService'
 import { productService } from '@/services/productService'
@@ -7,8 +7,7 @@ import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Label } from '@/components/ui/Label'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/Dialog'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
-import { Plus, AlertCircle, FileText, Search, Edit, Trash2, CheckCircle, Clock, Download, Eye, X } from 'lucide-react'
+import { Plus, AlertCircle, FileText, Search, Edit, Trash2, Eye, Clock, CheckCircle, X } from 'lucide-react'
 import ReceiptPreviewModal from './ReceiptPreviewModal'
 import ReceiptDetailsPage from './ReceiptDetailsPage'
 
@@ -31,6 +30,9 @@ export default function ReceiptList() {
   const [formData, setFormData] = useState({
     customer_name: '',
     customer_email: '',
+    customer_company: '',
+    customer_phone: '',
+    customer_address: '',
     template_id: '',
   })
 
@@ -70,6 +72,9 @@ export default function ReceiptList() {
     setFormData({
       customer_name: '',
       customer_email: '',
+      customer_company: '',
+      customer_phone: '',
+      customer_address: '',
       template_id: '',
     })
     setItems([])
@@ -78,17 +83,32 @@ export default function ReceiptList() {
     setShowForm(true)
   }
 
-  const handleEdit = (receipt: Receipt) => {
-    setSelectedReceipt(receipt)
-    setFormData({
-      customer_name: receipt.customer_name,
-      customer_email: receipt.customer_email,
-      template_id: receipt.template_id,
-    })
-    setItems([])
-    setSelectedProductId('')
-    setItemQuantity('1')
-    setShowForm(true)
+  const handleEdit = async (receipt: Receipt) => {
+    try {
+      // Fetch the full receipt with items
+      const fullReceipt = await receiptService.getReceiptById(receipt.id)
+      if (!fullReceipt) {
+        setError('Receipt not found')
+        return
+      }
+      
+      setSelectedReceipt(fullReceipt)
+      setFormData({
+        customer_name: fullReceipt.customer_name,
+        customer_email: fullReceipt.customer_email,
+        customer_company: fullReceipt.customer_company || '',
+        customer_phone: fullReceipt.customer_phone || '',
+        customer_address: fullReceipt.customer_address || '',
+        template_id: fullReceipt.template_id,
+      })
+      // Load existing items if available
+      setItems(fullReceipt.items || [])
+      setSelectedProductId('')
+      setItemQuantity('1')
+      setShowForm(true)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load receipt')
+    }
   }
 
   const addItem = () => {
@@ -153,10 +173,14 @@ export default function ReceiptList() {
       const receiptData = {
         customer_name: formData.customer_name,
         customer_email: formData.customer_email,
+        customer_company: formData.customer_company || undefined,
+        customer_phone: formData.customer_phone || undefined,
+        customer_address: formData.customer_address || undefined,
         template_id: formData.template_id,
         subtotal,
         tax,
         total: totalAmount,
+        items, // Include items in the receipt data
       }
 
       let createdReceipt: Receipt
@@ -166,8 +190,6 @@ export default function ReceiptList() {
         loadData()
       } else {
         createdReceipt = await receiptService.createReceipt(receiptData)
-        // Add items to receipt object for preview
-        createdReceipt.items = items
         setShowForm(false)
         setPreviewReceipt(createdReceipt)
         setShowPreview(true)
@@ -225,27 +247,40 @@ export default function ReceiptList() {
   }
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex justify-between items-start gap-4">
-        <div className="flex items-start gap-3">
-          <div className="p-3 bg-blue-100 rounded-lg">
-            <FileText size={24} className="text-blue-600" />
-          </div>
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900">Receipts</h1>
-            <p className="text-gray-600 mt-1">Create and manage receipts</p>
+    <div className="space-y-4">
+      {/* Header with Title and Buttons */}
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-white p-4 rounded-lg border border-gray-200">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Receipts</h1>
+          <p className="text-sm text-gray-500 mt-1">Create and manage your receipts</p>
+        </div>
+
+        {/* Add Button */}
+        <Button onClick={handleAddNew} size="sm">
+          <Plus size={16} />
+          New Receipt
+        </Button>
+      </div>
+
+      {/* Search Bar - Inline with Button */}
+      <div className="flex flex-col sm:flex-row gap-3">
+        <div className="flex-1 bg-white rounded-lg border border-gray-200 p-3">
+          <div className="flex items-center gap-2">
+            <Search size={18} className="text-gray-400" />
+            <Input
+              type="text"
+              placeholder="Search receipts..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="flex-1 border-0 focus:ring-0 p-0"
+            />
           </div>
         </div>
-        <Button onClick={handleAddNew} size="lg">
-          <Plus size={20} />
-          Create Receipt
-        </Button>
       </div>
 
       {/* Error Message */}
       {error && (
-        <div className="bg-red-50 border-l-4 border-red-500 text-red-700 px-4 py-4 rounded-lg flex gap-3">
+        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-4 rounded-lg flex gap-3">
           <AlertCircle size={20} className="flex-shrink-0 mt-0.5" />
           <div>
             <p className="font-semibold">Error</p>
@@ -254,266 +289,323 @@ export default function ReceiptList() {
         </div>
       )}
 
-      {/* Search Bar */}
-      <div className="bg-white rounded-lg shadow-sm p-4 border border-gray-200">
-        <div className="flex items-center gap-2">
-          <Search size={20} className="text-gray-400" />
-          <Input
-            type="text"
-            placeholder="Search receipts by customer name or email..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="flex-1"
-          />
-        </div>
-      </div>
-
       {/* Receipt Form Modal */}
       {showForm && (
         <Dialog open={true} onOpenChange={setShowForm}>
           <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
-              <DialogTitle>
-                {selectedReceipt ? 'Edit Receipt' : 'Create New Receipt'}
+              <DialogTitle className="text-2xl">
+                {selectedReceipt ? 'Edit Receipt' : 'New Receipt'}
               </DialogTitle>
             </DialogHeader>
 
             <form onSubmit={handleSubmit} className="space-y-6">
-              {/* Customer Info */}
-              <div className="space-y-4">
-                <h3 className="font-semibold text-gray-900">Customer Information</h3>
-                <div className="space-y-2">
-                  <Label htmlFor="customer_name">Customer Name *</Label>
+              {/* Customer Info Section */}
+              <div className="space-y-3">
+                <div>
+                  <Label htmlFor="customer_name" className="text-sm font-medium text-gray-700">Customer Name</Label>
                   <Input
                     id="customer_name"
                     type="text"
                     value={formData.customer_name}
                     onChange={(e) => setFormData({ ...formData, customer_name: e.target.value })}
-                    placeholder="Enter customer name"
+                    placeholder="John Doe"
                     required
+                    className="mt-1 border-0 bg-gray-50 focus:bg-white"
                   />
                 </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="customer_email">Customer Email *</Label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <Label htmlFor="customer_email" className="text-sm font-medium text-gray-700">Email Address</Label>
+                    <Input
+                      id="customer_email"
+                      type="email"
+                      value={formData.customer_email}
+                      onChange={(e) => setFormData({ ...formData, customer_email: e.target.value })}
+                      placeholder="john@example.com"
+                      required
+                      className="mt-1 border-0 bg-gray-50 focus:bg-white"
+                    />
+                  </div>
+
+                  <div>
+                    <Label htmlFor="customer_phone" className="text-sm font-medium text-gray-700">Phone</Label>
+                    <Input
+                      id="customer_phone"
+                      type="tel"
+                      value={formData.customer_phone}
+                      onChange={(e) => setFormData({ ...formData, customer_phone: e.target.value })}
+                      placeholder="+1 (555) 000-0000"
+                      className="mt-1 border-0 bg-gray-50 focus:bg-white"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <Label htmlFor="customer_company" className="text-sm font-medium text-gray-700">Company</Label>
                   <Input
-                    id="customer_email"
-                    type="email"
-                    value={formData.customer_email}
-                    onChange={(e) => setFormData({ ...formData, customer_email: e.target.value })}
-                    placeholder="Enter customer email"
-                    required
+                    id="customer_company"
+                    type="text"
+                    value={formData.customer_company}
+                    onChange={(e) => setFormData({ ...formData, customer_company: e.target.value })}
+                    placeholder="Client company name"
+                    className="mt-1 border-0 bg-gray-50 focus:bg-white"
+                  />
+                </div>
+
+                <div>
+                  <Label htmlFor="customer_address" className="text-sm font-medium text-gray-700">Address</Label>
+                  <Input
+                    id="customer_address"
+                    type="text"
+                    value={formData.customer_address}
+                    onChange={(e) => setFormData({ ...formData, customer_address: e.target.value })}
+                    placeholder="Street, City, ZIP"
+                    className="mt-1 border-0 bg-gray-50 focus:bg-white"
                   />
                 </div>
               </div>
 
               {/* Template Selection */}
-              <div className="space-y-4">
-                <h3 className="font-semibold text-gray-900">Receipt Template</h3>
-                <div className="space-y-2">
-                  <Label htmlFor="template">Select Template *</Label>
-                  <select
-                    id="template"
-                    value={formData.template_id}
-                    onChange={(e) => setFormData({ ...formData, template_id: e.target.value })}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900"
-                    required
-                  >
-                    <option value="">Select a template</option>
-                    {templates.map((template) => (
-                      <option key={template.id} value={template.id}>
-                        {template.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+              <div>
+                <Label htmlFor="template" className="text-sm font-medium text-gray-700">Receipt Template</Label>
+                <select
+                  id="template"
+                  value={formData.template_id}
+                  onChange={(e) => setFormData({ ...formData, template_id: e.target.value })}
+                  className="w-full mt-1 px-3 py-2 border-0 bg-gray-50 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm text-gray-900"
+                  required
+                >
+                  <option value="">Select a template</option>
+                  {templates.map((template) => (
+                    <option key={template.id} value={template.id}>
+                      {template.name}
+                    </option>
+                  ))}
+                </select>
               </div>
 
-              {/* Products Selection */}
-              <div className="space-y-4 border-t pt-4">
-                <h3 className="font-semibold text-gray-900">Add Products</h3>
-                <div className="space-y-3">
-                  <div className="grid grid-cols-3 gap-2">
-                    <div className="space-y-2">
-                      <Label htmlFor="product">Product *</Label>
+              {/* Add Products Section */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-sm font-semibold text-gray-900">Items</h3>
+                  {items.length > 0 && (
+                    <span className="text-xs font-medium text-gray-600 bg-gray-100 px-2.5 py-1 rounded-full">
+                      {items.length} {items.length === 1 ? 'item' : 'items'}
+                    </span>
+                  )}
+                </div>
+
+                {/* Items Table Header */}
+                {items.length > 0 && (
+                  <div className="grid grid-cols-12 gap-3 px-3 py-2 bg-gray-50 rounded-md">
+                    <div className="col-span-5 text-xs font-semibold text-gray-600">Product</div>
+                    <div className="col-span-2 text-xs font-semibold text-gray-600">Qty</div>
+                    <div className="col-span-3 text-xs font-semibold text-gray-600 text-right">Amount</div>
+                    <div className="col-span-2 text-xs font-semibold text-gray-600 text-right">Action</div>
+                  </div>
+                )}
+
+                {/* Items List */}
+                {items.length > 0 && (
+                  <div className="space-y-2 max-h-56 overflow-y-auto">
+                    {items.map((item) => (
+                      <div key={item.id} className="grid grid-cols-12 gap-3 items-center px-3 py-2.5 bg-gray-50 rounded-md hover:bg-gray-100 transition-colors">
+                        <div className="col-span-5">
+                          <p className="text-sm font-medium text-gray-900">{item.name}</p>
+                          <p className="text-xs text-gray-600">${item.unit_price.toFixed(2)} each</p>
+                        </div>
+                        <div className="col-span-2">
+                          <p className="text-sm font-medium text-gray-900">{item.quantity}</p>
+                        </div>
+                        <div className="col-span-3 text-right">
+                          <p className="text-sm font-semibold text-gray-900">${item.total.toFixed(2)}</p>
+                        </div>
+                        <div className="col-span-2 flex justify-end">
+                          <button
+                            type="button"
+                            onClick={() => removeItem(item.id)}
+                            className="p-1.5 text-gray-600 hover:bg-red-50 hover:text-red-600 rounded-md transition-colors"
+                            title="Remove item"
+                          >
+                            <X size={16} />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Add Item Row */}
+                <div className="bg-gray-50 rounded-md p-3 space-y-2">
+                  <div className="grid grid-cols-12 gap-2">
+                    <div className="col-span-6">
                       <select
-                        id="product"
                         value={selectedProductId}
                         onChange={(e) => setSelectedProductId(e.target.value)}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm text-gray-900"
+                        className="w-full px-3 py-2 border-0 bg-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm text-gray-900"
                       >
                         <option value="">Select product</option>
                         {products.map((product) => (
                           <option key={product.id} value={product.id}>
-                            {product.name} (${product.price})
+                            {product.name} - ${product.price.toFixed(2)}
                           </option>
                         ))}
                       </select>
                     </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="quantity">Quantity *</Label>
+                    <div className="col-span-3">
                       <Input
-                        id="quantity"
                         type="number"
                         min="1"
                         value={itemQuantity}
                         onChange={(e) => setItemQuantity(e.target.value)}
-                        placeholder="1"
-                        className="text-sm"
+                        placeholder="Qty"
+                        className="border-0 bg-white text-sm"
                       />
                     </div>
-                    <div className="flex items-end">
-                      <Button
+                    <div className="col-span-3">
+                      <button
                         type="button"
                         onClick={addItem}
-                        className="w-full"
                         disabled={!selectedProductId || !itemQuantity}
+                        className="w-full h-9 px-3 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-1"
                       >
                         <Plus size={16} />
                         Add
-                      </Button>
+                      </button>
                     </div>
                   </div>
                 </div>
+
+                {/* Total Summary */}
+                {items.length > 0 && (
+                  <div className="bg-blue-50 rounded-md p-3 flex items-center justify-between">
+                    <p className="text-sm font-medium text-gray-700">Total Amount</p>
+                    <p className="text-lg font-bold text-blue-600">${calculateTotal().toFixed(2)}</p>
+                  </div>
+                )}
+
+                {/* Empty State */}
+                {items.length === 0 && (
+                  <div className="text-center py-6 bg-gray-50 rounded-md">
+                    <p className="text-sm text-gray-600">No items added yet</p>
+                    <p className="text-xs text-gray-500 mt-1">Add products below to create receipt</p>
+                  </div>
+                )}
               </div>
 
-              {/* Items List */}
-              {items.length > 0 && (
-                <div className="space-y-3 border-t pt-4">
-                  <h3 className="font-semibold text-gray-900">Items ({items.length})</h3>
-                  <div className="space-y-2 max-h-48 overflow-y-auto">
-                    {items.map((item) => (
-                      <div key={item.id} className="flex items-center justify-between bg-gray-50 p-3 rounded-lg">
-                        <div className="flex-1">
-                          <p className="font-medium text-gray-900">{item.name}</p>
-                          <p className="text-sm text-gray-600">
-                            {item.quantity} × ${item.unit_price.toFixed(2)} = ${item.total.toFixed(2)}
-                          </p>
-                        </div>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          onClick={() => removeItem(item.id)}
-                          className="text-red-600 hover:text-red-700"
-                        >
-                          <X size={16} />
-                        </Button>
-                      </div>
-                    ))}
-                  </div>
-                  <div className="bg-blue-50 p-3 rounded-lg border border-blue-200">
-                    <p className="text-sm text-gray-600">Total Amount</p>
-                    <p className="text-2xl font-bold text-blue-600">${calculateTotal().toFixed(2)}</p>
-                  </div>
-                </div>
-              )}
-
-              <DialogFooter className="gap-3 border-t pt-4">
-                <Button
+              {/* Footer Buttons */}
+              <div className="flex justify-end gap-3 pt-2">
+                <button
                   type="button"
-                  variant="outline"
                   onClick={() => setShowForm(false)}
+                  className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200 active:bg-gray-300 transition-colors"
                 >
                   Cancel
-                </Button>
-                <Button type="submit" disabled={items.length === 0}>
-                  {selectedReceipt ? 'Update' : 'Create'} Receipt
-                </Button>
-              </DialogFooter>
+                </button>
+                <button 
+                  type="submit" 
+                  disabled={items.length === 0}
+                  className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 active:bg-blue-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  {selectedReceipt ? 'Update' : 'Create'}
+                </button>
+              </div>
             </form>
           </DialogContent>
         </Dialog>
       )}
 
-      {/* Receipts List */}
+      {/* Receipts Table */}
       {filteredReceipts.length === 0 ? (
-        <div className="bg-white rounded-xl shadow-md overflow-hidden border border-gray-200">
-          <div className="text-center py-16 px-4">
-            <div className="inline-flex items-center justify-center w-16 h-16 bg-blue-100 rounded-full mb-4">
-              <FileText size={32} className="text-blue-600" />
-            </div>
-            <p className="text-gray-600 text-lg font-medium">
-              {searchTerm ? 'No receipts found' : 'No receipts yet'}
-            </p>
-            <p className="text-gray-500 text-sm mt-2">
-              {searchTerm
-                ? 'Try adjusting your search terms'
-                : 'Create your first receipt to get started.'}
-            </p>
-            {!searchTerm && (
-              <Button onClick={handleAddNew} className="mt-6">
-                <Plus size={18} />
-                Create First Receipt
-              </Button>
-            )}
-          </div>
+        <div className="bg-white rounded-lg border border-gray-200 text-center py-12">
+          <FileText size={32} className="text-gray-400 mx-auto mb-3" />
+          <p className="text-gray-600 font-medium">
+            {searchTerm ? 'No receipts found' : 'No receipts yet'}
+          </p>
+          <p className="text-gray-500 text-sm mt-1">
+            {searchTerm
+              ? 'Try adjusting your search terms'
+              : 'Create your first receipt to get started.'}
+          </p>
         </div>
       ) : (
-        <div className="space-y-3">
-          {filteredReceipts.map((receipt) => (
-            <Card key={receipt.id} className="hover:shadow-lg transition-shadow cursor-pointer" onClick={() => {
-              setDetailsReceiptId(receipt.id)
-              setShowDetails(true)
-            }}>
-              <CardHeader>
-                <div className="flex justify-between items-start">
-                  <div className="flex-1">
-                    <CardTitle className="text-lg">{receipt.customer_name}</CardTitle>
-                    <p className="text-sm text-gray-600 mt-1">{receipt.customer_email}</p>
-                  </div>
-                  <div className={`px-3 py-1 rounded-full text-xs font-semibold flex items-center gap-1 ${getStatusBadge(receipt.status)}`}>
-                    {getStatusIcon(receipt.status)}
-                    {receipt.status.charAt(0).toUpperCase() + receipt.status.slice(1)}
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <div className="grid grid-cols-2 gap-4 text-sm">
-                  <div>
-                    <p className="text-gray-600">Template</p>
-                    <p className="font-medium text-gray-900">{getTemplateName(receipt.template_id)}</p>
-                  </div>
-                  <div>
-                    <p className="text-gray-600">Status</p>
-                    <p className="font-medium text-gray-900">{receipt.status}</p>
-                  </div>
-                </div>
-                <div className="flex gap-2 pt-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => {
-                      setPreviewReceipt(receipt)
-                      setShowPreview(true)
-                    }}
-                    className="flex-1"
-                  >
-                    <Eye size={16} />
-                    Preview
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => handleEdit(receipt)}
-                    className="flex-1"
-                  >
-                    <Edit size={16} />
-                    Edit
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => handleDelete(receipt.id)}
-                    className="flex-1 text-red-600 hover:text-red-700"
-                  >
-                    <Trash2 size={16} />
-                    Delete
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
+        <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead className="bg-gray-50 border-b border-gray-200">
+                <tr>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Customer</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Email</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Template</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Status</th>
+                  <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600 uppercase">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-200">
+                {filteredReceipts.map((receipt) => (
+                  <tr key={receipt.id} className="hover:bg-gray-50 transition-colors">
+                    <td className="px-4 py-3">
+                      <p 
+                        className="text-sm font-medium text-gray-900 cursor-pointer hover:text-blue-600" 
+                        onClick={() => {
+                          setDetailsReceiptId(receipt.id)
+                          setShowDetails(true)
+                        }}
+                      >
+                        {receipt.customer_name}
+                      </p>
+                    </td>
+                    <td className="px-4 py-3">
+                      <p className="text-sm text-gray-600">{receipt.customer_email}</p>
+                    </td>
+                    <td className="px-4 py-3">
+                      <p className="text-sm text-gray-600">{getTemplateName(receipt.template_id)}</p>
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold ${getStatusBadge(receipt.status)}`}>
+                        {getStatusIcon(receipt.status)}
+                        {receipt.status.charAt(0).toUpperCase() + receipt.status.slice(1)}
+                      </div>
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex gap-2 justify-end">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            setPreviewReceipt(receipt)
+                            setShowPreview(true)
+                          }}
+                          title="Preview"
+                        >
+                          <Eye size={14} />
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleEdit(receipt)}
+                          title="Edit"
+                        >
+                          <Edit size={14} />
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleDelete(receipt.id)}
+                          className="text-red-600 hover:text-red-700"
+                          title="Delete"
+                        >
+                          <Trash2 size={14} />
+                        </Button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
 

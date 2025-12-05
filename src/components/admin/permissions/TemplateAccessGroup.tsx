@@ -60,79 +60,78 @@ export default function TemplateAccessGroup({
         <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded">Optional</span>
       </div>
 
-      <div className="space-y-4">
-        {/* View Templates Checkbox */}
-        <div className="flex items-center gap-3">
-          <Checkbox
-            id="can_view_templates"
-            checked={permissions.can_view_templates || false}
-            onCheckedChange={(checked) => handleCheckboxChange('can_view_templates', checked as boolean)}
-          />
-          <Label htmlFor="can_view_templates" className="cursor-pointer font-medium">
-            View Receipt Templates
-          </Label>
-        </div>
+      <div className="space-y-3">
+        {/* Inline permission toggles */}
+        <div className="flex flex-wrap items-center gap-4 text-sm">
+          <div className="flex items-center gap-2">
+            <Checkbox
+              id="can_view_templates"
+              checked={permissions.can_view_templates || false}
+              onCheckedChange={(checked) => handleCheckboxChange('can_view_templates', checked as boolean)}
+            />
+            <Label htmlFor="can_view_templates" className="cursor-pointer font-medium">
+              View
+            </Label>
+          </div>
 
-        {/* Conditional: Create & Assign Template Checkboxes */}
-        {permissions.can_view_templates && (
-          <div className="ml-6 space-y-4 pt-2 border-l-2 border-blue-200 pl-4">
-            <div className="flex items-center gap-3">
-              <Checkbox
-                id="can_create_templates"
-                checked={permissions.can_create_templates || false}
-                onCheckedChange={(checked) => handleCheckboxChange('can_create_templates', checked as boolean)}
-              />
-              <Label htmlFor="can_create_templates" className="cursor-pointer font-medium">
-                Create Receipt Template
-              </Label>
-            </div>
+          {permissions.can_view_templates && (
+            <>
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  id="can_create_templates"
+                  checked={permissions.can_create_templates || false}
+                  onCheckedChange={(checked) => handleCheckboxChange('can_create_templates', checked as boolean)}
+                />
+                <Label htmlFor="can_create_templates" className="cursor-pointer font-medium">
+                  Create
+                </Label>
+              </div>
 
-            {/* Assign Templates Section */}
-            <div className="space-y-3">
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2">
                 <Checkbox
                   id="can_assign_templates"
                   checked={permissions.can_assign_templates || false}
                   onCheckedChange={(checked) => handleCheckboxChange('can_assign_templates', checked as boolean)}
                 />
                 <Label htmlFor="can_assign_templates" className="cursor-pointer font-medium">
-                  Assign Specific Templates
+                  Assign specific
                 </Label>
               </div>
+            </>
+          )}
+        </div>
 
-              {permissions.can_assign_templates && (
-                <div className="ml-6 space-y-2">
-                  {loading ? (
-                    <div className="flex items-center gap-2 text-gray-600 text-sm">
-                      <div className="animate-spin h-4 w-4 border-2 border-blue-500 border-t-transparent rounded-full"></div>
-                      Loading templates...
-                    </div>
-                  ) : error ? (
-                    <div className="flex items-center gap-2 text-red-600 text-sm bg-red-50 p-2 rounded">
-                      <AlertCircle size={16} />
-                      {error}
-                    </div>
-                  ) : templates.length === 0 ? (
-                    <div className="text-gray-500 text-sm">No templates available</div>
-                  ) : (
-                    <div className="space-y-2 max-h-48 overflow-y-auto border border-gray-200 rounded-lg p-3 bg-gray-50">
-                      {templates.map((template) => (
-                        <div key={template.id} className="flex items-center gap-2">
-                          <Checkbox
-                            id={`template-${template.id}`}
-                            checked={(permissions.assigned_template_ids || []).includes(template.id)}
-                            onCheckedChange={(checked) => handleTemplateSelect(template.id, checked as boolean)}
-                          />
-                          <Label htmlFor={`template-${template.id}`} className="cursor-pointer text-sm flex-1">
-                            {template.name}
-                          </Label>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
+        {/* Assign Templates List */}
+        {permissions.can_view_templates && permissions.can_assign_templates && (
+          <div className="mt-2 space-y-2">
+            {loading ? (
+              <div className="flex items-center gap-2 text-gray-600 text-sm">
+                <div className="animate-spin h-4 w-4 border-2 border-blue-500 border-t-transparent rounded-full"></div>
+                Loading templates...
+              </div>
+            ) : error ? (
+              <div className="flex items-center gap-2 text-red-600 text-sm bg-red-50 p-2 rounded">
+                <AlertCircle size={16} />
+                {error}
+              </div>
+            ) : templates.length === 0 ? (
+              <div className="text-gray-500 text-sm">No templates available</div>
+            ) : (
+              <div className="space-y-2 max-h-48 overflow-y-auto border border-gray-200 rounded-lg p-3 bg-gray-50">
+                {templates.map((template) => (
+                  <div key={template.id} className="flex items-center gap-2">
+                    <Checkbox
+                      id={`template-${template.id}`}
+                      checked={(permissions.assigned_template_ids || []).includes(template.id)}
+                      onCheckedChange={(checked) => handleTemplateSelect(template.id, checked as boolean)}
+                    />
+                    <Label htmlFor={`template-${template.id}`} className="cursor-pointer text-sm flex-1">
+                      {template.name}
+                    </Label>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
       </div>

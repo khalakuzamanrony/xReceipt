@@ -7,6 +7,7 @@ import ProductList from '@/components/products/ProductList'
 import CategoryList from '@/components/categories/CategoryList'
 import ReceiptList from '@/components/receipts/ReceiptList'
 import TemplateList from '@/components/templates/TemplateList'
+import TemplateBuilderPage from '@/components/templates/TemplateBuilderPage'
 
 export default function App() {
   const [currentPage, setCurrentPage] = useState('admin')
@@ -18,7 +19,9 @@ export default function App() {
       case 'receipts':
         return <ReceiptList />
       case 'templates':
-        return <TemplateList />
+        return <TemplateList onNavigateToBuilder={() => setCurrentPage('template-builder')} />
+      case 'template-builder':
+        return <TemplateBuilderPage onBack={() => setCurrentPage('templates')} />
       case 'products':
         return <ProductList />
       case 'categories':
@@ -29,30 +32,33 @@ export default function App() {
     }
   }
 
+  const getPageTitle = () => {
+    const titles: Record<string, string> = {
+      'dashboard': 'Dashboard',
+      'receipts': 'Receipts',
+      'templates': 'Receipt Templates',
+      'template-builder': 'Template Builder',
+      'products': 'Products',
+      'categories': 'Categories',
+      'admin': 'Admin',
+    }
+    return titles[currentPage] || currentPage.charAt(0).toUpperCase() + currentPage.slice(1)
+  }
+
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="h-screen flex flex-col bg-gray-50">
       {/* Sidebar Navigation */}
       <Sidebar currentPage={currentPage} onPageChange={setCurrentPage} />
 
       {/* Main Content */}
-      <div className="md:ml-64">
+      <div className="md:ml-64 flex flex-col flex-1 overflow-hidden">
         {/* Header */}
-        <Header
-          title={currentPage.charAt(0).toUpperCase() + currentPage.slice(1)}
-          description="Manage your receipt system"
-        />
+        <Header title={getPageTitle()} />
 
         {/* Page Content */}
-        <main className="px-4 md:px-8 py-8">
+        <main className="flex-1 overflow-auto px-6 md:px-8 py-6">
           {renderPage()}
         </main>
-
-        {/* Footer */}
-        <footer className="border-t border-gray-200 bg-white mt-12">
-          <div className="px-4 md:px-8 py-6 text-center text-gray-600 text-sm">
-            <p>© 2025 xReceipt. All rights reserved.</p>
-          </div>
-        </footer>
       </div>
     </div>
   )
