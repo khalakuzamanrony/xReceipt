@@ -218,6 +218,19 @@ export default function AdminForm({ admin, onClose }: AdminFormProps) {
                     />
                   </div>
                 </div>
+
+                {!admin && (
+                  <div className="space-y-2">
+                    <Label htmlFor="password">Password (for Supabase user setup)</Label>
+                    <Input
+                      id="password"
+                      type="password"
+                      name="password"
+                      placeholder="Temporary password for this admin"
+                      onChange={handleInputChange}
+                    />
+                  </div>
+                )}
               </CardContent>
             </Card>
 

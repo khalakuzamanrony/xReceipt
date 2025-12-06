@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import { Menu, X, LayoutDashboard, Package, Folder, FileText, Users, Settings, Zap } from 'lucide-react'
+import { Menu, X, LayoutDashboard, Package, Folder, FileText, Users, Settings } from 'lucide-react'
+import { useAuth } from '@/contexts/AuthContext'
 
 interface SidebarProps {
   currentPage: string
@@ -8,16 +9,42 @@ interface SidebarProps {
 
 export default function Sidebar({ currentPage, onPageChange }: SidebarProps) {
   const [isOpen, setIsOpen] = useState(false)
+  const { role, permissions } = useAuth()
 
-  const menuItems = [
+  const baseMenuItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { id: 'receipts', label: 'Receipts', icon: FileText },
     { id: 'templates', label: 'Receipt Templates', icon: Settings },
-    { id: 'template-builder', label: 'Template Builder', icon: Zap },
     { id: 'products', label: 'Products', icon: Package },
     { id: 'categories', label: 'Categories', icon: Folder },
     { id: 'admin', label: 'Admin', icon: Users },
   ]
+
+  const menuItems = baseMenuItems.filter((item) => {
+    if (item.id === 'dashboard') return true
+
+    // Super admin can see everything
+    if (role === 'super_admin') return true
+
+    // No permissions loaded yet for regular admins
+    if (!permissions) return false
+
+    switch (item.id) {
+      case 'receipts':
+        return permissions.can_view_receipts
+      case 'templates':
+        return permissions.can_view_templates
+      case 'products':
+        return permissions.can_view_products
+      case 'categories':
+        return permissions.can_view_categories
+      case 'admin':
+        // Only super admins (handled above) can see this
+        return false
+      default:
+        return true
+    }
+  })
 
   const handleMenuClick = (pageId: string) => {
     onPageChange(pageId)

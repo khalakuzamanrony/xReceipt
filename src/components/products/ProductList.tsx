@@ -7,8 +7,12 @@ import { Input } from '@/components/ui/Input'
 import { Label } from '@/components/ui/Label'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/Dialog'
 import { Plus, Edit, Trash2, AlertCircle, Package, Search } from 'lucide-react'
+import { useAuth } from '@/contexts/AuthContext'
 
 export default function ProductList() {
+  const { role, permissions } = useAuth()
+  const canViewProducts = role === 'super_admin' || !!permissions?.can_view_products
+  const canCreateProducts = role === 'super_admin' || !!permissions?.can_create_products
   const [products, setProducts] = useState<Product[]>([])
   const [categories, setCategories] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
@@ -122,20 +126,48 @@ export default function ProductList() {
     )
   }
 
+  if (!canViewProducts) {
+    return (
+      <div className="bg-white rounded-lg border border-gray-200 p-8 text-center">
+        <Package size={32} className="text-gray-300 mx-auto mb-3" />
+        <p className="text-gray-800 font-semibold">You don't have access to Products</p>
+        <p className="text-gray-500 text-sm mt-1">Contact a super admin if you think this is a mistake.</p>
+      </div>
+    )
+  }
+
   return (
     <div className="space-y-4">
       {/* Header with Title and Buttons */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-white p-4 rounded-lg border border-gray-200">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Products</h1>
-          <p className="text-sm text-gray-500 mt-1">Manage your product catalog</p>
-        </div>
+      <div className="bg-white p-4 rounded-lg border border-gray-200">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">Products</h1>
+            <p className="text-sm text-gray-500 mt-1">Manage your product catalog</p>
+          </div>
 
-        {/* Add Button */}
-        <Button onClick={handleAddNew} size="sm">
-          <Plus size={16} />
-          Add Product
-        </Button>
+          {/* Search Bar */}
+          <div className="w-full sm:w-auto flex flex-col sm:flex-row gap-3 sm:items-center">
+            <div className="flex-1 sm:w-64 bg-white rounded-lg border border-gray-200 h-9 px-3 flex items-center gap-2">
+              <Search size={18} className="text-gray-400" />
+              <Input
+                type="text"
+                placeholder="Search products..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="flex-1 h-9 border-0 focus:ring-0 px-0 py-0 text-sm"
+              />
+            </div>
+
+            {/* Add Button */}
+            {canCreateProducts && (
+              <Button onClick={handleAddNew} size="sm">
+                <Plus size={16} />
+                Add Product
+              </Button>
+            )}
+          </div>
+        </div>
       </div>
 
       {/* Error Message */}
@@ -148,22 +180,6 @@ export default function ProductList() {
           </div>
         </div>
       )}
-
-      {/* Search Bar */}
-      <div className="flex flex-col sm:flex-row gap-3">
-        <div className="flex-1 bg-white rounded-lg border border-gray-200 p-3">
-          <div className="flex items-center gap-2">
-            <Search size={18} className="text-gray-400" />
-            <Input
-              type="text"
-              placeholder="Search products..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="flex-1 border-0 focus:ring-0 p-0"
-            />
-          </div>
-        </div>
-      </div>
 
       {/* Product Form Modal */}
       {showForm && (

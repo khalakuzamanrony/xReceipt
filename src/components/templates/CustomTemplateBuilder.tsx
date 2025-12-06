@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Label } from '@/components/ui/Label'
 import { Checkbox } from '@/components/ui/Checkbox'
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/Dialog'
+import { Dialog, DialogContent } from '@/components/ui/Dialog'
 import { templateService } from '@/services/templateService'
 import {
     Building2,
@@ -13,7 +13,6 @@ import {
     MapPin,
     FileText,
     Hash,
-    Calendar,
     DollarSign,
     Package,
     Image as ImageIcon,
@@ -27,6 +26,91 @@ interface CustomTemplateBuilderProps {
     isFullPage?: boolean
     isPage?: boolean
 }
+
+type LayoutVariant =
+    | 'classic'
+    | 'classic-totals-left'
+    | 'classic-notes-between'
+    | 'split-header'
+    | 'split-totals-left'
+    | 'split-totals-first'
+    | 'top-strip'
+    | 'top-strip-totals-left'
+    | 'top-strip-notes-between'
+    | 'minimal-header'
+
+type BodySectionId = 'items' | 'totals' | 'footer'
+
+type HeaderMetaModuleId = 'receiptNumber' | 'date' | 'dueDate'
+type TotalsModuleId = 'subtotal' | 'discount' | 'tax' | 'total'
+type FooterModuleId = 'notes' | 'message'
+type ItemsColumnId = 'description' | 'quantity' | 'price' | 'total'
+
+type TotalsAlignment = 'right' | 'left'
+
+interface LayoutConfig {
+    headerStyle: 'classic' | 'split-header' | 'top-strip'
+    bodyOrder: BodySectionId[]
+    totalsAlignment: TotalsAlignment
+}
+
+const LAYOUT_PRESETS: Record<LayoutVariant, LayoutConfig> = {
+    'classic': {
+        headerStyle: 'classic',
+        bodyOrder: ['items', 'totals', 'footer'],
+        totalsAlignment: 'right',
+    },
+    'classic-totals-left': {
+        headerStyle: 'classic',
+        bodyOrder: ['items', 'totals', 'footer'],
+        totalsAlignment: 'left',
+    },
+    'classic-notes-between': {
+        headerStyle: 'classic',
+        bodyOrder: ['items', 'footer', 'totals'],
+        totalsAlignment: 'right',
+    },
+    'split-header': {
+        headerStyle: 'split-header',
+        bodyOrder: ['items', 'totals', 'footer'],
+        totalsAlignment: 'right',
+    },
+    'split-totals-left': {
+        headerStyle: 'split-header',
+        bodyOrder: ['items', 'totals', 'footer'],
+        totalsAlignment: 'left',
+    },
+    'split-totals-first': {
+        headerStyle: 'split-header',
+        bodyOrder: ['totals', 'items', 'footer'],
+        totalsAlignment: 'right',
+    },
+    'top-strip': {
+        headerStyle: 'top-strip',
+        bodyOrder: ['items', 'totals', 'footer'],
+        totalsAlignment: 'right',
+    },
+    'top-strip-totals-left': {
+        headerStyle: 'top-strip',
+        bodyOrder: ['items', 'totals', 'footer'],
+        totalsAlignment: 'left',
+    },
+    'top-strip-notes-between': {
+        headerStyle: 'top-strip',
+        bodyOrder: ['items', 'footer', 'totals'],
+        totalsAlignment: 'right',
+    },
+    'minimal-header': {
+        headerStyle: 'classic',
+        bodyOrder: ['items', 'totals', 'footer'],
+        totalsAlignment: 'right',
+    },
+}
+
+const DEFAULT_HEADER_META_ORDER: HeaderMetaModuleId[] = ['receiptNumber', 'date', 'dueDate']
+const DEFAULT_TOTALS_ORDER: TotalsModuleId[] = ['subtotal', 'discount', 'tax', 'total']
+const DEFAULT_FOOTER_ORDER: FooterModuleId[] = ['notes', 'message']
+const DEFAULT_ITEMS_COLUMNS_ORDER: ItemsColumnId[] = ['description', 'quantity', 'price', 'total']
 
 interface TemplateData {
     // Template metadata
@@ -83,12 +167,18 @@ interface TemplateData {
     textColor: string
     backgroundColor: string
     fontFamily: string
+    layoutVariant: LayoutVariant
+    bodyOrder: BodySectionId[]
+    headerMetaOrder: HeaderMetaModuleId[]
+    totalsOrder: TotalsModuleId[]
+    footerOrder: FooterModuleId[]
+    itemsColumnsOrder: ItemsColumnId[]
 }
 
 export default function CustomTemplateBuilder({ open, onClose, onSave, isFullPage = false, isPage = false }: CustomTemplateBuilderProps) {
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState<string | null>(null)
-    const [activeTab, setActiveTab] = useState<'company' | 'client' | 'content' | 'style'>('company')
+    const [activeTab, setActiveTab] = useState<'company' | 'client' | 'content' | 'layout' | 'style'>('company')
 
     const [data, setData] = useState<TemplateData>({
         templateName: 'Custom Receipt Template',
@@ -137,10 +227,30 @@ export default function CustomTemplateBuilder({ open, onClose, onSave, isFullPag
         textColor: '#1f2937',
         backgroundColor: '#ffffff',
         fontFamily: 'Arial, sans-serif',
+        layoutVariant: 'classic',
+        bodyOrder: LAYOUT_PRESETS['classic'].bodyOrder,
+        headerMetaOrder: DEFAULT_HEADER_META_ORDER,
+        totalsOrder: DEFAULT_TOTALS_ORDER,
+        footerOrder: DEFAULT_FOOTER_ORDER,
+        itemsColumnsOrder: DEFAULT_ITEMS_COLUMNS_ORDER,
     })
 
     const updateData = (key: keyof TemplateData, value: any) => {
         setData(prev => ({ ...prev, [key]: value }))
+    }
+    const [draggingSection, setDraggingSection] = useState<BodySectionId | null>(null)
+    const [draggingHeaderMeta, setDraggingHeaderMeta] = useState<HeaderMetaModuleId | null>(null)
+    const [draggingTotalsModule, setDraggingTotalsModule] = useState<TotalsModuleId | null>(null)
+    const [draggingFooterModule, setDraggingFooterModule] = useState<FooterModuleId | null>(null)
+    const [draggingItemsColumn, setDraggingItemsColumn] = useState<ItemsColumnId | null>(null)
+
+    const setLayoutVariant = (variant: LayoutVariant) => {
+        const config = LAYOUT_PRESETS[variant]
+        setData(prev => ({
+            ...prev,
+            layoutVariant: variant,
+            bodyOrder: [...config.bodyOrder],
+        }))
     }
 
     const handleLogoUpload = (event: ChangeEvent<HTMLInputElement>) => {
@@ -160,6 +270,305 @@ export default function CustomTemplateBuilder({ open, onClose, onSave, isFullPag
         const hasCompanyInfo = data.companyName || data.companyEmail || data.companyPhone ||
             data.companyAddress || data.companyCity || data.companyZip ||
             data.companyWebsite || data.companyTaxId
+
+        const layoutConfig = LAYOUT_PRESETS[data.layoutVariant] ?? LAYOUT_PRESETS['classic']
+        const headerStyle = layoutConfig.headerStyle
+
+        const headerMetaOrder = data.headerMetaOrder && data.headerMetaOrder.length
+            ? data.headerMetaOrder
+            : DEFAULT_HEADER_META_ORDER
+
+        const buildHeaderMetaHTML = () => {
+            return headerMetaOrder
+                .map(moduleId => {
+                    if (moduleId === 'receiptNumber' && data.showReceiptNumber) {
+                        return `
+      <div class="meta-item">
+        <span class="meta-label">${data.receiptNumberLabel}:</span>
+        <span class="meta-value">{{RECEIPT_ID}}</span>
+      </div>
+      `
+                    }
+                    if (moduleId === 'date' && data.showDate) {
+                        return `
+      <div class="meta-item">
+        <span class="meta-label">${data.dateLabel}:</span>
+        <span class="meta-value">{{DATE}}</span>
+      </div>
+      `
+                    }
+                    if (moduleId === 'dueDate' && data.showDueDate) {
+                        return `
+      <div class="meta-item">
+        <span class="meta-label">${data.dueDateLabel}:</span>
+        <span class="meta-value">{{DUE_DATE}}</span>
+      </div>
+      `
+                    }
+                    return ''
+                })
+                .join('')
+        }
+
+        let headerAndClientHTML: string
+
+        if (headerStyle === 'split-header') {
+            headerAndClientHTML = `
+    <!-- Header Section -->
+    <div class="header header--split">
+      <div class="header-left">
+        <!-- Company Information -->
+        ${hasCompanyInfo ? `
+        <div class="company-section">
+          ${data.companyLogo ? `<img src="${data.companyLogo}" alt="Company Logo" class="company-logo" />` : ''}
+          ${data.companyName ? `<div class="company-name">${data.companyName}</div>` : ''}
+          <div class="company-details">
+            ${data.companyAddress ? `<p>${data.companyAddress}</p>` : ''}
+            ${data.companyCity || data.companyZip ? `<p>${[data.companyCity, data.companyZip].filter(Boolean).join(', ')}</p>` : ''}
+            ${data.companyEmail ? `<p>Email: ${data.companyEmail}</p>` : ''}
+            ${data.companyPhone ? `<p>Phone: ${data.companyPhone}</p>` : ''}
+            ${data.companyWebsite ? `<p>Web: ${data.companyWebsite}</p>` : ''}
+            ${data.companyTaxId ? `<p>Tax ID: ${data.companyTaxId}</p>` : ''}
+          </div>
+        </div>
+        ` : '<div class="company-section"></div>'}
+      </div>
+      <div class="header-right">
+        <!-- Client Information -->
+        ${data.showClientInfo ? `
+        <div class="client-section client-section--compact">
+          <div class="client-label">${data.clientLabel}</div>
+          <div class="client-name">{{CUSTOMER_NAME}}</div>
+          <div class="client-company">{{CUSTOMER_COMPANY}}</div>
+          <div class="client-email">{{CUSTOMER_EMAIL}}</div>
+          <div class="client-phone">{{CUSTOMER_PHONE}}</div>
+          <div class="client-address">{{CUSTOMER_ADDRESS}}</div>
+        </div>
+        ` : ''}
+        <!-- Receipt Meta Information -->
+        <div class="receipt-meta receipt-meta--compact">
+          <div class="receipt-title">Receipt</div>
+          ${buildHeaderMetaHTML()}
+        </div>
+      </div>
+    </div>
+    `
+        } else if (headerStyle === 'top-strip') {
+            headerAndClientHTML = `
+    <!-- Compact Receipt Strip -->
+    <div class="receipt-strip">
+      <div class="receipt-strip-title">Receipt</div>
+      <div class="receipt-strip-meta">
+        ${buildHeaderMetaHTML()}
+      </div>
+    </div>
+
+    <!-- Header Section: Company & Client -->
+    <div class="header header--top-layout">
+      <!-- Company Information -->
+      ${hasCompanyInfo ? `
+      <div class="company-section">
+        ${data.companyLogo ? `<img src="${data.companyLogo}" alt="Company Logo" class="company-logo" />` : ''}
+        ${data.companyName ? `<div class="company-name">${data.companyName}</div>` : ''}
+        <div class="company-details">
+          ${data.companyAddress ? `<p>${data.companyAddress}</p>` : ''}
+          ${data.companyCity || data.companyZip ? `<p>${[data.companyCity, data.companyZip].filter(Boolean).join(', ')}</p>` : ''}
+          ${data.companyEmail ? `<p>Email: ${data.companyEmail}</p>` : ''}
+          ${data.companyPhone ? `<p>Phone: ${data.companyPhone}</p>` : ''}
+          ${data.companyWebsite ? `<p>Web: ${data.companyWebsite}</p>` : ''}
+          ${data.companyTaxId ? `<p>Tax ID: ${data.companyTaxId}</p>` : ''}
+        </div>
+      </div>
+      ` : '<div class="company-section"></div>'}
+
+      <!-- Client Information -->
+      ${data.showClientInfo ? `
+      <div class="client-section client-section--compact">
+        <div class="client-label">${data.clientLabel}</div>
+        <div class="client-name">{{CUSTOMER_NAME}}</div>
+        <div class="client-company">{{CUSTOMER_COMPANY}}</div>
+        <div class="client-email">{{CUSTOMER_EMAIL}}</div>
+        <div class="client-phone">{{CUSTOMER_PHONE}}</div>
+        <div class="client-address">{{CUSTOMER_ADDRESS}}</div>
+      </div>
+      ` : ''}
+    </div>
+    `
+        } else {
+            headerAndClientHTML = `
+    <!-- Header Section -->
+    <div class="header">
+      <!-- Company Information -->
+      ${hasCompanyInfo ? `
+      <div class="company-section">
+        ${data.companyLogo ? `<img src="${data.companyLogo}" alt="Company Logo" class="company-logo" />` : ''}
+        ${data.companyName ? `<div class="company-name">${data.companyName}</div>` : ''}
+        <div class="company-details">
+          ${data.companyAddress ? `<p>${data.companyAddress}</p>` : ''}
+          ${data.companyCity || data.companyZip ? `<p>${[data.companyCity, data.companyZip].filter(Boolean).join(', ')}</p>` : ''}
+          ${data.companyEmail ? `<p>Email: ${data.companyEmail}</p>` : ''}
+          ${data.companyPhone ? `<p>Phone: ${data.companyPhone}</p>` : ''}
+          ${data.companyWebsite ? `<p>Web: ${data.companyWebsite}</p>` : ''}
+          ${data.companyTaxId ? `<p>Tax ID: ${data.companyTaxId}</p>` : ''}
+        </div>
+      </div>
+      ` : '<div class="company-section"></div>'}
+      
+      <!-- Receipt Meta Information -->
+      <div class="receipt-meta">
+        <div class="receipt-title">Receipt</div>
+        ${buildHeaderMetaHTML()}
+      </div>
+    </div>
+    
+    <!-- Client Information -->
+    ${data.showClientInfo ? `
+    <div class="client-section">
+      <div class="client-label">${data.clientLabel}</div>
+      <div class="client-name">{{CUSTOMER_NAME}}</div>
+      <div class="client-company">{{CUSTOMER_COMPANY}}</div>
+      <div class="client-email">{{CUSTOMER_EMAIL}}</div>
+      <div class="client-phone">{{CUSTOMER_PHONE}}</div>
+      <div class="client-address">{{CUSTOMER_ADDRESS}}</div>
+    </div>
+    ` : ''}
+    `
+        }
+
+        // Build body sections based on layout preset
+        const itemsColumnsOrder = data.itemsColumnsOrder && data.itemsColumnsOrder.length
+            ? data.itemsColumnsOrder
+            : DEFAULT_ITEMS_COLUMNS_ORDER
+
+        const visibleItemsColumns = itemsColumnsOrder.filter(colId => {
+            if (colId === 'description') return data.showItemDescription
+            if (colId === 'quantity') return data.showItemQuantity
+            if (colId === 'price') return data.showItemPrice
+            if (colId === 'total') return data.showItemTotal
+            return false
+        })
+
+        const itemsHeaderCellsHTML = visibleItemsColumns
+            .map(colId => {
+                if (colId === 'description') return '<th>Description</th>'
+                if (colId === 'quantity') return '<th class="text-center">Quantity</th>'
+                if (colId === 'price') return '<th class="text-right">Price</th>'
+                if (colId === 'total') return '<th class="text-right">Total</th>'
+                return ''
+            })
+            .join('')
+
+        const itemsSectionHTML = data.showItems
+            ? `
+    <!-- Items Section -->
+    <div class="items-section">
+      ${data.itemsLabel ? `<div class="items-title">${data.itemsLabel}</div>` : ''}
+      <table class="items-table">
+        <thead>
+          <tr>
+            ${itemsHeaderCellsHTML}
+          </tr>
+        </thead>
+        <tbody data-items-columns="${visibleItemsColumns.join(',')}">
+          {{ITEMS}}
+        </tbody>
+      </table>
+    </div>
+    `
+            : ''
+
+        const totalsOrder = data.totalsOrder && data.totalsOrder.length
+            ? data.totalsOrder
+            : DEFAULT_TOTALS_ORDER
+
+        const totalsRowsHTML = totalsOrder
+            .map(moduleId => {
+                if (moduleId === 'subtotal' && data.showSubtotal) {
+                    return `
+        <div class="total-row subtotal">
+          <span class="total-label">${data.subtotalLabel}</span>
+          <span class="total-value">{{SUBTOTAL}}</span>
+        </div>
+        `
+                }
+                if (moduleId === 'discount' && data.showDiscount) {
+                    return `
+        <div class="total-row discount">
+          <span class="total-label">${data.discountLabel}</span>
+          <span class="total-value">{{DISCOUNT}}</span>
+        </div>
+        `
+                }
+                if (moduleId === 'tax' && data.showTax) {
+                    return `
+        <div class="total-row tax">
+          <span class="total-label">${data.taxLabel}</span>
+          <span class="total-value">{{TAX}}</span>
+        </div>
+        `
+                }
+                if (moduleId === 'total' && data.showTotal) {
+                    return `
+        <div class="total-row final">
+          <span class="total-label">${data.totalLabel}</span>
+          <span class="total-value">{{TOTAL}}</span>
+        </div>
+        `
+                }
+                return ''
+            })
+            .join('')
+
+        const totalsSectionHTML = `
+    <!-- Totals Section -->
+    <div class="totals-section${layoutConfig.totalsAlignment === 'left' ? ' totals-left' : ''}">
+      <div class="totals">
+        ${totalsRowsHTML}
+      </div>
+    </div>
+    `
+
+        const footerOrder = data.footerOrder && data.footerOrder.length
+            ? data.footerOrder
+            : DEFAULT_FOOTER_ORDER
+
+        const footerModulesHTML = footerOrder
+            .map(moduleId => {
+                if (moduleId === 'notes' && data.footerNotes) {
+                    return `
+      <div class="footer-notes">
+        <div class="footer-notes-title">Notes</div>
+        <div class="footer-notes-content">${data.footerNotes}</div>
+      </div>
+      `
+                }
+                if (moduleId === 'message' && data.footerMessage) {
+                    return `
+      <div class="footer-message">${data.footerMessage}</div>
+      `
+                }
+                return ''
+            })
+            .join('')
+
+        const footerSectionHTML = `
+    <!-- Footer -->
+    <div class="footer">
+      ${footerModulesHTML}
+    </div>
+    `
+
+        const bodySectionMap: Record<BodySectionId, string> = {
+            items: itemsSectionHTML,
+            totals: totalsSectionHTML,
+            footer: footerSectionHTML,
+        }
+
+        const orderFromState = data.bodyOrder && data.bodyOrder.length ? data.bodyOrder : layoutConfig.bodyOrder
+
+        const bodyHTML = orderFromState
+            .map(section => bodySectionMap[section])
+            .join('\n')
 
         return `
 <!DOCTYPE html>
@@ -197,6 +606,55 @@ export default function CustomTemplateBuilder({ open, onClose, onSave, isFullPag
       margin-bottom: 40px;
       padding-bottom: 30px;
       border-bottom: 2px solid ${data.primaryColor};
+    }
+    
+    .header.header--split {
+      align-items: stretch;
+      gap: 32px;
+    }
+    
+    .header.header--top-layout {
+      margin-bottom: 28px;
+      padding-bottom: 0;
+      border-bottom: none;
+      gap: 32px;
+    }
+    
+    .header-left,
+    .header-right {
+      flex: 1;
+    }
+    
+    .header-right {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 16px;
+    }
+    
+    .receipt-strip {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 18px;
+      padding: 10px 16px;
+      border-radius: 9999px;
+      background-color: ${data.primaryColor}0d;
+      border: 1px solid ${data.primaryColor}33;
+    }
+    
+    .receipt-strip-title {
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: ${data.primaryColor};
+    }
+    
+    .receipt-strip-meta {
+      display: flex;
+      gap: 16px;
+      font-size: 12px;
     }
     
     .company-section {
@@ -259,6 +717,22 @@ export default function CustomTemplateBuilder({ open, onClose, onSave, isFullPag
       padding: 20px;
       border-radius: 6px;
       margin-bottom: 30px;
+    }
+    
+    .client-section.client-section--compact {
+      background-color: transparent;
+      padding: 0;
+      border-radius: 0;
+      margin-bottom: 8px;
+    }
+    
+    .client-section.client-section--compact .client-label,
+    .client-section.client-section--compact .client-name,
+    .client-section.client-section--compact .client-company,
+    .client-section.client-section--compact .client-email,
+    .client-section.client-section--compact .client-phone,
+    .client-section.client-section--compact .client-address {
+      text-align: right;
     }
     
     .client-label {
@@ -365,6 +839,10 @@ export default function CustomTemplateBuilder({ open, onClose, onSave, isFullPag
       justify-content: flex-end;
       margin-bottom: 30px;
     }
+
+    .totals-section.totals-left {
+      justify-content: flex-start;
+    }
     
     .totals {
       width: 300px;
@@ -436,6 +914,39 @@ export default function CustomTemplateBuilder({ open, onClose, onSave, isFullPag
       font-style: italic;
     }
     
+    @media (max-width: 640px) {
+      .header.header--split,
+      .header.header--top-layout {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 16px;
+      }
+      
+      .header-right {
+        align-items: flex-start;
+      }
+      
+      .receipt-strip {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 6px;
+        border-radius: 10px;
+      }
+      
+      .receipt-strip-meta {
+        flex-wrap: wrap;
+      }
+      
+      .client-section.client-section--compact .client-label,
+      .client-section.client-section--compact .client-name,
+      .client-section.client-section--compact .client-company,
+      .client-section.client-section--compact .client-email,
+      .client-section.client-section--compact .client-phone,
+      .client-section.client-section--compact .client-address {
+        text-align: left;
+      }
+    }
+    
     @media print {
       body {
         background-color: white;
@@ -451,122 +962,9 @@ export default function CustomTemplateBuilder({ open, onClose, onSave, isFullPag
 </head>
 <body>
   <div class="container">
-    <!-- Header Section -->
-    <div class="header">
-      <!-- Company Information -->
-      ${hasCompanyInfo ? `
-      <div class="company-section">
-        ${data.companyLogo ? `<img src="${data.companyLogo}" alt="Company Logo" class="company-logo" />` : ''}
-        ${data.companyName ? `<div class="company-name">${data.companyName}</div>` : ''}
-        <div class="company-details">
-          ${data.companyAddress ? `<p>${data.companyAddress}</p>` : ''}
-          ${data.companyCity || data.companyZip ? `<p>${[data.companyCity, data.companyZip].filter(Boolean).join(', ')}</p>` : ''}
-          ${data.companyEmail ? `<p>Email: ${data.companyEmail}</p>` : ''}
-          ${data.companyPhone ? `<p>Phone: ${data.companyPhone}</p>` : ''}
-          ${data.companyWebsite ? `<p>Web: ${data.companyWebsite}</p>` : ''}
-          ${data.companyTaxId ? `<p>Tax ID: ${data.companyTaxId}</p>` : ''}
-        </div>
-      </div>
-      ` : '<div class="company-section"></div>'}
-      
-      <!-- Receipt Meta Information -->
-      <div class="receipt-meta">
-        <div class="receipt-title">Receipt</div>
-        ${data.showReceiptNumber ? `
-        <div class="meta-item">
-          <span class="meta-label">${data.receiptNumberLabel}:</span>
-          <span class="meta-value">{{RECEIPT_ID}}</span>
-        </div>
-        ` : ''}
-        ${data.showDate ? `
-        <div class="meta-item">
-          <span class="meta-label">${data.dateLabel}:</span>
-          <span class="meta-value">{{DATE}}</span>
-        </div>
-        ` : ''}
-        ${data.showDueDate ? `
-        <div class="meta-item">
-          <span class="meta-label">${data.dueDateLabel}:</span>
-          <span class="meta-value">{{DUE_DATE}}</span>
-        </div>
-        ` : ''}
-      </div>
-    </div>
+    ${headerAndClientHTML}
     
-    <!-- Client Information -->
-    ${data.showClientInfo ? `
-    <div class="client-section">
-      <div class="client-label">${data.clientLabel}</div>
-      <div class="client-name">{{CUSTOMER_NAME}}</div>
-      <div class="client-company">{{CUSTOMER_COMPANY}}</div>
-      <div class="client-email">{{CUSTOMER_EMAIL}}</div>
-      <div class="client-phone">{{CUSTOMER_PHONE}}</div>
-      <div class="client-address">{{CUSTOMER_ADDRESS}}</div>
-    </div>
-    ` : ''}
-    
-    <!-- Items Section -->
-    ${data.showItems ? `
-    <div class="items-section">
-      ${data.itemsLabel ? `<div class="items-title">${data.itemsLabel}</div>` : ''}
-      <table class="items-table">
-        <thead>
-          <tr>
-            ${data.showItemDescription ? '<th>Description</th>' : ''}
-            ${data.showItemQuantity ? '<th class="text-center">Quantity</th>' : ''}
-            ${data.showItemPrice ? '<th class="text-right">Price</th>' : ''}
-            ${data.showItemTotal ? '<th class="text-right">Total</th>' : ''}
-          </tr>
-        </thead>
-        <tbody>
-          {{ITEMS}}
-        </tbody>
-      </table>
-    </div>
-    ` : ''}
-    
-    <!-- Totals Section -->
-    <div class="totals-section">
-      <div class="totals">
-        ${data.showSubtotal ? `
-        <div class="total-row subtotal">
-          <span class="total-label">${data.subtotalLabel}</span>
-          <span class="total-value">{{SUBTOTAL}}</span>
-        </div>
-        ` : ''}
-        ${data.showDiscount ? `
-        <div class="total-row discount">
-          <span class="total-label">${data.discountLabel}</span>
-          <span class="total-value">{{DISCOUNT}}</span>
-        </div>
-        ` : ''}
-        ${data.showTax ? `
-        <div class="total-row tax">
-          <span class="total-label">${data.taxLabel}</span>
-          <span class="total-value">{{TAX}}</span>
-        </div>
-        ` : ''}
-        ${data.showTotal ? `
-        <div class="total-row final">
-          <span class="total-label">${data.totalLabel}</span>
-          <span class="total-value">{{TOTAL}}</span>
-        </div>
-        ` : ''}
-      </div>
-    </div>
-    
-    <!-- Footer -->
-    <div class="footer">
-      ${data.footerNotes ? `
-      <div class="footer-notes">
-        <div class="footer-notes-title">Notes</div>
-        <div class="footer-notes-content">${data.footerNotes}</div>
-      </div>
-      ` : ''}
-      ${data.footerMessage ? `
-      <div class="footer-message">${data.footerMessage}</div>
-      ` : ''}
-    </div>
+    ${bodyHTML}
   </div>
 </body>
 </html>
@@ -604,6 +1002,7 @@ export default function CustomTemplateBuilder({ open, onClose, onSave, isFullPag
         { id: 'company' as const, label: 'Company Info', icon: Building2 },
         { id: 'client' as const, label: 'Client Info', icon: User },
         { id: 'content' as const, label: 'Content', icon: FileText },
+        { id: 'layout' as const, label: 'Layout', icon: Package },
         { id: 'style' as const, label: 'Styling', icon: ImageIcon },
     ]
 
@@ -611,11 +1010,11 @@ export default function CustomTemplateBuilder({ open, onClose, onSave, isFullPag
         <>
             {/* Main Content */}
             <div className="template-builder-content flex flex-1 overflow-hidden flex-col lg:flex-row">
-                {/* Left Column - Form Inputs (35%) */}
-                <div className="w-full lg:w-[35%] border-r border-gray-200 flex flex-col bg-white overflow-hidden">
+                {/* Left Column - Form Inputs (40%) */}
+                <div className="w-full lg:w-[40%] border-r border-gray-200 flex flex-col bg-white overflow-hidden">
                     {/* Tab Navigation */}
-                    <div className="border-b border-gray-200 bg-white px-4 py-3">
-                        <div className="flex gap-2">
+                    <div className="bg-white px-4 pt-3 pb-2">
+                        <div className="flex gap-2 flex-wrap md:flex-nowrap">
                                 {tabs.map(tab => {
                                     const Icon = tab.icon
                                     return (
@@ -1109,6 +1508,340 @@ export default function CustomTemplateBuilder({ open, onClose, onSave, isFullPag
                                                         )}
                                                     </div>
                                                 </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Layout Tab */}
+                            {activeTab === 'layout' && (
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                                    <div className="space-y-3">
+                                        <h3 className="text-sm font-bold text-gray-900">Layout Presets</h3>
+
+                                        <p className="text-xs text-gray-600">
+                                            Choose from predefined arrangements of header, items, totals, and footer.
+                                        </p>
+
+                                        <div className="inline-flex flex-wrap gap-2 rounded-lg bg-gray-50 p-1">
+                                            <button
+                                                type="button"
+                                                onClick={() => setLayoutVariant('classic')}
+                                                className={`px-3 py-1.5 rounded-md text-[11px] font-medium border transition-all ${
+                                                    data.layoutVariant === 'classic'
+                                                        ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
+                                                        : 'bg-white text-gray-700 border-transparent hover:bg-gray-100'
+                                                }`}
+                                            >
+                                                Classic
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => setLayoutVariant('classic-totals-left')}
+                                                className={`px-3 py-1.5 rounded-md text-[11px] font-medium border transition-all ${
+                                                    data.layoutVariant === 'classic-totals-left'
+                                                        ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
+                                                        : 'bg-white text-gray-700 border-transparent hover:bg-gray-100'
+                                                }`}
+                                            >
+                                                Classic · totals left
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => setLayoutVariant('classic-notes-between')}
+                                                className={`px-3 py-1.5 rounded-md text-[11px] font-medium border transition-all ${
+                                                    data.layoutVariant === 'classic-notes-between'
+                                                        ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
+                                                        : 'bg-white text-gray-700 border-transparent hover:bg-gray-100'
+                                                }`}
+                                            >
+                                                Classic · notes before totals
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => setLayoutVariant('split-header')}
+                                                className={`px-3 py-1.5 rounded-md text-[11px] font-medium border transition-all ${
+                                                    data.layoutVariant === 'split-header'
+                                                        ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
+                                                        : 'bg-white text-gray-700 border-transparent hover:bg-gray-100'
+                                                }`}
+                                            >
+                                                Split header
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => setLayoutVariant('split-totals-left')}
+                                                className={`px-3 py-1.5 rounded-md text-[11px] font-medium border transition-all ${
+                                                    data.layoutVariant === 'split-totals-left'
+                                                        ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
+                                                        : 'bg-white text-gray-700 border-transparent hover:bg-gray-100'
+                                                }`}
+                                            >
+                                                Split · totals left
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => setLayoutVariant('split-totals-first')}
+                                                className={`px-3 py-1.5 rounded-md text-[11px] font-medium border transition-all ${
+                                                    data.layoutVariant === 'split-totals-first'
+                                                        ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
+                                                        : 'bg-white text-gray-700 border-transparent hover:bg-gray-100'
+                                                }`}
+                                            >
+                                                Split · totals before items
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => setLayoutVariant('top-strip')}
+                                                className={`px-3 py-1.5 rounded-md text-[11px] font-medium border transition-all ${
+                                                    data.layoutVariant === 'top-strip'
+                                                        ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
+                                                        : 'bg-white text-gray-700 border-transparent hover:bg-gray-100'
+                                                }`}
+                                            >
+                                                Top strip
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => setLayoutVariant('top-strip-totals-left')}
+                                                className={`px-3 py-1.5 rounded-md text-[11px] font-medium border transition-all ${
+                                                    data.layoutVariant === 'top-strip-totals-left'
+                                                        ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
+                                                        : 'bg-white text-gray-700 border-transparent hover:bg-gray-100'
+                                                }`}
+                                            >
+                                                Top strip · totals left
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => setLayoutVariant('top-strip-notes-between')}
+                                                className={`px-3 py-1.5 rounded-md text-[11px] font-medium border transition-all ${
+                                                    data.layoutVariant === 'top-strip-notes-between'
+                                                        ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
+                                                        : 'bg-white text-gray-700 border-transparent hover:bg-gray-100'
+                                                }`}
+                                            >
+                                                Top strip · notes before totals
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => setLayoutVariant('minimal-header')}
+                                                className={`px-3 py-1.5 rounded-md text-[11px] font-medium border transition-all ${
+                                                    data.layoutVariant === 'minimal-header'
+                                                        ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
+                                                        : 'bg-white text-gray-700 border-transparent hover:bg-gray-100'
+                                                }`}
+                                            >
+                                                Minimal header
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    <div className="space-y-5 border-t border-gray-200 pt-4">
+                                        {/* Header meta chips */}
+                                        <div className="space-y-2">
+                                            <h4 className="text-xs font-semibold text-gray-700 tracking-wide uppercase">Header info order</h4>
+                                            <p className="text-xs text-gray-500">
+                                                Drag to reorder receipt number, date, and due date within the header area.
+                                            </p>
+                                            <div className="flex flex-wrap gap-2">
+                                                {(data.headerMetaOrder && data.headerMetaOrder.length ? data.headerMetaOrder : DEFAULT_HEADER_META_ORDER).map(metaId => (
+                                                    <div
+                                                        key={metaId}
+                                                        draggable
+                                                        onDragStart={() => setDraggingHeaderMeta(metaId)}
+                                                        onDragOver={e => e.preventDefault()}
+                                                        onDrop={e => {
+                                                            e.preventDefault()
+                                                            if (!draggingHeaderMeta || draggingHeaderMeta === metaId) return
+                                                            setData(prev => {
+                                                                const base = prev.headerMetaOrder && prev.headerMetaOrder.length
+                                                                    ? [...prev.headerMetaOrder]
+                                                                    : [...DEFAULT_HEADER_META_ORDER]
+                                                                const fromIndex = base.indexOf(draggingHeaderMeta)
+                                                                const toIndex = base.indexOf(metaId)
+                                                                if (fromIndex === -1 || toIndex === -1) return prev
+                                                                base.splice(fromIndex, 1)
+                                                                base.splice(toIndex, 0, draggingHeaderMeta)
+                                                                return { ...prev, headerMetaOrder: base }
+                                                            })
+                                                            setDraggingHeaderMeta(null)
+                                                        }}
+                                                        className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-gray-200 bg-white text-[11px] font-medium text-gray-800 cursor-move hover:bg-gray-50"
+                                                    >
+                                                        <span>
+                                                            {metaId === 'receiptNumber' && 'Receipt number'}
+                                                            {metaId === 'date' && 'Date'}
+                                                            {metaId === 'dueDate' && 'Due date'}
+                                                        </span>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+
+                                        {/* Body section chips */}
+                                        <div className="space-y-2">
+                                            <h4 className="text-xs font-semibold text-gray-700 tracking-wide uppercase">Body sections</h4>
+                                            <p className="text-xs text-gray-500">
+                                                Drag to change the order of items, totals, and footer. The live preview will update automatically.
+                                            </p>
+                                            <div className="flex flex-wrap gap-2">
+                                                {(data.bodyOrder && data.bodyOrder.length ? data.bodyOrder : LAYOUT_PRESETS[data.layoutVariant].bodyOrder).map(sectionId => (
+                                                    <div
+                                                        key={sectionId}
+                                                        draggable
+                                                        onDragStart={() => setDraggingSection(sectionId)}
+                                                        onDragOver={e => e.preventDefault()}
+                                                        onDrop={e => {
+                                                            e.preventDefault()
+                                                            if (!draggingSection || draggingSection === sectionId) return
+                                                            setData(prev => {
+                                                                const base = prev.bodyOrder && prev.bodyOrder.length
+                                                                    ? [...prev.bodyOrder]
+                                                                    : [...LAYOUT_PRESETS[prev.layoutVariant].bodyOrder]
+                                                                const fromIndex = base.indexOf(draggingSection)
+                                                                const toIndex = base.indexOf(sectionId)
+                                                                if (fromIndex === -1 || toIndex === -1) return prev
+                                                                base.splice(fromIndex, 1)
+                                                                base.splice(toIndex, 0, draggingSection)
+                                                                return { ...prev, bodyOrder: base }
+                                                            })
+                                                            setDraggingSection(null)
+                                                        }}
+                                                        className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-gray-200 bg-white text-[11px] font-medium text-gray-800 cursor-move hover:bg-gray-50"
+                                                    >
+                                                        <span>
+                                                            {sectionId === 'items' && 'Items'}
+                                                            {sectionId === 'totals' && 'Totals'}
+                                                            {sectionId === 'footer' && 'Footer / notes'}
+                                                        </span>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+
+                                        {/* Items columns chips */}
+                                        <div className="space-y-2">
+                                            <h4 className="text-xs font-semibold text-gray-700 tracking-wide uppercase">Items table columns</h4>
+                                            <p className="text-xs text-gray-500">
+                                                Drag to reorder Description, Qty, Price, and Total columns in the items table header.
+                                            </p>
+                                            <div className="flex flex-wrap gap-2">
+                                                {(data.itemsColumnsOrder && data.itemsColumnsOrder.length ? data.itemsColumnsOrder : DEFAULT_ITEMS_COLUMNS_ORDER).map(colId => (
+                                                    <div
+                                                        key={colId}
+                                                        draggable
+                                                        onDragStart={() => setDraggingItemsColumn(colId)}
+                                                        onDragOver={e => e.preventDefault()}
+                                                        onDrop={e => {
+                                                            e.preventDefault()
+                                                            if (!draggingItemsColumn || draggingItemsColumn === colId) return
+                                                            setData(prev => {
+                                                                const base = prev.itemsColumnsOrder && prev.itemsColumnsOrder.length
+                                                                    ? [...prev.itemsColumnsOrder]
+                                                                    : [...DEFAULT_ITEMS_COLUMNS_ORDER]
+                                                                const fromIndex = base.indexOf(draggingItemsColumn)
+                                                                const toIndex = base.indexOf(colId)
+                                                                if (fromIndex === -1 || toIndex === -1) return prev
+                                                                base.splice(fromIndex, 1)
+                                                                base.splice(toIndex, 0, draggingItemsColumn)
+                                                                return { ...prev, itemsColumnsOrder: base }
+                                                            })
+                                                            setDraggingItemsColumn(null)
+                                                        }}
+                                                        className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-gray-200 bg-white text-[11px] font-medium text-gray-800 cursor-move hover:bg-gray-50"
+                                                    >
+                                                        <span>
+                                                            {colId === 'description' && 'Description'}
+                                                            {colId === 'quantity' && 'Qty'}
+                                                            {colId === 'price' && 'Price'}
+                                                            {colId === 'total' && 'Total'}
+                                                        </span>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+
+                                        {/* Totals chips */}
+                                        <div className="space-y-2">
+                                            <h4 className="text-xs font-semibold text-gray-700 tracking-wide uppercase">Totals rows</h4>
+                                            <p className="text-xs text-gray-500">
+                                                Drag to reorder subtotal, discount, tax, and total rows in the totals block.
+                                            </p>
+                                            <div className="flex flex-wrap gap-2">
+                                                {(data.totalsOrder && data.totalsOrder.length ? data.totalsOrder : DEFAULT_TOTALS_ORDER).map(totalsId => (
+                                                    <div
+                                                        key={totalsId}
+                                                        draggable
+                                                        onDragStart={() => setDraggingTotalsModule(totalsId)}
+                                                        onDragOver={e => e.preventDefault()}
+                                                        onDrop={e => {
+                                                            e.preventDefault()
+                                                            if (!draggingTotalsModule || draggingTotalsModule === totalsId) return
+                                                            setData(prev => {
+                                                                const base = prev.totalsOrder && prev.totalsOrder.length
+                                                                    ? [...prev.totalsOrder]
+                                                                    : [...DEFAULT_TOTALS_ORDER]
+                                                                const fromIndex = base.indexOf(draggingTotalsModule)
+                                                                const toIndex = base.indexOf(totalsId)
+                                                                if (fromIndex === -1 || toIndex === -1) return prev
+                                                                base.splice(fromIndex, 1)
+                                                                base.splice(toIndex, 0, draggingTotalsModule)
+                                                                return { ...prev, totalsOrder: base }
+                                                            })
+                                                            setDraggingTotalsModule(null)
+                                                        }}
+                                                        className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-gray-200 bg-white text-[11px] font-medium text-gray-800 cursor-move hover:bg-gray-50"
+                                                    >
+                                                        <span>
+                                                            {totalsId === 'subtotal' && 'Subtotal'}
+                                                            {totalsId === 'discount' && 'Discount'}
+                                                            {totalsId === 'tax' && 'Tax'}
+                                                            {totalsId === 'total' && 'Total'}
+                                                        </span>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+
+                                        {/* Footer chips */}
+                                        <div className="space-y-2">
+                                            <h4 className="text-xs font-semibold text-gray-700 tracking-wide uppercase">Footer modules</h4>
+                                            <p className="text-xs text-gray-500">
+                                                Drag to reorder the notes/terms box and the thank-you message in the footer.
+                                            </p>
+                                            <div className="flex flex-wrap gap-2">
+                                                {(data.footerOrder && data.footerOrder.length ? data.footerOrder : DEFAULT_FOOTER_ORDER).map(footerId => (
+                                                    <div
+                                                        key={footerId}
+                                                        draggable
+                                                        onDragStart={() => setDraggingFooterModule(footerId)}
+                                                        onDragOver={e => e.preventDefault()}
+                                                        onDrop={e => {
+                                                            e.preventDefault()
+                                                            if (!draggingFooterModule || draggingFooterModule === footerId) return
+                                                            setData(prev => {
+                                                                const base = prev.footerOrder && prev.footerOrder.length
+                                                                    ? [...prev.footerOrder]
+                                                                    : [...DEFAULT_FOOTER_ORDER]
+                                                                const fromIndex = base.indexOf(draggingFooterModule)
+                                                                const toIndex = base.indexOf(footerId)
+                                                                if (fromIndex === -1 || toIndex === -1) return prev
+                                                                base.splice(fromIndex, 1)
+                                                                base.splice(toIndex, 0, draggingFooterModule)
+                                                                return { ...prev, footerOrder: base }
+                                                            })
+                                                            setDraggingFooterModule(null)
+                                                        }}
+                                                        className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-gray-200 bg-white text-[11px] font-medium text-gray-800 cursor-move hover:bg-gray-50"
+                                                    >
+                                                        <span>
+                                                            {footerId === 'notes' && 'Notes / terms'}
+                                                            {footerId === 'message' && 'Thank-you message'}
+                                                        </span>
+                                                    </div>
+                                                ))}
                                             </div>
                                         </div>
                                     </div>

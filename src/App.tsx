@@ -8,9 +8,27 @@ import CategoryList from '@/components/categories/CategoryList'
 import ReceiptList from '@/components/receipts/ReceiptList'
 import TemplateList from '@/components/templates/TemplateList'
 import TemplateBuilderPage from '@/components/templates/TemplateBuilderPage'
+import { useAuth } from '@/contexts/AuthContext'
+import SignInPage from '@/components/auth/SignInPage'
 
 export default function App() {
-  const [currentPage, setCurrentPage] = useState('admin')
+  const { user, loading } = useAuth()
+  const [currentPage, setCurrentPage] = useState('dashboard')
+
+  if (loading) {
+    return (
+      <div className="h-screen flex items-center justify-center bg-gray-50">
+        <div className="flex flex-col items-center gap-3">
+          <div className="animate-spin rounded-full h-12 w-12 border-4 border-blue-200 border-t-blue-600" />
+          <p className="text-gray-600 text-sm font-medium">Loading your workspace...</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (!user) {
+    return <SignInPage />
+  }
 
   const renderPage = () => {
     switch (currentPage) {

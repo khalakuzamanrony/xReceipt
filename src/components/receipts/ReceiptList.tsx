@@ -7,11 +7,15 @@ import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Label } from '@/components/ui/Label'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/Dialog'
-import { Plus, AlertCircle, FileText, Search, Edit, Trash2, Eye, Clock, CheckCircle, X } from 'lucide-react'
+import { Plus, AlertCircle, FileText, Search, Edit, Trash2, Eye, Clock, CheckCircle, X, Download } from 'lucide-react'
+import { useAuth } from '@/contexts/AuthContext'
 import ReceiptPreviewModal from './ReceiptPreviewModal'
 import ReceiptDetailsPage from './ReceiptDetailsPage'
 
 export default function ReceiptList() {
+  const { role, permissions } = useAuth()
+  const canViewReceipts = role === 'super_admin' || !!permissions?.can_view_receipts
+  const canCreateReceipts = role === 'super_admin' || !!permissions?.can_create_receipts
   const [receipts, setReceipts] = useState<Receipt[]>([])
   const [templates, setTemplates] = useState<any[]>([])
   const [products, setProducts] = useState<any[]>([])
@@ -233,6 +237,16 @@ export default function ReceiptList() {
     )
   }
 
+  if (!canViewReceipts) {
+    return (
+      <div className="bg-white rounded-lg border border-gray-200 p-8 text-center">
+        <FileText size={32} className="text-gray-300 mx-auto mb-3" />
+        <p className="text-gray-800 font-semibold">You don't have access to Receipts</p>
+        <p className="text-gray-500 text-sm mt-1">Contact a super admin if you think this is a mistake.</p>
+      </div>
+    )
+  }
+
   // Show details page if a receipt is selected
   if (showDetails && detailsReceiptId) {
     return (
@@ -249,31 +263,33 @@ export default function ReceiptList() {
   return (
     <div className="space-y-4">
       {/* Header with Title and Buttons */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-white p-4 rounded-lg border border-gray-200">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Receipts</h1>
-          <p className="text-sm text-gray-500 mt-1">Create and manage your receipts</p>
-        </div>
+      <div className="bg-white p-4 rounded-lg border border-gray-200">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">Receipts</h1>
+            <p className="text-sm text-gray-500 mt-1">Create and manage your receipts</p>
+          </div>
 
-        {/* Add Button */}
-        <Button onClick={handleAddNew} size="sm">
-          <Plus size={16} />
-          New Receipt
-        </Button>
-      </div>
+          {/* Search Bar - Inline with Button */}
+          <div className="w-full sm:w-auto flex flex-col sm:flex-row gap-3 sm:items-center">
+            <div className="flex-1 sm:w-64 bg-white rounded-lg border border-gray-200 h-9 px-3 flex items-center gap-2">
+              <Search size={18} className="text-gray-400" />
+              <Input
+                type="text"
+                placeholder="Search receipts..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="flex-1 h-9 border-0 focus:ring-0 px-0 py-0 text-sm"
+              />
+            </div>
 
-      {/* Search Bar - Inline with Button */}
-      <div className="flex flex-col sm:flex-row gap-3">
-        <div className="flex-1 bg-white rounded-lg border border-gray-200 p-3">
-          <div className="flex items-center gap-2">
-            <Search size={18} className="text-gray-400" />
-            <Input
-              type="text"
-              placeholder="Search receipts..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="flex-1 border-0 focus:ring-0 p-0"
-            />
+            {/* Add Button */}
+            {canCreateReceipts && (
+              <Button onClick={handleAddNew} size="sm">
+                <Plus size={16} />
+                New Receipt
+              </Button>
+            )}
           </div>
         </div>
       </div>
@@ -570,34 +586,48 @@ export default function ReceiptList() {
                       </div>
                     </td>
                     <td className="px-4 py-3">
-                      <div className="flex gap-2 justify-end">
+                      <div className="flex gap-1.5 justify-end">
                         <Button
-                          variant="outline"
+                          variant="ghost"
                           size="sm"
                           onClick={() => {
                             setPreviewReceipt(receipt)
                             setShowPreview(true)
                           }}
                           title="Preview"
+                          className="h-8 w-8 p-0 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-full"
                         >
-                          <Eye size={14} />
+                          <Eye size={16} />
                         </Button>
                         <Button
-                          variant="outline"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => {
+                            setPreviewReceipt(receipt)
+                            setShowPreview(true)
+                          }}
+                          title="Download / Export"
+                          className="h-8 w-8 p-0 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-full"
+                        >
+                          <Download size={16} />
+                        </Button>
+                        <Button
+                          variant="ghost"
                           size="sm"
                           onClick={() => handleEdit(receipt)}
                           title="Edit"
+                          className="h-8 w-8 p-0 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-full"
                         >
-                          <Edit size={14} />
+                          <Edit size={16} />
                         </Button>
                         <Button
-                          variant="outline"
+                          variant="ghost"
                           size="sm"
                           onClick={() => handleDelete(receipt.id)}
-                          className="text-red-600 hover:text-red-700"
+                          className="h-8 w-8 p-0 text-red-500 hover:text-red-600 hover:bg-red-50 rounded-full"
                           title="Delete"
                         >
-                          <Trash2 size={14} />
+                          <Trash2 size={16} />
                         </Button>
                       </div>
                     </td>

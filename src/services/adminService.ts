@@ -26,6 +26,18 @@ export const adminService = {
     return data || null
   },
 
+  // Get admin by email (used for auth mapping)
+  async getAdminByEmail(email: string): Promise<User | null> {
+    const { data, error } = await supabase
+      .from('users')
+      .select('*')
+      .eq('email', email)
+      .single()
+
+    if (error && error.code !== 'PGRST116') throw error
+    return data || null
+  },
+
   // Get admin permissions
   async getAdminPermissions(adminId: string): Promise<AdminPermissions | null> {
     const { data, error } = await supabase

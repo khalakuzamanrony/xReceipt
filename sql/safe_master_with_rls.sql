@@ -80,6 +80,9 @@ CREATE TABLE IF NOT EXISTS receipts (
   created_by UUID REFERENCES users(id) ON DELETE SET NULL,
   customer_name VARCHAR(255),
   customer_email VARCHAR(255),
+  customer_company VARCHAR(255),
+  customer_phone VARCHAR(50),
+  customer_address TEXT,
   notes TEXT,
   subtotal DECIMAL(10, 2) DEFAULT 0,
   tax DECIMAL(10, 2) DEFAULT 0,
@@ -91,6 +94,9 @@ CREATE TABLE IF NOT EXISTS receipts (
 
 -- Add status column to existing receipts table if it doesn't exist
 ALTER TABLE receipts ADD COLUMN IF NOT EXISTS status VARCHAR(50) DEFAULT 'draft' CHECK (status IN ('draft', 'sent', 'paid'));
+ALTER TABLE receipts ADD COLUMN IF NOT EXISTS customer_company VARCHAR(255);
+ALTER TABLE receipts ADD COLUMN IF NOT EXISTS customer_phone VARCHAR(50);
+ALTER TABLE receipts ADD COLUMN IF NOT EXISTS customer_address TEXT;
 
 CREATE TABLE IF NOT EXISTS receipt_items (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),

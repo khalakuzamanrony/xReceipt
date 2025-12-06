@@ -5,25 +5,24 @@ import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Label } from '@/components/ui/Label'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/Dialog'
-import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
-import { Plus, Edit, Trash2, AlertCircle, FileCode, Search, ChevronDown } from 'lucide-react'
+import { Plus, Edit, Trash2, AlertCircle, FileCode, Search, Zap } from 'lucide-react'
+import { useAuth } from '@/contexts/AuthContext'
 import VisualReceiptBuilder from './VisualReceiptBuilder'
-import PocketFilmsTemplate from './PocketFilmsTemplate'
-import EleganceTemplate from './EleganceTemplate'
 
 interface TemplateListProps {
   onNavigateToBuilder?: () => void
 }
 
 export default function TemplateList({ onNavigateToBuilder }: TemplateListProps) {
+  const { role, permissions } = useAuth()
+  const canViewTemplates = role === 'super_admin' || !!permissions?.can_view_templates
+  const canCreateTemplates = role === 'super_admin' || !!permissions?.can_create_templates
   const [templates, setTemplates] = useState<ReceiptTemplate[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [searchTerm, setSearchTerm] = useState('')
   const [showForm, setShowForm] = useState(false)
-  const [showNextGenBuilder, setShowNextGenBuilder] = useState(false)
-  const [showPocketFilms, setShowPocketFilms] = useState(false)
-  const [showElegance, setShowElegance] = useState(false)
+  const [showVisualBuilder, setShowVisualBuilder] = useState(false)
   const [selectedTemplate, setSelectedTemplate] = useState<ReceiptTemplate | null>(null)
   const [formData, setFormData] = useState({
     name: '',
@@ -111,21 +110,12 @@ export default function TemplateList({ onNavigateToBuilder }: TemplateListProps)
     }
   }
 
-  if (loading) {
-    return (
-      <div className="flex flex-col items-center justify-center h-96 gap-4">
-        <div className="animate-spin rounded-full h-16 w-16 border-4 border-blue-200 border-t-blue-600"></div>
-        <p className="text-gray-600 font-medium">Loading templates...</p>
-      </div>
-    )
-  }
-
   const handleVisualSave = async (data: { name: string; description: string; elements: any[] }) => {
     try {
       // Convert elements to HTML template with absolute positioning
       let html = `<div style="font-family: Arial, sans-serif; position: relative; width: 400px; height: 600px; margin: 0 auto; padding: 0;">`
 
-      data.elements.forEach(element => {
+      data.elements.forEach((element: any) => {
         const style = `position: absolute; left: ${element.x}px; top: ${element.y}px; width: ${element.width}px; height: ${element.height}px; font-size: ${element.config.fontSize || 12}px; color: ${element.config.color || '#000'}; text-align: ${element.config.alignment || 'left'}; padding: ${element.config.padding || 8}px; ${element.config.backgroundColor ? `background-color: ${element.config.backgroundColor};` : ''} ${element.config.showBorder ? `border-bottom: 1px solid ${element.config.borderColor || '#ccc'};` : ''}`
 
         switch (element.type) {
@@ -164,71 +154,73 @@ export default function TemplateList({ onNavigateToBuilder }: TemplateListProps)
         template_html: html,
       })
 
-      setShowNextGenBuilder(false)
+      setShowVisualBuilder(false)
       loadTemplates()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to save template')
     }
   }
 
+  if (loading) {
+    return (
+      <div className="flex flex-col items-center justify-center h-96 gap-4">
+        <div className="animate-spin rounded-full h-16 w-16 border-4 border-blue-200 border-t-blue-600"></div>
+        <p className="text-gray-600 font-medium">Loading templates...</p>
+      </div>
+    )
+  }
+
+  if (!canViewTemplates) {
+    return (
+      <div className="bg-white rounded-lg border border-gray-200 p-8 text-center">
+        <FileCode size={32} className="text-gray-300 mx-auto mb-3" />
+        <p className="text-gray-800 font-semibold">You don't have access to Templates</p>
+        <p className="text-gray-500 text-sm mt-1">Contact a super admin if you think this is a mistake.</p>
+      </div>
+    )
+  }
+
   return (
     <div className="space-y-4">
       {/* Header with Title and Buttons */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-white p-4 rounded-lg border border-gray-200">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Receipt Templates</h1>
-          <p className="text-sm text-gray-500 mt-1">Manage your receipt templates</p>
-        </div>
+      <div className="bg-white p-4 rounded-lg border border-gray-200">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">Receipt Templates</h1>
+            <p className="text-sm text-gray-500 mt-1">Manage your receipt templates</p>
+          </div>
 
-        {/* Action Buttons */}
-        <div className="flex gap-2 flex-wrap">
-          <DropdownMenu.Root>
-            <DropdownMenu.Trigger asChild>
-              <button className="px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg border-0 focus:ring-2 focus:ring-blue-500 cursor-pointer flex items-center gap-2 transition-colors">
-                <Plus size={16} />
-                <span>Create</span>
-                <ChevronDown size={16} />
-              </button>
-            </DropdownMenu.Trigger>
-            <DropdownMenu.Portal>
-              <DropdownMenu.Content className="bg-white rounded-lg border border-gray-200 shadow-lg z-50 min-w-48">
-                <DropdownMenu.Item
-                  onClick={() => onNavigateToBuilder?.()}
-                  className="px-4 py-2 text-sm text-gray-900 hover:bg-blue-50 cursor-pointer flex items-center gap-2 outline-none border-b border-gray-100"
-                >
-                  ✨ Custom Builder
-                </DropdownMenu.Item>
-                <DropdownMenu.Item
-                  onClick={() => setShowElegance(true)}
-                  className="px-4 py-2 text-sm text-gray-900 hover:bg-blue-50 cursor-pointer flex items-center gap-2 outline-none"
-                >
-                  📄 Elegance Invoice
-                </DropdownMenu.Item>
-                <DropdownMenu.Item
-                  onClick={() => setShowPocketFilms(true)}
-                  className="px-4 py-2 text-sm text-gray-900 hover:bg-blue-50 cursor-pointer flex items-center gap-2 outline-none"
-                >
-                  🎬 Pocket Films
-                </DropdownMenu.Item>
-                <DropdownMenu.Item
-                  onClick={() => setShowNextGenBuilder(true)}
-                  className="px-4 py-2 text-sm text-gray-900 hover:bg-blue-50 cursor-pointer flex items-center gap-2 outline-none"
-                >
-                  🎨 Visual Builder
-                </DropdownMenu.Item>
-                <DropdownMenu.Item
-                  onClick={() => onNavigateToBuilder?.()}
-                  className="px-4 py-2 text-sm text-gray-900 hover:bg-blue-50 cursor-pointer flex items-center gap-2 outline-none"
-                >
-                  🔧 Template Builder
-                </DropdownMenu.Item>
-              </DropdownMenu.Content>
-            </DropdownMenu.Portal>
-          </DropdownMenu.Root>
-          <Button onClick={handleAddNew} size="sm">
-            <Plus size={16} />
-            Custom
-          </Button>
+          <div className="w-full sm:w-auto flex flex-col sm:flex-row gap-3 sm:items-center">
+            {/* Search Bar */}
+            <div className="flex-1 sm:w-64 bg-white rounded-lg border border-gray-200 h-9 px-3 flex items-center gap-2">
+              <Search size={18} className="text-gray-400" />
+              <Input
+                type="text"
+                placeholder="Search templates..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="flex-1 h-9 border-0 focus:ring-0 px-0 py-0 text-sm"
+              />
+            </div>
+
+            {/* Action Buttons */}
+            {canCreateTemplates && (
+              <div className="flex gap-2 flex-wrap sm:justify-end">
+                <Button onClick={() => onNavigateToBuilder?.()} size="sm">
+                  <Plus size={16} />
+                  Template Builder
+                </Button>
+                <Button onClick={() => setShowVisualBuilder(true)} size="sm" variant="secondary">
+                  <Zap size={16} />
+                  Visual Builder
+                </Button>
+                <Button onClick={handleAddNew} size="sm">
+                  <Plus size={16} />
+                  Custom
+                </Button>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
@@ -242,20 +234,6 @@ export default function TemplateList({ onNavigateToBuilder }: TemplateListProps)
           </div>
         </div>
       )}
-
-      {/* Search Bar */}
-      <div className="bg-white rounded-lg border border-gray-200 p-3">
-        <div className="flex items-center gap-2">
-          <Search size={18} className="text-gray-400" />
-          <Input
-            type="text"
-            placeholder="Search templates..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="flex-1 border-0 focus:ring-0 p-0"
-          />
-        </div>
-      </div>
 
       {/* Template Form Modal */}
       {showForm && (
@@ -396,25 +374,10 @@ export default function TemplateList({ onNavigateToBuilder }: TemplateListProps)
         </div>
       )}
 
-      {/* Visual Receipt Builder Modal */}
       <VisualReceiptBuilder
-        open={showNextGenBuilder}
-        onClose={() => setShowNextGenBuilder(false)}
+        open={showVisualBuilder}
+        onClose={() => setShowVisualBuilder(false)}
         onSave={handleVisualSave}
-      />
-
-      {/* Pocket Films Invoice Template Modal */}
-      <PocketFilmsTemplate
-        open={showPocketFilms}
-        onClose={() => setShowPocketFilms(false)}
-        onSave={loadTemplates}
-      />
-
-      {/* Elegance Invoice Template Modal */}
-      <EleganceTemplate
-        open={showElegance}
-        onClose={() => setShowElegance(false)}
-        onSave={loadTemplates}
       />
 
     </div>

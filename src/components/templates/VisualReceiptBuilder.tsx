@@ -132,6 +132,50 @@ const ELEMENT_TEMPLATES: Record<string, Omit<ReceiptElement, 'id' | 'x' | 'y'>> 
 
 const GRID_SIZE = 10
 
+const buildTemplateHtmlFromElements = (elements: ReceiptElement[]): string => {
+  let html = `<div style="font-family: Arial, sans-serif; position: relative; width: 400px; height: 600px; margin: 0 auto; padding: 0;">`
+
+  elements.forEach((element) => {
+    const style = `position: absolute; left: ${element.x}px; top: ${element.y}px; width: ${element.width}px; height: ${element.height}px; font-size: ${
+      element.config.fontSize || 12
+    }px; color: ${element.config.color || '#000'}; text-align: ${element.config.alignment || 'left'}; padding: ${
+      element.config.padding || 8
+    }px; ${element.config.backgroundColor ? `background-color: ${element.config.backgroundColor};` : ''} ${
+      element.config.showBorder ? `border-bottom: 1px solid ${element.config.borderColor || '#ccc'};` : ''
+    }`
+
+    switch (element.type) {
+      case 'header':
+        html += `<div style="${style}"><strong>{{COMPANY_NAME}}</strong></div>`
+        break
+      case 'customer':
+        html += `<div style="${style}">{{CUSTOMER_NAME}}<br/>{{CUSTOMER_EMAIL}}</div>`
+        break
+      case 'items':
+        html += `<table style="${style}; width: 100%;"><thead><tr><th>Description</th><th>Qty</th><th>Price</th><th>Amount</th></tr></thead><tbody>{{ITEMS}}</tbody></table>`
+        break
+      case 'totals':
+        html += `<div style="${style}"><div>Subtotal: {{SUBTOTAL}}</div><div>Tax: {{TAX}}</div><div><strong>Total: {{TOTAL}}</strong></div></div>`
+        break
+      case 'footer':
+        html += `<div style="${style}">{{FOOTER_MESSAGE}}</div>`
+        break
+      case 'divider':
+        html += `<div style="${style}; border-bottom: 1px solid ${element.config.borderColor || '#ccc'};"></div>`
+        break
+      case 'text':
+        html += `<div style="${style}">${element.config.customText || ''}</div>`
+        break
+      case 'logo':
+        html += `<div style="${style}"><img src="logo.png" alt="Logo" style="max-width: 100%; height: auto;" /></div>`
+        break
+    }
+  })
+
+  html += '</div>'
+  return html
+}
+
 interface VisualReceiptBuilderProps {
   open: boolean
   onClose: () => void
@@ -150,6 +194,7 @@ export default function VisualReceiptBuilder({ open, onClose, onSave }: VisualRe
   const [resizeStart, setResizeStart] = useState({ x: 0, y: 0, width: 0, height: 0 })
   const [snapToGrid, setSnapToGrid] = useState(true)
   const [showGrid, setShowGrid] = useState(true)
+  const [previewHtml, setPreviewHtml] = useState<string>(() => buildTemplateHtmlFromElements([]))
 
   const selectedElement = elements.find(e => e.id === selectedId)
 
@@ -196,6 +241,29 @@ export default function VisualReceiptBuilder({ open, onClose, onSave }: VisualRe
           ? {
               ...e,
               config: { ...e.config, [key]: value },
+            }
+          : e
+      )
+    )
+  }
+
+  const nudgeAll = (deltaY: number) => {
+    setElements(prev =>
+      prev.map(e => ({
+        ...e,
+        y: Math.max(0, e.y + deltaY),
+      }))
+    )
+  }
+
+  const nudgeSelectedRow = (deltaY: number) => {
+    if (!selectedId) return
+    setElements(prev =>
+      prev.map(e =>
+        e.id === selectedId
+          ? {
+              ...e,
+              y: Math.max(0, e.y + deltaY),
             }
           : e
       )
@@ -284,6 +352,10 @@ export default function VisualReceiptBuilder({ open, onClose, onSave }: VisualRe
       document.removeEventListener('mouseup', handleMouseUp)
     }
   }, [resizingId, resizeStart])
+
+  useEffect(() => {
+    setPreviewHtml(buildTemplateHtmlFromElements(elements))
+  }, [elements])
 
   const renderElement = (element: ReceiptElement) => {
     const style = {
@@ -389,6 +461,18 @@ export default function VisualReceiptBuilder({ open, onClose, onSave }: VisualRe
                 <Grid3x3 size={14} />
                 Snap to Grid
               </button>
+              <button
+                onClick={() => nudgeAll(-20)}
+                className="w-full px-3 py-2 rounded-lg transition-all text-sm flex items-center gap-2 bg-slate-800 text-slate-300 hover:bg-slate-700"
+              >
+                Move all up
+              </button>
+              <button
+                onClick={() => nudgeAll(20)}
+                className="w-full px-3 py-2 rounded-lg transition-all text-sm flex items-center gap-2 bg-slate-800 text-slate-300 hover:bg-slate-700"
+              >
+                Move all down
+              </button>
             </div>
           </div>
 
@@ -399,7 +483,7 @@ export default function VisualReceiptBuilder({ open, onClose, onSave }: VisualRe
             onMouseUp={handleMouseUp}
             onMouseLeave={handleMouseUp}
           >
-            <div className="max-w-md mx-auto">
+            <div className="max-w-md mx-auto space-y-4">
               {/* Receipt Canvas */}
               <div
                 ref={canvasRef}
@@ -510,6 +594,21 @@ export default function VisualReceiptBuilder({ open, onClose, onSave }: VisualRe
                   </div>
                 )}
               </div>
+
+              {/* Live HTML preview */}
+              <div className="bg-slate-900/80 rounded-lg border border-purple-500/40 overflow-hidden">
+                <div className="px-3 py-2 border-b border-purple-500/40 flex items-center justify-between">
+                  <span className="text-xs font-semibold text-purple-100">Live Preview</span>
+                  <span className="text-[10px] text-purple-300">Updates as you move sections and rows</span>
+                </div>
+                <div className="bg-slate-900 p-2">
+                  <iframe
+                    title="Visual builder live preview"
+                    srcDoc={previewHtml}
+                    className="w-full h-64 rounded-md border border-slate-800 bg-white"
+                  />
+                </div>
+              </div>
             </div>
           </div>
 
@@ -546,6 +645,23 @@ export default function VisualReceiptBuilder({ open, onClose, onSave }: VisualRe
                         className="bg-slate-800 border-slate-700 text-white text-sm"
                       />
                     </div>
+                  </div>
+
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => nudgeSelectedRow(-40)}
+                      className="flex-1 py-1.5 rounded-lg text-[11px] font-medium bg-slate-800 text-slate-200 hover:bg-slate-700 border border-slate-700"
+                    >
+                      Move row up
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => nudgeSelectedRow(40)}
+                      className="flex-1 py-1.5 rounded-lg text-[11px] font-medium bg-slate-800 text-slate-200 hover:bg-slate-700 border border-slate-700"
+                    >
+                      Move row down
+                    </button>
                   </div>
 
                   <div className="grid grid-cols-2 gap-2">

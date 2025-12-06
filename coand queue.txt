@@ -1,0 +1,19 @@
+1. error while trying to ad new receit , console logg " {code: "PGRST204", details: null, hint: null,…}
+code
+: 
+"PGRST204"
+details
+: 
+null
+hint
+: 
+null
+message
+: 
+"Could not find the 'customer_address' column of 'receipts' in the schema cache")
+
+2. Remove all extra text from the sign-in page; keep a simple sign-in page.
+3. Add a simple login for super admin: "superadmin@xreceipt.com / #SuperAdmin1".
+4. Add a password field on the Add Admin modal.
+5. Make the tabs sit on one line (no double border line); increase the width of the left part if needed.
+6. Remove the colored active/focus border from text fields.

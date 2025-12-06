@@ -63,24 +63,55 @@ export default function ReceiptDetailsPage({ receiptId, onBack }: ReceiptDetails
     const tax = receipt.tax || 0
     const total = receipt.total || 0
 
+    // Determine items column order from template (data-items-columns on tbody)
+    let itemsColumns: Array<'description' | 'quantity' | 'price' | 'total'> = ['description', 'quantity', 'price', 'total']
+    const itemsColumnsMatch = template.template_html.match(/data-items-columns="([a-z,]+)"/)
+    if (itemsColumnsMatch && itemsColumnsMatch[1]) {
+      const parts = itemsColumnsMatch[1].split(',').map(p => p.trim()).filter(Boolean)
+      const valid: Array<'description' | 'quantity' | 'price' | 'total'> = []
+      for (const col of parts) {
+        if (col === 'description' || col === 'quantity' || col === 'price' || col === 'total') {
+          valid.push(col)
+        }
+      }
+      if (valid.length) {
+        itemsColumns = valid
+      }
+    }
+
     let itemsHTML = ''
     if (receipt.items && receipt.items.length > 0) {
       itemsHTML = receipt.items
-        .map(
-          (item) => `
+        .map((item) => {
+          const cells = itemsColumns
+            .map((col) => {
+              if (col === 'description') {
+                return `<td style="padding: 8px; border-bottom: 1px solid #eee;">${item.name}</td>`
+              }
+              if (col === 'quantity') {
+                return `<td style="padding: 8px; border-bottom: 1px solid #eee; text-align: center;">${item.quantity}</td>`
+              }
+              if (col === 'price') {
+                return `<td style="padding: 8px; border-bottom: 1px solid #eee; text-align: right;">$${item.unit_price.toFixed(2)}</td>`
+              }
+              if (col === 'total') {
+                return `<td style="padding: 8px; border-bottom: 1px solid #eee; text-align: right;">$${item.total.toFixed(2)}</td>`
+              }
+              return ''
+            })
+            .join('')
+
+          return `
         <tr>
-          <td style="padding: 8px; border-bottom: 1px solid #eee;">${item.name}</td>
-          <td style="padding: 8px; border-bottom: 1px solid #eee; text-align: center;">${item.quantity}</td>
-          <td style="padding: 8px; border-bottom: 1px solid #eee; text-align: right;">$${item.unit_price.toFixed(2)}</td>
-          <td style="padding: 8px; border-bottom: 1px solid #eee; text-align: right;">$${item.total.toFixed(2)}</td>
+          ${cells}
         </tr>
       `
-        )
+        })
         .join('')
     } else {
       itemsHTML = `
         <tr>
-          <td colspan="4" style="text-align: center; padding: 10px; color: #999; font-size: 12px;">
+          <td colspan="${itemsColumns.length}" style="text-align: center; padding: 10px; color: #999; font-size: 12px;">
             No items
           </td>
         </tr>

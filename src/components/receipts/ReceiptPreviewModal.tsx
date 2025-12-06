@@ -2,7 +2,7 @@ import { useRef, useState } from 'react'
 import type { Receipt, ReceiptTemplate } from '@/types'
 import { Button } from '@/components/ui/Button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/Dialog'
-import { Download, FileText, X } from 'lucide-react'
+import { Download, FileText, Image } from 'lucide-react'
 import html2canvas from 'html2canvas'
 import jsPDF from 'jspdf'
 
@@ -30,25 +30,56 @@ export default function ReceiptPreviewModal({
     const tax = receipt.tax || 0
     const total = receipt.total || 0
 
+    // Determine items column order from template (data-items-columns on tbody)
+    let itemsColumns: Array<'description' | 'quantity' | 'price' | 'total'> = ['description', 'quantity', 'price', 'total']
+    const itemsColumnsMatch = template.template_html.match(/data-items-columns="([a-z,]+)"/)
+    if (itemsColumnsMatch && itemsColumnsMatch[1]) {
+      const parts = itemsColumnsMatch[1].split(',').map(p => p.trim()).filter(Boolean)
+      const valid: Array<'description' | 'quantity' | 'price' | 'total'> = []
+      for (const col of parts) {
+        if (col === 'description' || col === 'quantity' || col === 'price' || col === 'total') {
+          valid.push(col)
+        }
+      }
+      if (valid.length) {
+        itemsColumns = valid
+      }
+    }
+
     // Build items HTML
     let itemsHTML = ''
     if (receipt.items && receipt.items.length > 0) {
       itemsHTML = receipt.items
-        .map(
-          (item) => `
+        .map((item) => {
+          const cells = itemsColumns
+            .map((col) => {
+              if (col === 'description') {
+                return `<td style="padding: 8px; border-bottom: 1px solid #eee;">${item.name}</td>`
+              }
+              if (col === 'quantity') {
+                return `<td style="padding: 8px; border-bottom: 1px solid #eee; text-align: center;">${item.quantity}</td>`
+              }
+              if (col === 'price') {
+                return `<td style="padding: 8px; border-bottom: 1px solid #eee; text-align: right;">$${item.unit_price.toFixed(2)}</td>`
+              }
+              if (col === 'total') {
+                return `<td style="padding: 8px; border-bottom: 1px solid #eee; text-align: right;">$${item.total.toFixed(2)}</td>`
+              }
+              return ''
+            })
+            .join('')
+
+          return `
         <tr>
-          <td style="padding: 8px; border-bottom: 1px solid #eee;">${item.name}</td>
-          <td style="padding: 8px; border-bottom: 1px solid #eee; text-align: center;">${item.quantity}</td>
-          <td style="padding: 8px; border-bottom: 1px solid #eee; text-align: right;">$${item.unit_price.toFixed(2)}</td>
-          <td style="padding: 8px; border-bottom: 1px solid #eee; text-align: right;">$${item.total.toFixed(2)}</td>
+          ${cells}
         </tr>
       `
-        )
+        })
         .join('')
     } else {
       itemsHTML = `
         <tr>
-          <td colspan="4" style="text-align: center; padding: 10px; color: #999; font-size: 12px;">
+          <td colspan="${itemsColumns.length}" style="text-align: center; padding: 10px; color: #999; font-size: 12px;">
             No items
           </td>
         </tr>
@@ -152,16 +183,40 @@ export default function ReceiptPreviewModal({
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="max-w-4xl max-h-[95vh] flex flex-col p-0">
-        <DialogHeader className="px-6 pt-6 pb-4 border-b">
-          <DialogTitle className="flex items-center gap-2">
-            <FileText size={20} />
+      <DialogContent className="max-w-4xl max-h-[95vh] flex flex-col p-0 border-gray-200 bg-white sm:rounded-2xl">
+        <DialogHeader className="px-6 py-3 border-b border-gray-200 bg-gray-50 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <DialogTitle className="flex items-center gap-2 text-base font-semibold text-gray-900">
+            <FileText size={18} />
             Receipt Preview
           </DialogTitle>
+          <div className="flex items-center gap-2">
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={downloadPNG}
+              disabled={isDownloading}
+              className="h-8 px-2 text-xs text-gray-700 hover:bg-gray-100"
+            >
+              <Image size={14} />
+              <span className="hidden sm:inline">PNG</span>
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={downloadPDF}
+              disabled={isDownloading}
+              className="h-8 px-2 text-xs text-gray-700 hover:bg-gray-100"
+            >
+              <Download size={14} />
+              <span className="hidden sm:inline">PDF</span>
+            </Button>
+          </div>
         </DialogHeader>
 
         <div className="flex-1 overflow-auto px-6 py-4 bg-gray-50">
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 md:p-6">
+          <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4 md:p-6">
             <iframe
               ref={iframeRef}
               title="Receipt preview"
@@ -170,33 +225,6 @@ export default function ReceiptPreviewModal({
               srcDoc={getPreviewHTML()}
             />
           </div>
-        </div>
-
-        <div className="border-t px-6 py-4 flex gap-3 justify-end bg-white">
-          <Button
-            variant="outline"
-            onClick={onClose}
-            disabled={isDownloading}
-          >
-            <X size={16} />
-            Close
-          </Button>
-          <Button
-            onClick={downloadPNG}
-            disabled={isDownloading}
-            className="bg-green-600 hover:bg-green-700 text-white"
-          >
-            <Download size={16} />
-            {isDownloading ? 'Downloading...' : 'Download PNG'}
-          </Button>
-          <Button
-            onClick={downloadPDF}
-            disabled={isDownloading}
-            className="bg-blue-600 hover:bg-blue-700 text-white"
-          >
-            <Download size={16} />
-            {isDownloading ? 'Downloading...' : 'Download PDF'}
-          </Button>
         </div>
       </DialogContent>
     </Dialog>

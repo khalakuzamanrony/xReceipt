@@ -39,9 +39,16 @@ export default function TemplateAccessGroup({
   }
 
   const handleCheckboxChange = (key: string, checked: boolean) => {
+    // Auto-enable view if user toggles create/assign while view is off
+    if (key !== 'can_view_templates' && checked && !permissions.can_view_templates) {
+      onChange('can_view_templates', true)
+    }
+
     onChange(key, checked)
+
     if (key === 'can_view_templates' && !checked) {
       onChange('assigned_template_ids', [])
+      onChange('can_assign_templates', false)
     }
   }
 
@@ -63,6 +70,7 @@ export default function TemplateAccessGroup({
       <div className="space-y-3">
         {/* Inline permission toggles */}
         <div className="flex flex-wrap items-center gap-4 text-sm">
+          {/* View */}
           <div className="flex items-center gap-2">
             <Checkbox
               id="can_view_templates"
@@ -74,31 +82,29 @@ export default function TemplateAccessGroup({
             </Label>
           </div>
 
-          {permissions.can_view_templates && (
-            <>
-              <div className="flex items-center gap-2">
-                <Checkbox
-                  id="can_create_templates"
-                  checked={permissions.can_create_templates || false}
-                  onCheckedChange={(checked) => handleCheckboxChange('can_create_templates', checked as boolean)}
-                />
-                <Label htmlFor="can_create_templates" className="cursor-pointer font-medium">
-                  Create
-                </Label>
-              </div>
+          {/* Create */}
+          <div className="flex items-center gap-2">
+            <Checkbox
+              id="can_create_templates"
+              checked={permissions.can_create_templates || false}
+              onCheckedChange={(checked) => handleCheckboxChange('can_create_templates', checked as boolean)}
+            />
+            <Label htmlFor="can_create_templates" className="cursor-pointer font-medium">
+              Create
+            </Label>
+          </div>
 
-              <div className="flex items-center gap-2">
-                <Checkbox
-                  id="can_assign_templates"
-                  checked={permissions.can_assign_templates || false}
-                  onCheckedChange={(checked) => handleCheckboxChange('can_assign_templates', checked as boolean)}
-                />
-                <Label htmlFor="can_assign_templates" className="cursor-pointer font-medium">
-                  Assign specific
-                </Label>
-              </div>
-            </>
-          )}
+          {/* Assign specific */}
+          <div className="flex items-center gap-2">
+            <Checkbox
+              id="can_assign_templates"
+              checked={permissions.can_assign_templates || false}
+              onCheckedChange={(checked) => handleCheckboxChange('can_assign_templates', checked as boolean)}
+            />
+            <Label htmlFor="can_assign_templates" className="cursor-pointer font-medium">
+              Assign specific
+            </Label>
+          </div>
         </div>
 
         {/* Assign Templates List */}
