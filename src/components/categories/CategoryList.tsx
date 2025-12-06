@@ -100,10 +100,6 @@ export default function CategoryList() {
       category.name.toLowerCase().includes(searchTerm.toLowerCase())
   )
 
-  const getRootCategories = () => {
-    return filteredCategories.filter(c => !c.parent_id)
-  }
-
   const getChildCategories = (parentId: string) => {
     return filteredCategories.filter(c => c.parent_id === parentId)
   }

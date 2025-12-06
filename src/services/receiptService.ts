@@ -1,5 +1,5 @@
 import { supabase } from '@/lib/supabase'
-import type { Receipt, ReceiptItem } from '@/types'
+import type { Receipt } from '@/types'
 
 export const receiptService = {
   async getAllReceipts(): Promise<Receipt[]> {
@@ -89,7 +89,7 @@ export const receiptService = {
     // Extract items from updates if provided
     const { items, ...receiptUpdates } = updates
 
-    const { data, error } = await supabase
+    const { error } = await supabase
       .from('receipts')
       .update(receiptUpdates)
       .eq('id', id)
