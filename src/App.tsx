@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import Sidebar from '@/components/layout/Sidebar'
 import Header from '@/components/layout/Header'
 import Dashboard from '@/components/dashboard/Dashboard'
@@ -8,12 +8,22 @@ import CategoryList from '@/components/categories/CategoryList'
 import ReceiptList from '@/components/receipts/ReceiptList'
 import TemplateList from '@/components/templates/TemplateList'
 import TemplateBuilderPage from '@/components/templates/TemplateBuilderPage'
+import VendorList from '@/components/vendors/VendorList'
 import { useAuth } from '@/contexts/AuthContext'
 import SignInPage from '@/components/auth/SignInPage'
 
 export default function App() {
   const { user, loading } = useAuth()
-  const [currentPage, setCurrentPage] = useState('dashboard')
+  const [currentPage, setCurrentPage] = useState(() => {
+    if (typeof window === 'undefined') return 'dashboard'
+    const stored = window.localStorage.getItem('xreceipt.currentPage')
+    return stored || 'dashboard'
+  })
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    window.localStorage.setItem('xreceipt.currentPage', currentPage)
+  }, [currentPage])
 
   if (loading) {
     return (
@@ -44,6 +54,8 @@ export default function App() {
         return <ProductList />
       case 'categories':
         return <CategoryList />
+      case 'vendors':
+        return <VendorList />
       case 'admin':
       default:
         return <AdminList />
@@ -58,6 +70,7 @@ export default function App() {
       'template-builder': 'Template Builder',
       'products': 'Products',
       'categories': 'Categories',
+      'vendors': 'Vendors',
       'admin': 'Admin',
     }
     return titles[currentPage] || currentPage.charAt(0).toUpperCase() + currentPage.slice(1)

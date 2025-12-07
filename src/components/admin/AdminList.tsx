@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import type { User } from '@/types'
 import { adminService } from '@/services/adminService'
+import { vendorAdminService } from '@/services/vendorAdminService'
 import AdminForm from './AdminForm'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
@@ -10,6 +11,7 @@ import { useAuth } from '@/contexts/AuthContext'
 export default function AdminList() {
   const { role } = useAuth()
   const [admins, setAdmins] = useState<User[]>([])
+  const [nonDeletableAdminIds, setNonDeletableAdminIds] = useState<string[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [searchTerm, setSearchTerm] = useState('')
@@ -26,6 +28,13 @@ export default function AdminList() {
       setError(null)
       const data = await adminService.getAllAdmins()
       setAdmins(data)
+
+      try {
+        const superAdminIds = await vendorAdminService.getVendorSuperAdminAdminIds()
+        setNonDeletableAdminIds(superAdminIds)
+      } catch (err) {
+        console.error('Failed to load vendor super admin info:', err)
+      }
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to load admins'
       // Check if it's a database error (table doesn't exist)
@@ -51,6 +60,10 @@ export default function AdminList() {
   }
 
   const handleDelete = async (id: string) => {
+    if (nonDeletableAdminIds.includes(id)) {
+      setError('This admin is a vendor super user and cannot be deleted. Reassign vendor super admins first.')
+      return
+    }
     if (!confirm('Are you sure you want to delete this admin?')) return
 
     try {
@@ -82,12 +95,12 @@ export default function AdminList() {
     )
   }
 
-  if (role !== 'super_admin') {
+  if (role !== 'grand_user') {
     return (
       <div className="bg-white rounded-lg border border-gray-200 p-8 text-center">
         <Users size={32} className="text-gray-300 mx-auto mb-3" />
         <p className="text-gray-800 font-semibold">You don't have access to Admin management</p>
-        <p className="text-gray-500 text-sm mt-1">Only super admins can manage admin users.</p>
+        <p className="text-gray-500 text-sm mt-1">Only Grand Users can manage admin users.</p>
       </div>
     )
   }
@@ -140,6 +153,7 @@ export default function AdminList() {
         <AdminForm
           admin={selectedAdmin}
           onClose={handleFormClose}
+          canEditEmail={selectedAdmin ? nonDeletableAdminIds.includes(selectedAdmin.id) : true}
         />
       )}
 
@@ -170,64 +184,68 @@ export default function AdminList() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
-                {filteredAdmins.map((admin) => (
-                  <tr key={admin.id} className="hover:bg-gray-50 transition-colors">
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-3">
-                        {admin.profile_image_url ? (
-                          <img
-                            src={admin.profile_image_url}
-                            alt={admin.name}
-                            className="w-10 h-10 rounded-full object-cover ring-2 ring-gray-200"
-                          />
-                        ) : (
-                          <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center ring-2 ring-gray-200">
-                            <span className="text-white font-bold text-sm">
-                              {admin.name.charAt(0).toUpperCase()}
-                            </span>
-                          </div>
-                        )}
-                        <span className="text-sm font-medium text-gray-900">{admin.name}</span>
-                      </div>
-                    </td>
-                    <td className="px-4 py-3">
-                      <p className="text-sm text-gray-600">{admin.email}</p>
-                    </td>
-                    <td className="px-4 py-3">
-                      <p className="text-sm text-gray-600">{admin.phone || '—'}</p>
-                    </td>
-                    <td className="px-4 py-3">
-                      <p className="text-sm text-gray-600">
-                        {new Date(admin.created_at).toLocaleDateString('en-US', {
-                          year: 'numeric',
-                          month: 'short',
-                          day: 'numeric',
-                        })}
-                      </p>
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="flex gap-2 justify-end">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleEdit(admin)}
-                          title="Edit"
-                        >
-                          <Edit size={14} />
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleDelete(admin.id)}
-                          className="text-red-600 hover:text-red-700"
-                          title="Delete"
-                        >
-                          <Trash2 size={14} />
-                        </Button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                {filteredAdmins.map((admin) => {
+                  const isNonDeletable = nonDeletableAdminIds.includes(admin.id)
+                  return (
+                    <tr key={admin.id} className="hover:bg-gray-50 transition-colors">
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-3">
+                          {admin.profile_image_url ? (
+                            <img
+                              src={admin.profile_image_url}
+                              alt={admin.name}
+                              className="w-10 h-10 rounded-full object-cover ring-2 ring-gray-200"
+                            />
+                          ) : (
+                            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center ring-2 ring-gray-200">
+                              <span className="text-white font-bold text-sm">
+                                {admin.name.charAt(0).toUpperCase()}
+                              </span>
+                            </div>
+                          )}
+                          <span className="text-sm font-medium text-gray-900">{admin.name}</span>
+                        </div>
+                      </td>
+                      <td className="px-4 py-3">
+                        <p className="text-sm text-gray-600">{admin.email}</p>
+                      </td>
+                      <td className="px-4 py-3">
+                        <p className="text-sm text-gray-600">{admin.phone || '—'}</p>
+                      </td>
+                      <td className="px-4 py-3">
+                        <p className="text-sm text-gray-600">
+                          {new Date(admin.created_at).toLocaleDateString('en-US', {
+                            year: 'numeric',
+                            month: 'short',
+                            day: 'numeric',
+                          })}
+                        </p>
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex gap-2 justify-end">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleEdit(admin)}
+                            title="Edit"
+                          >
+                            <Edit size={14} />
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleDelete(admin.id)}
+                            className="text-red-600 hover:text-red-700"
+                            title={isNonDeletable ? 'Vendor super user cannot be deleted' : 'Delete'}
+                            disabled={isNonDeletable}
+                          >
+                            <Trash2 size={14} />
+                          </Button>
+                        </div>
+                      </td>
+                    </tr>
+                  )
+                })}
               </tbody>
             </table>
           </div>

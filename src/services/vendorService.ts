@@ -1,26 +1,20 @@
 import { supabase } from '@/lib/supabase'
-import type { Product } from '@/types'
+import type { Vendor } from '@/types'
 
-export const productService = {
-  async getAllProducts(vendorId?: string): Promise<Product[]> {
-    let query = supabase
-      .from('products')
+export const vendorService = {
+  async getAllVendors(): Promise<Vendor[]> {
+    const { data, error } = await supabase
+      .from('vendors')
       .select('*')
       .order('created_at', { ascending: false })
-
-    if (vendorId) {
-      query = query.eq('vendor_id', vendorId)
-    }
-
-    const { data, error } = await query
 
     if (error) throw error
     return data || []
   },
 
-  async getProductById(id: string): Promise<Product | null> {
+  async getVendorById(id: string): Promise<Vendor | null> {
     const { data, error } = await supabase
-      .from('products')
+      .from('vendors')
       .select('*')
       .eq('id', id)
       .single()
@@ -29,10 +23,10 @@ export const productService = {
     return data || null
   },
 
-  async createProduct(product: Omit<Product, 'id' | 'created_at' | 'updated_at'>): Promise<Product> {
+  async createVendor(input: Omit<Vendor, 'id' | 'created_at' | 'updated_at'>): Promise<Vendor> {
     const { data, error } = await supabase
-      .from('products')
-      .insert(product)
+      .from('vendors')
+      .insert(input)
       .select()
       .single()
 
@@ -40,9 +34,9 @@ export const productService = {
     return data
   },
 
-  async updateProduct(id: string, updates: Partial<Product>): Promise<Product> {
+  async updateVendor(id: string, updates: Partial<Vendor>): Promise<Vendor> {
     const { data, error } = await supabase
-      .from('products')
+      .from('vendors')
       .update(updates)
       .eq('id', id)
       .select()
@@ -52,9 +46,9 @@ export const productService = {
     return data
   },
 
-  async deleteProduct(id: string): Promise<void> {
+  async deleteVendor(id: string): Promise<void> {
     const { error } = await supabase
-      .from('products')
+      .from('vendors')
       .delete()
       .eq('id', id)
 

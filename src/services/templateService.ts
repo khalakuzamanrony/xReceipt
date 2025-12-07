@@ -2,11 +2,17 @@ import { supabase } from '@/lib/supabase'
 import type { ReceiptTemplate } from '@/types'
 
 export const templateService = {
-  async getAllTemplates(): Promise<ReceiptTemplate[]> {
-    const { data, error } = await supabase
+  async getAllTemplates(vendorId?: string): Promise<ReceiptTemplate[]> {
+    let query = supabase
       .from('receipt_templates')
       .select('*')
       .order('created_at', { ascending: false })
+
+    if (vendorId) {
+      query = query.eq('vendor_id', vendorId)
+    }
+
+    const { data, error } = await query
 
     if (error) throw error
     return data || []

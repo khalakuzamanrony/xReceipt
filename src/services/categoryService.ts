@@ -2,11 +2,17 @@ import { supabase } from '@/lib/supabase'
 import type { Category } from '@/types'
 
 export const categoryService = {
-  async getAllCategories(): Promise<Category[]> {
-    const { data, error } = await supabase
+  async getAllCategories(vendorId?: string): Promise<Category[]> {
+    let query = supabase
       .from('categories')
       .select('*')
       .order('created_at', { ascending: false })
+
+    if (vendorId) {
+      query = query.eq('vendor_id', vendorId)
+    }
+
+    const { data, error } = await query
 
     if (error) throw error
     return data || []

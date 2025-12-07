@@ -9,13 +9,15 @@ import { Label } from '@/components/ui/Label'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/Dialog'
 import { Plus, AlertCircle, FileText, Search, Edit, Trash2, Eye, Clock, CheckCircle, X, Download } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
+import { useVendor } from '@/contexts/VendorContext'
 import ReceiptPreviewModal from './ReceiptPreviewModal'
 import ReceiptDetailsPage from './ReceiptDetailsPage'
 
 export default function ReceiptList() {
   const { role, permissions } = useAuth()
-  const canViewReceipts = role === 'super_admin' || !!permissions?.can_view_receipts
-  const canCreateReceipts = role === 'super_admin' || !!permissions?.can_create_receipts
+  const canViewReceipts = role === 'grand_user' || !!permissions?.can_view_receipts
+  const canCreateReceipts = role === 'grand_user' || !!permissions?.can_create_receipts
+  const { activeVendorId, loading: vendorLoading } = useVendor()
   const [receipts, setReceipts] = useState<Receipt[]>([])
   const [templates, setTemplates] = useState<any[]>([])
   const [products, setProducts] = useState<any[]>([])
@@ -41,17 +43,28 @@ export default function ReceiptList() {
   })
 
   useEffect(() => {
-    loadData()
-  }, [])
+    if (vendorLoading) return
 
-  const loadData = async () => {
+    if (role === 'admin' && !activeVendorId) {
+      setReceipts([])
+      setTemplates([])
+      setProducts([])
+      setLoading(false)
+      return
+    }
+
+    void loadData(activeVendorId)
+  }, [vendorLoading, activeVendorId, role])
+
+  const loadData = async (vendorId?: string | null) => {
     try {
       setLoading(true)
       setError(null)
+      const vendorFilter = vendorId ?? undefined
       const [receiptsData, templatesData, productsData] = await Promise.all([
-        receiptService.getAllReceipts(),
-        templateService.getAllTemplates(),
-        productService.getAllProducts(),
+        receiptService.getAllReceipts(vendorFilter),
+        templateService.getAllTemplates(vendorFilter),
+        productService.getAllProducts(vendorFilter),
       ])
       setReceipts(receiptsData)
       setTemplates(templatesData)
@@ -174,7 +187,7 @@ export default function ReceiptList() {
       const totalAmount = calculateTotal()
       const tax = totalAmount * 0.1
       const subtotal = totalAmount - tax
-      const receiptData = {
+      const receiptData: any = {
         customer_name: formData.customer_name,
         customer_email: formData.customer_email,
         customer_company: formData.customer_company || undefined,
@@ -185,6 +198,10 @@ export default function ReceiptList() {
         tax,
         total: totalAmount,
         items, // Include items in the receipt data
+      }
+
+      if (activeVendorId) {
+        receiptData.vendor_id = activeVendorId
       }
 
       let createdReceipt: Receipt
@@ -228,11 +245,21 @@ export default function ReceiptList() {
     return styles[status] || styles.draft
   }
 
-  if (loading) {
+  if (loading || vendorLoading) {
     return (
       <div className="flex flex-col items-center justify-center h-96 gap-4">
         <div className="animate-spin rounded-full h-16 w-16 border-4 border-blue-200 border-t-blue-600"></div>
         <p className="text-gray-600 font-medium">Loading receipts...</p>
+      </div>
+    )
+  }
+
+  if (role === 'admin' && !activeVendorId) {
+    return (
+      <div className="bg-white rounded-lg border border-gray-200 p-8 text-center">
+        <FileText size={32} className="text-gray-300 mx-auto mb-3" />
+        <p className="text-gray-800 font-semibold">No vendor assigned</p>
+        <p className="text-gray-500 text-sm mt-1">You are not assigned to any vendor. Please contact a Grand User.</p>
       </div>
     )
   }
@@ -242,7 +269,7 @@ export default function ReceiptList() {
       <div className="bg-white rounded-lg border border-gray-200 p-8 text-center">
         <FileText size={32} className="text-gray-300 mx-auto mb-3" />
         <p className="text-gray-800 font-semibold">You don't have access to Receipts</p>
-        <p className="text-gray-500 text-sm mt-1">Contact a super admin if you think this is a mistake.</p>
+        <p className="text-gray-500 text-sm mt-1">Contact a Grand User if you think this is a mistake.</p>
       </div>
     )
   }

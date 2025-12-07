@@ -1,0 +1,129 @@
+1 change the new suooerain of newly created vendor is "{superadmin@shopname.com} pass : {#Shopname1}
+
+2 Unable to login for newly created admin : content.js:398 Uncaught TypeError: Failed to execute 'observe' on 'MutationObserver': parameter 1 is not of type 'Node'.
+    at content.js:398:12
+    at content.js:402:3
+(anonymous) @ content.js:398
+(anonymous) @ content.js:402
+client:733 [vite] connecting...
+client:827 [vite] connected.
+react-dom_client.js?v=2c686e8d:20103 Download the React DevTools for a better development experience: https://react.dev/link/react-devtools
+xpath-extractor.js:20 FillBot: XPath Extractor initialized
+screenshot-handler.js:22 FillBot Screenshot Handler initialized
+content.js:75 Content script loaded
+chext_driver.js:539 Initialized driver at: Mon Dec 08 2025 00:22:16 GMT+0600 (Bangladesh Standard Time)
+content.js:108 FillBot: Comparing domains - Current: "", Excluded: "portal.iccbd.com"
+content.js:121 FillBot: Exact match result: false
+content.js:125 FillBot: Subdomain match result: false
+content.js:128 FillBot: Final exclusion result: false
+content.js:108 FillBot: Comparing domains - Current: "", Excluded: "chat.z.ai"
+content.js:121 FillBot: Exact match result: false
+content.js:125 FillBot: Subdomain match result: false
+content.js:128 FillBot: Final exclusion result: false
+content.js:108 FillBot: Comparing domains - Current: "", Excluded: "chat.deepseek.com"
+content.js:121 FillBot: Exact match result: false
+content.js:125 FillBot: Subdomain match result: false
+content.js:128 FillBot: Final exclusion result: false
+content.js:108 FillBot: Comparing domains - Current: "", Excluded: "alljobs.teletalk.com.bd"
+content.js:121 FillBot: Exact match result: false
+content.js:125 FillBot: Subdomain match result: false
+content.js:128 FillBot: Final exclusion result: false
+chext_loader.js:73 Initialized chextloader at: 1765131736249
+content.js:163 FillBot: Custom data loaded: {firstNames: 70, lastNames: 0, emails: 0, passwords: 0, loremKeywords: 0}
+content.js:191 FillBot: Initialized successfully
+AuthContext.tsx:93  POST https://ennacgmobaeukhtvkxgi.supabase.co/auth/v1/token?grant_type=password 400 (Bad Request)
+(anonymous) @ @supabase_supabase-js.js?v=2c686e8d:7597
+_handleRequest3 @ @supabase_supabase-js.js?v=2c686e8d:7887
+_request @ @supabase_supabase-js.js?v=2c686e8d:7877
+signInWithPassword @ @supabase_supabase-js.js?v=2c686e8d:9635
+signIn @ AuthContext.tsx:93
+handleSubmit @ SignInPage.tsx:15
+executeDispatch @ react-dom_client.js?v=2c686e8d:13622
+runWithFiberInDEV @ react-dom_client.js?v=2c686e8d:997
+processDispatchQueue @ react-dom_client.js?v=2c686e8d:13658
+(anonymous) @ react-dom_client.js?v=2c686e8d:14071
+batchedUpdates$1 @ react-dom_client.js?v=2c686e8d:2626
+dispatchEventForPluginEventSystem @ react-dom_client.js?v=2c686e8d:13763
+dispatchEvent @ react-dom_client.js?v=2c686e8d:16784
+dispatchDiscreteEvent @ react-dom_client.js?v=2c686e8d:16765
+<form>
+exports.jsxDEV @ react_jsx-dev-runtime.js?v=2c686e8d:247
+SignInPage @ SignInPage.tsx:25
+react_stack_bottom_frame @ react-dom_client.js?v=2c686e8d:18509
+renderWithHooksAgain @ react-dom_client.js?v=2c686e8d:5729
+renderWithHooks @ react-dom_client.js?v=2c686e8d:5665
+updateFunctionComponent @ react-dom_client.js?v=2c686e8d:7475
+beginWork @ react-dom_client.js?v=2c686e8d:8525
+runWithFiberInDEV @ react-dom_client.js?v=2c686e8d:997
+performUnitOfWork @ react-dom_client.js?v=2c686e8d:12561
+workLoopSync @ react-dom_client.js?v=2c686e8d:12424
+renderRootSync @ react-dom_client.js?v=2c686e8d:12408
+performWorkOnRoot @ react-dom_client.js?v=2c686e8d:11766
+performWorkOnRootViaSchedulerTask @ react-dom_client.js?v=2c686e8d:13505
+performWorkUntilDeadline @ react-dom_client.js?v=2c686e8d:36
+<SignInPage>
+exports.jsxDEV @ react_jsx-dev-runtime.js?v=2c686e8d:247
+App @ App.tsx:40
+react_stack_bottom_frame @ react-dom_client.js?v=2c686e8d:18509
+renderWithHooksAgain @ react-dom_client.js?v=2c686e8d:5729
+renderWithHooks @ react-dom_client.js?v=2c686e8d:5665
+updateFunctionComponent @ react-dom_client.js?v=2c686e8d:7475
+beginWork @ react-dom_client.js?v=2c686e8d:8525
+runWithFiberInDEV @ react-dom_client.js?v=2c686e8d:997
+performUnitOfWork @ react-dom_client.js?v=2c686e8d:12561
+workLoopSync @ react-dom_client.js?v=2c686e8d:12424
+renderRootSync @ react-dom_client.js?v=2c686e8d:12408
+performWorkOnRoot @ react-dom_client.js?v=2c686e8d:11766
+performWorkOnRootViaSchedulerTask @ react-dom_client.js?v=2c686e8d:13505
+performWorkUntilDeadline @ react-dom_client.js?v=2c686e8d:36
+<App>
+exports.jsxDEV @ react_jsx-dev-runtime.js?v=2c686e8d:247
+(anonymous) @ main.tsx:12
+AuthContext.tsx:93  POST https://ennacgmobaeukhtvkxgi.supabase.co/auth/v1/token?grant_type=password 400 (Bad Request)
+(anonymous) @ @supabase_supabase-js.js?v=2c686e8d:7597
+_handleRequest3 @ @supabase_supabase-js.js?v=2c686e8d:7887
+_request @ @supabase_supabase-js.js?v=2c686e8d:7877
+signInWithPassword @ @supabase_supabase-js.js?v=2c686e8d:9635
+signIn @ AuthContext.tsx:93
+handleSubmit @ SignInPage.tsx:15
+executeDispatch @ react-dom_client.js?v=2c686e8d:13622
+runWithFiberInDEV @ react-dom_client.js?v=2c686e8d:997
+processDispatchQueue @ react-dom_client.js?v=2c686e8d:13658
+(anonymous) @ react-dom_client.js?v=2c686e8d:14071
+batchedUpdates$1 @ react-dom_client.js?v=2c686e8d:2626
+dispatchEventForPluginEventSystem @ react-dom_client.js?v=2c686e8d:13763
+dispatchEvent @ react-dom_client.js?v=2c686e8d:16784
+dispatchDiscreteEvent @ react-dom_client.js?v=2c686e8d:16765
+<form>
+exports.jsxDEV @ react_jsx-dev-runtime.js?v=2c686e8d:247
+SignInPage @ SignInPage.tsx:25
+react_stack_bottom_frame @ react-dom_client.js?v=2c686e8d:18509
+renderWithHooksAgain @ react-dom_client.js?v=2c686e8d:5729
+renderWithHooks @ react-dom_client.js?v=2c686e8d:5665
+updateFunctionComponent @ react-dom_client.js?v=2c686e8d:7475
+beginWork @ react-dom_client.js?v=2c686e8d:8525
+runWithFiberInDEV @ react-dom_client.js?v=2c686e8d:997
+performUnitOfWork @ react-dom_client.js?v=2c686e8d:12561
+workLoopSync @ react-dom_client.js?v=2c686e8d:12424
+renderRootSync @ react-dom_client.js?v=2c686e8d:12408
+performWorkOnRoot @ react-dom_client.js?v=2c686e8d:11766
+performWorkOnRootViaSchedulerTask @ react-dom_client.js?v=2c686e8d:13505
+performWorkUntilDeadline @ react-dom_client.js?v=2c686e8d:36
+<SignInPage>
+exports.jsxDEV @ react_jsx-dev-runtime.js?v=2c686e8d:247
+App @ App.tsx:40
+react_stack_bottom_frame @ react-dom_client.js?v=2c686e8d:18509
+renderWithHooksAgain @ react-dom_client.js?v=2c686e8d:5729
+renderWithHooks @ react-dom_client.js?v=2c686e8d:5665
+updateFunctionComponent @ react-dom_client.js?v=2c686e8d:7475
+beginWork @ react-dom_client.js?v=2c686e8d:8525
+runWithFiberInDEV @ react-dom_client.js?v=2c686e8d:997
+performUnitOfWork @ react-dom_client.js?v=2c686e8d:12561
+workLoopSync @ react-dom_client.js?v=2c686e8d:12424
+renderRootSync @ react-dom_client.js?v=2c686e8d:12408
+performWorkOnRoot @ react-dom_client.js?v=2c686e8d:11766
+performWorkOnRootViaSchedulerTask @ react-dom_client.js?v=2c686e8d:13505
+performWorkUntilDeadline @ react-dom_client.js?v=2c686e8d:36
+<App>
+exports.jsxDEV @ react_jsx-dev-runtime.js?v=2c686e8d:247
+(anonymous) @ main.tsx:12

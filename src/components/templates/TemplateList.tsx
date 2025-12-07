@@ -7,6 +7,7 @@ import { Label } from '@/components/ui/Label'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/Dialog'
 import { Plus, Edit, Trash2, AlertCircle, FileCode, Search, Zap } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
+import { useVendor } from '@/contexts/VendorContext'
 import VisualReceiptBuilder from './VisualReceiptBuilder'
 
 interface TemplateListProps {
@@ -15,8 +16,9 @@ interface TemplateListProps {
 
 export default function TemplateList({ onNavigateToBuilder }: TemplateListProps) {
   const { role, permissions } = useAuth()
-  const canViewTemplates = role === 'super_admin' || !!permissions?.can_view_templates
-  const canCreateTemplates = role === 'super_admin' || !!permissions?.can_create_templates
+  const canViewTemplates = role === 'grand_user' || !!permissions?.can_view_templates
+  const canCreateTemplates = role === 'grand_user' || !!permissions?.can_create_templates
+  const { activeVendorId, loading: vendorLoading } = useVendor()
   const [templates, setTemplates] = useState<ReceiptTemplate[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -31,14 +33,23 @@ export default function TemplateList({ onNavigateToBuilder }: TemplateListProps)
   })
 
   useEffect(() => {
-    loadTemplates()
-  }, [])
+    if (vendorLoading) return
 
-  const loadTemplates = async () => {
+    if (role === 'admin' && !activeVendorId) {
+      setTemplates([])
+      setLoading(false)
+      return
+    }
+
+    void loadTemplates(activeVendorId)
+  }, [vendorLoading, activeVendorId, role])
+
+  const loadTemplates = async (vendorId?: string | null) => {
     try {
       setLoading(true)
       setError(null)
-      const data = await templateService.getAllTemplates()
+      const vendorFilter = vendorId ?? undefined
+      const data = await templateService.getAllTemplates(vendorFilter)
       setTemplates(data)
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to load templates'
@@ -91,10 +102,14 @@ export default function TemplateList({ onNavigateToBuilder }: TemplateListProps)
     }
 
     try {
-      const templateData = {
+      const templateData: any = {
         name: formData.name,
         description: formData.description,
         template_html: formData.template_html,
+      }
+
+      if (activeVendorId) {
+        templateData.vendor_id = activeVendorId
       }
 
       if (selectedTemplate) {
@@ -148,11 +163,17 @@ export default function TemplateList({ onNavigateToBuilder }: TemplateListProps)
 
       html += '</div>'
 
-      await templateService.createTemplate({
+      const payload: any = {
         name: data.name,
         description: data.description,
         template_html: html,
-      })
+      }
+
+      if (activeVendorId) {
+        payload.vendor_id = activeVendorId
+      }
+
+      await templateService.createTemplate(payload)
 
       setShowVisualBuilder(false)
       loadTemplates()
@@ -161,11 +182,21 @@ export default function TemplateList({ onNavigateToBuilder }: TemplateListProps)
     }
   }
 
-  if (loading) {
+  if (loading || vendorLoading) {
     return (
       <div className="flex flex-col items-center justify-center h-96 gap-4">
         <div className="animate-spin rounded-full h-16 w-16 border-4 border-blue-200 border-t-blue-600"></div>
         <p className="text-gray-600 font-medium">Loading templates...</p>
+      </div>
+    )
+  }
+
+  if (role === 'admin' && !activeVendorId) {
+    return (
+      <div className="bg-white rounded-lg border border-gray-200 p-8 text-center">
+        <FileCode size={32} className="text-gray-300 mx-auto mb-3" />
+        <p className="text-gray-800 font-semibold">No vendor assigned</p>
+        <p className="text-gray-500 text-sm mt-1">You are not assigned to any vendor. Please contact a Grand User.</p>
       </div>
     )
   }
@@ -175,7 +206,7 @@ export default function TemplateList({ onNavigateToBuilder }: TemplateListProps)
       <div className="bg-white rounded-lg border border-gray-200 p-8 text-center">
         <FileCode size={32} className="text-gray-300 mx-auto mb-3" />
         <p className="text-gray-800 font-semibold">You don't have access to Templates</p>
-        <p className="text-gray-500 text-sm mt-1">Contact a super admin if you think this is a mistake.</p>
+        <p className="text-gray-500 text-sm mt-1">Contact a Grand User if you think this is a mistake.</p>
       </div>
     )
   }

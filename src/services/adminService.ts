@@ -1,5 +1,34 @@
 import { supabase } from '@/lib/supabase'
-import type { User, AdminPermissions } from '@/types'
+import { createClient } from '@supabase/supabase-js'
+import type { User, AdminPermissions, Vendor } from '@/types'
+
+const authProvisionClient = createClient(
+  import.meta.env.VITE_SUPABASE_URL!,
+  import.meta.env.VITE_SUPABASE_ANON_KEY!,
+  {
+    auth: {
+      persistSession: false,
+      autoRefreshToken: false,
+    },
+  },
+)
+
+async function ensureAuthUser(email: string, password: string) {
+  if (!email || !password) return
+
+  const { error } = await authProvisionClient.auth.signUp({
+    email,
+    password,
+  })
+
+  if (error) {
+    const message = String(error.message || '').toLowerCase()
+    // Ignore if user already exists; this makes the operation idempotent
+    if (!message.includes('already registered') && !message.includes('user already exists')) {
+      throw error
+    }
+  }
+}
 
 export const adminService = {
   // Get all admins
@@ -55,7 +84,8 @@ export const adminService = {
     name: string,
     email: string,
     phone?: string,
-    profileImageUrl?: string
+    profileImageUrl?: string,
+    password?: string,
   ): Promise<User> {
     const { data, error } = await supabase
       .from('users')
@@ -70,6 +100,64 @@ export const adminService = {
       .single()
 
     if (error) throw error
+
+    if (password) {
+      try {
+        await ensureAuthUser(email, password)
+      } catch (authError) {
+        console.error('Failed to create Supabase Auth user for admin:', authError)
+      }
+    }
+
+    return data
+  },
+
+  // Create a full-permission vendor super admin for a specific vendor
+  async createVendorSuperAdminForVendor(vendor: Vendor): Promise<User> {
+    const base = (vendor.vendor_id || vendor.name)
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '')
+    const safeBase = base || 'shop'
+
+    const email = `${safeBase}@xreceipt.com`
+    const password = `#${safeBase}1`
+
+    const { data, error } = await supabase
+      .from('users')
+      .insert({
+        name: `${vendor.name} Super Admin`,
+        email,
+        role: 'admin',
+      })
+      .select()
+      .single()
+
+    if (error) throw error
+
+    // Grant full permissions to this vendor super admin by default
+    await this.saveAdminPermissions(data.id, {
+      can_view_products: true,
+      can_create_products: true,
+      assigned_product_ids: [],
+      can_view_categories: true,
+      can_create_categories: true,
+      can_assign_categories: true,
+      assigned_category_ids: [],
+      can_view_receipts: true,
+      can_create_receipts: true,
+      can_assign_receipt_templates: true,
+      can_view_templates: true,
+      can_create_templates: true,
+      can_assign_templates: true,
+      assigned_template_ids: [],
+    })
+
+    try {
+      await ensureAuthUser(email, password)
+    } catch (authError) {
+      console.error('Failed to create Supabase Auth user for vendor super admin:', authError)
+    }
+
     return data
   },
 
@@ -89,8 +177,20 @@ export const adminService = {
     return data
   },
 
-  // Delete admin
+  // Delete admin (blocked if admin is vendor super admin for any vendor)
   async deleteAdmin(id: string): Promise<void> {
+    const { data: vendorSuperAdmins, error: vendorSuperError } = await supabase
+      .from('vendor_admins')
+      .select('id')
+      .eq('admin_id', id)
+      .eq('is_vendor_super_admin', true)
+
+    if (vendorSuperError) throw vendorSuperError
+
+    if (vendorSuperAdmins && vendorSuperAdmins.length > 0) {
+      throw new Error('Cannot delete an admin who is a vendor super admin. Update vendor admin assignments first.')
+    }
+
     const { error } = await supabase
       .from('users')
       .delete()

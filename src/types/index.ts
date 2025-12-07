@@ -1,5 +1,5 @@
 // User types
-export type UserRole = 'super_admin' | 'admin'
+export type UserRole = 'grand_user' | 'admin'
 
 export interface User {
   id: string
@@ -51,6 +51,7 @@ export interface Product {
   price: number
   category_id: string
   image_url?: string
+  vendor_id?: string | null
   created_at: string
   updated_at: string
 }
@@ -61,6 +62,7 @@ export interface Category {
   name: string
   parent_id?: string | null
   image_url?: string
+  vendor_id?: string | null
   created_at: string
   updated_at: string
 }
@@ -72,6 +74,7 @@ export interface ReceiptTemplate {
   description?: string
   template_html: string
   created_by: string
+  vendor_id?: string | null
   created_at: string
   updated_at: string
 }
@@ -86,6 +89,7 @@ export interface Receipt {
   customer_phone?: string
   customer_address?: string
   template_id: string
+  vendor_id?: string | null
   subtotal?: number
   tax?: number
   total?: number
@@ -122,4 +126,29 @@ export interface CreateReceiptFormData {
   customer_phone?: string
   customer_address?: string
   notes?: string
+}
+
+export type VendorStatus = 'active' | 'inactive'
+
+export interface Vendor {
+  id: string
+  vendor_id: string
+  name: string
+  email: string
+  address?: string | null
+  url?: string | null
+  status: VendorStatus
+  image_url?: string | null
+  admin_id?: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface VendorAdmin {
+  id: string
+  vendor_id: string
+  admin_id: string
+  is_vendor_super_admin: boolean
+  created_at: string
+  updated_at: string
 }

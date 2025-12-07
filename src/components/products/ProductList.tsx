@@ -8,11 +8,13 @@ import { Label } from '@/components/ui/Label'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/Dialog'
 import { Plus, Edit, Trash2, AlertCircle, Package, Search } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
+import { useVendor } from '@/contexts/VendorContext'
 
 export default function ProductList() {
   const { role, permissions } = useAuth()
-  const canViewProducts = role === 'super_admin' || !!permissions?.can_view_products
-  const canCreateProducts = role === 'super_admin' || !!permissions?.can_create_products
+  const canViewProducts = role === 'grand_user' || !!permissions?.can_view_products
+  const canCreateProducts = role === 'grand_user' || !!permissions?.can_create_products
+  const { activeVendorId, loading: vendorLoading } = useVendor()
   const [products, setProducts] = useState<Product[]>([])
   const [categories, setCategories] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
@@ -28,16 +30,27 @@ export default function ProductList() {
   })
 
   useEffect(() => {
-    loadData()
-  }, [])
+    if (vendorLoading) return
 
-  const loadData = async () => {
+    if (role === 'admin' && !activeVendorId) {
+      setProducts([])
+      setCategories([])
+      setLoading(false)
+      return
+    }
+
+    void loadData(activeVendorId)
+  }, [vendorLoading, activeVendorId, role])
+
+  const loadData = async (vendorId?: string | null) => {
     try {
       setLoading(true)
       setError(null)
+
+      const vendorFilter = vendorId ?? undefined
       const [productsData, categoriesData] = await Promise.all([
-        productService.getAllProducts(),
-        categoryService.getAllCategories(),
+        productService.getAllProducts(vendorFilter),
+        categoryService.getAllCategories(vendorFilter),
       ])
       setProducts(productsData)
       setCategories(categoriesData)
@@ -93,11 +106,15 @@ export default function ProductList() {
     }
 
     try {
-      const productData = {
+      const productData: any = {
         name: formData.name,
         description: formData.description,
         price: parseFloat(formData.price),
         category_id: formData.category_id,
+      }
+
+      if (activeVendorId) {
+        productData.vendor_id = activeVendorId
       }
 
       if (selectedProduct) {
@@ -117,7 +134,7 @@ export default function ProductList() {
     return categories.find(c => c.id === categoryId)?.name || 'Unknown'
   }
 
-  if (loading) {
+  if (loading || vendorLoading) {
     return (
       <div className="flex flex-col items-center justify-center h-96 gap-4">
         <div className="animate-spin rounded-full h-16 w-16 border-4 border-blue-200 border-t-blue-600"></div>
@@ -131,7 +148,17 @@ export default function ProductList() {
       <div className="bg-white rounded-lg border border-gray-200 p-8 text-center">
         <Package size={32} className="text-gray-300 mx-auto mb-3" />
         <p className="text-gray-800 font-semibold">You don't have access to Products</p>
-        <p className="text-gray-500 text-sm mt-1">Contact a super admin if you think this is a mistake.</p>
+        <p className="text-gray-500 text-sm mt-1">Contact a Grand User if you think this is a mistake.</p>
+      </div>
+    )
+  }
+
+  if (role === 'admin' && !activeVendorId) {
+    return (
+      <div className="bg-white rounded-lg border border-gray-200 p-8 text-center">
+        <Package size={32} className="text-gray-300 mx-auto mb-3" />
+        <p className="text-gray-800 font-semibold">No vendor assigned</p>
+        <p className="text-gray-500 text-sm mt-1">You are not assigned to any vendor. Please contact a Grand User.</p>
       </div>
     )
   }

@@ -61,7 +61,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const perms = await adminService.getAdminPermissions(dbUser.id)
         setPermissions(perms)
       } else {
-        // super_admin has full access; permissions not strictly needed
+        // Grand User has full access; permissions not strictly needed
         setPermissions(null)
       }
     } catch (err) {

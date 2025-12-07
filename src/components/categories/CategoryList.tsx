@@ -7,11 +7,13 @@ import { Label } from '@/components/ui/Label'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/Dialog'
 import { Plus, Edit, Trash2, AlertCircle, FolderOpen, Search } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
+import { useVendor } from '@/contexts/VendorContext'
 
 export default function CategoryList() {
   const { role, permissions } = useAuth()
-  const canViewCategories = role === 'super_admin' || !!permissions?.can_view_categories
-  const canCreateCategories = role === 'super_admin' || !!permissions?.can_create_categories
+  const canViewCategories = role === 'grand_user' || !!permissions?.can_view_categories
+  const canCreateCategories = role === 'grand_user' || !!permissions?.can_create_categories
+  const { activeVendorId, loading: vendorLoading } = useVendor()
   const [categories, setCategories] = useState<Category[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -24,14 +26,23 @@ export default function CategoryList() {
   })
 
   useEffect(() => {
-    loadCategories()
-  }, [])
+    if (vendorLoading) return
 
-  const loadCategories = async () => {
+    if (role === 'admin' && !activeVendorId) {
+      setCategories([])
+      setLoading(false)
+      return
+    }
+
+    void loadCategories(activeVendorId)
+  }, [vendorLoading, activeVendorId, role])
+
+  const loadCategories = async (vendorId?: string | null) => {
     try {
       setLoading(true)
       setError(null)
-      const data = await categoryService.getAllCategories()
+      const vendorFilter = vendorId ?? undefined
+      const data = await categoryService.getAllCategories(vendorFilter)
       setCategories(data)
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to load categories'
@@ -77,9 +88,13 @@ export default function CategoryList() {
     }
 
     try {
-      const categoryData = {
+      const categoryData: any = {
         name: formData.name,
         parent_id: formData.parent_id || null,
+      }
+
+      if (activeVendorId) {
+        categoryData.vendor_id = activeVendorId
       }
 
       if (selectedCategory) {
@@ -108,7 +123,7 @@ export default function CategoryList() {
     return categories.find(c => c.id === parentId)?.name || 'Unknown'
   }
 
-  if (loading) {
+  if (loading || vendorLoading) {
     return (
       <div className="flex flex-col items-center justify-center h-96 gap-4">
         <div className="animate-spin rounded-full h-16 w-16 border-4 border-blue-200 border-t-blue-600"></div>
@@ -122,7 +137,7 @@ export default function CategoryList() {
       <div className="bg-white rounded-lg border border-gray-200 p-8 text-center">
         <FolderOpen size={32} className="text-gray-300 mx-auto mb-3" />
         <p className="text-gray-800 font-semibold">You don't have access to Categories</p>
-        <p className="text-gray-500 text-sm mt-1">Contact a super admin if you think this is a mistake.</p>
+        <p className="text-gray-500 text-sm mt-1">Contact a Grand User if you think this is a mistake.</p>
       </div>
     )
   }

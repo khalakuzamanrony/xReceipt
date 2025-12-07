@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Menu, X, LayoutDashboard, Package, Folder, FileText, Users, Settings } from 'lucide-react'
+import { Menu, X, LayoutDashboard, Package, Folder, FileText, Users, Settings, Store } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 
 interface SidebarProps {
@@ -17,14 +17,15 @@ export default function Sidebar({ currentPage, onPageChange }: SidebarProps) {
     { id: 'templates', label: 'Receipt Templates', icon: Settings },
     { id: 'products', label: 'Products', icon: Package },
     { id: 'categories', label: 'Categories', icon: Folder },
+    { id: 'vendors', label: 'Vendors', icon: Store },
     { id: 'admin', label: 'Admin', icon: Users },
   ]
 
   const menuItems = baseMenuItems.filter((item) => {
     if (item.id === 'dashboard') return true
 
-    // Super admin can see everything
-    if (role === 'super_admin') return true
+    // Global Grand User can see everything
+    if (role === 'grand_user') return true
 
     // No permissions loaded yet for regular admins
     if (!permissions) return false
@@ -38,6 +39,9 @@ export default function Sidebar({ currentPage, onPageChange }: SidebarProps) {
         return permissions.can_view_products
       case 'categories':
         return permissions.can_view_categories
+      case 'vendors':
+        // Only super admins (handled above) can see this
+        return false
       case 'admin':
         // Only super admins (handled above) can see this
         return false

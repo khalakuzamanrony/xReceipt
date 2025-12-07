@@ -14,14 +14,16 @@ import TemplateAccessGroup from './permissions/TemplateAccessGroup'
 interface AdminFormProps {
   admin: User | null
   onClose: () => void
+  canEditEmail?: boolean
 }
 
-export default function AdminForm({ admin, onClose }: AdminFormProps) {
+export default function AdminForm({ admin, onClose, canEditEmail = false }: AdminFormProps) {
   const [formData, setFormData] = useState({
     name: '',
     email: '',
     phone: '',
     profileImage: null as File | null,
+    password: '',
   })
 
   const [permissions, setPermissions] = useState<Partial<AdminPermissions>>({
@@ -52,6 +54,7 @@ export default function AdminForm({ admin, onClose }: AdminFormProps) {
         email: admin.email,
         phone: admin.phone || '',
         profileImage: null,
+        password: '',
       })
       loadPermissions(admin.id)
     }
@@ -117,7 +120,8 @@ export default function AdminForm({ admin, onClose }: AdminFormProps) {
           formData.name,
           formData.email,
           formData.phone,
-          profileImageUrl
+          profileImageUrl,
+          formData.password,
         )
 
         // Save permissions for new admin
@@ -191,7 +195,7 @@ export default function AdminForm({ admin, onClose }: AdminFormProps) {
                       value={formData.email}
                       onChange={handleInputChange}
                       required
-                      disabled={!!admin}
+                      disabled={!!admin && !canEditEmail}
                       placeholder="admin@example.com"
                     />
                   </div>
