@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react'
-import type { User, AdminPermissions } from '@/types'
+import type { User, AdminPermissions, Vendor } from '@/types'
 import { adminService } from '@/services/adminService'
+import { vendorService } from '@/services/vendorService'
+import { vendorAdminService } from '@/services/vendorAdminService'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/Dialog'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
@@ -10,6 +12,7 @@ import ProductAccessGroup from './permissions/ProductAccessGroup'
 import CategoryAccessGroup from './permissions/CategoryAccessGroup'
 import ReceiptAccessGroup from './permissions/ReceiptAccessGroup'
 import TemplateAccessGroup from './permissions/TemplateAccessGroup'
+import { Eye, EyeOff } from 'lucide-react'
 
 interface AdminFormProps {
   admin: User | null
@@ -25,6 +28,9 @@ export default function AdminForm({ admin, onClose, canEditEmail = false }: Admi
     profileImage: null as File | null,
     password: '',
   })
+  const [showPassword, setShowPassword] = useState(false)
+  const [vendors, setVendors] = useState<Vendor[]>([])
+  const [assignedVendorIds, setAssignedVendorIds] = useState<string[]>([])
 
   const [permissions, setPermissions] = useState<Partial<AdminPermissions>>({
     can_view_products: false,
@@ -60,6 +66,22 @@ export default function AdminForm({ admin, onClose, canEditEmail = false }: Admi
     }
   }, [admin])
 
+  useEffect(() => {
+    if (admin) {
+      setAssignedVendorIds([])
+      return
+    }
+    const loadVendors = async () => {
+      try {
+        const data = await vendorService.getAllVendors()
+        setVendors(data)
+      } catch (err) {
+        console.error('Failed to load vendors for admin assignment:', err)
+      }
+    }
+    loadVendors()
+  }, [admin])
+
   const loadPermissions = async (adminId: string) => {
     try {
       const perms = await adminService.getAdminPermissions(adminId)
@@ -84,6 +106,12 @@ export default function AdminForm({ admin, onClose, canEditEmail = false }: Admi
 
   const handlePermissionChange = (key: string, value: any) => {
     setPermissions(prev => ({ ...prev, [key]: value }))
+  }
+
+  const handleToggleVendorAssigned = (vendorId: string, checked: boolean) => {
+    setAssignedVendorIds((prev) =>
+      checked ? (prev.includes(vendorId) ? prev : [...prev, vendorId]) : prev.filter((id) => id !== vendorId),
+    )
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -126,6 +154,25 @@ export default function AdminForm({ admin, onClose, canEditEmail = false }: Admi
 
         // Save permissions for new admin
         await adminService.saveAdminPermissions(newAdmin.id, permissions as any)
+        // Assign vendors for new admin if selected
+        if (assignedVendorIds.length) {
+          try {
+            for (const vendorId of assignedVendorIds) {
+              const existing = await vendorAdminService.getAdminsForVendor(vendorId)
+              const already = existing.find((va) => va.admin_id === newAdmin.id)
+              const assignments = [
+                ...existing.map((va) => ({
+                  admin_id: va.admin_id,
+                  is_vendor_super_admin: va.is_vendor_super_admin,
+                })),
+                ...(already ? [] : [{ admin_id: newAdmin.id, is_vendor_super_admin: false }]),
+              ]
+              await vendorAdminService.saveAdminsForVendor(vendorId, assignments)
+            }
+          } catch (assignError) {
+            console.error('Failed to assign admin to vendors:', assignError)
+          }
+        }
         onClose()
         return
       }
@@ -226,13 +273,54 @@ export default function AdminForm({ admin, onClose, canEditEmail = false }: Admi
                 {!admin && (
                   <div className="space-y-2">
                     <Label htmlFor="password">Password (for Supabase user setup)</Label>
-                    <Input
-                      id="password"
-                      type="password"
-                      name="password"
-                      placeholder="Temporary password for this admin"
-                      onChange={handleInputChange}
-                    />
+                    <div className="relative">
+                      <Input
+                        id="password"
+                        type={showPassword ? 'text' : 'password'}
+                        name="password"
+                        placeholder="Temporary password for this admin"
+                        value={formData.password}
+                        onChange={handleInputChange}
+                        required
+                        className="pr-10 pr-16"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword((v) => !v)}
+                        className="absolute inset-y-0 right-0 px-3 flex items-center text-xs font-medium text-gray-500 hover:text-gray-700"
+                        aria-label={showPassword ? 'Hide password' : 'Show password'}
+                      >
+                        {showPassword ? <EyeOff size={14} /> : <Eye size={14} />}
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {!admin && (
+                  <div className="space-y-2">
+                    <Label className="text-sm font-semibold text-gray-900">Assign Vendors</Label>
+                    <div className="border border-gray-200 rounded-lg max-h-40 overflow-y-auto p-2 space-y-1">
+                      {vendors.map((vendor) => {
+                        const checked = assignedVendorIds.includes(vendor.id)
+                        return (
+                          <label
+                            key={vendor.id}
+                            className="flex items-center gap-2 text-sm text-gray-900"
+                          >
+                            <input
+                              type="checkbox"
+                              className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                              checked={checked}
+                              onChange={(e) => handleToggleVendorAssigned(vendor.id, e.target.checked)}
+                            />
+                            <span>{vendor.name}</span>
+                          </label>
+                        )
+                      })}
+                      {vendors.length === 0 && (
+                        <p className="text-xs text-gray-500">No vendors available. Create vendors first.</p>
+                      )}
+                    </div>
                   </div>
                 )}
               </CardContent>

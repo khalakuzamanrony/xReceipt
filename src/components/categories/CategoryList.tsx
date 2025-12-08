@@ -24,6 +24,8 @@ export default function CategoryList() {
     name: '',
     parent_id: '',
   })
+  const [page, setPage] = useState(1)
+  const [rowsPerPage, setRowsPerPage] = useState(10)
 
   useEffect(() => {
     if (vendorLoading) return
@@ -54,6 +56,12 @@ export default function CategoryList() {
   }
 
   const handleAddNew = () => {
+    // Require a vendor selection before creating categories
+    if (!activeVendorId) {
+      setError('Please select a vendor from the header before creating categories.')
+      return
+    }
+
     setSelectedCategory(null)
     setFormData({ name: '', parent_id: '' })
     setShowForm(true)
@@ -87,13 +95,21 @@ export default function CategoryList() {
       return
     }
 
+    const isNew = !selectedCategory
+
+    // New categories must always be tied to a specific vendor
+    if (isNew && !activeVendorId) {
+      setError('Please select a vendor from the header before creating categories.')
+      return
+    }
+
     try {
       const categoryData: any = {
         name: formData.name,
         parent_id: formData.parent_id || null,
       }
 
-      if (activeVendorId) {
+      if (isNew && activeVendorId) {
         categoryData.vendor_id = activeVendorId
       }
 
@@ -122,6 +138,12 @@ export default function CategoryList() {
   const getParentCategoryName = (parentId: string) => {
     return categories.find(c => c.id === parentId)?.name || 'Unknown'
   }
+
+  const totalCategories = filteredCategories.length
+  const totalPages = Math.max(1, Math.ceil(totalCategories / rowsPerPage))
+  const currentPage = Math.min(page, totalPages)
+  const startIndex = (currentPage - 1) * rowsPerPage
+  const pagedCategories = filteredCategories.slice(startIndex, startIndex + rowsPerPage)
 
   if (loading || vendorLoading) {
     return (
@@ -276,7 +298,7 @@ export default function CategoryList() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
-                {filteredCategories.map((category) => {
+                {pagedCategories.map((category) => {
                   const children = getChildCategories(category.id)
                   return (
                     <tr key={category.id} className="hover:bg-gray-50 transition-colors">
@@ -321,6 +343,53 @@ export default function CategoryList() {
                 })}
               </tbody>
             </table>
+          </div>
+
+          {/* Pagination */}
+          <div className="px-4 py-2 border-t border-gray-200 flex items-center justify-between text-xs text-gray-600">
+            <div>
+              Showing {totalCategories === 0 ? 0 : startIndex + 1}–
+              {Math.min(startIndex + rowsPerPage, totalCategories)} of {totalCategories}
+            </div>
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-1">
+                <span className="text-gray-500">Rows per page</span>
+                <select
+                  value={rowsPerPage}
+                  onChange={(e) => {
+                    const value = Number(e.target.value) || 10
+                    setRowsPerPage(value)
+                    setPage(1)
+                  }}
+                  className="h-7 border border-gray-300 rounded-md text-xs text-gray-900 px-2 bg-white focus:outline-none focus:ring-1 focus:ring-blue-500"
+                >
+                  <option value={10}>10</option>
+                  <option value={25}>25</option>
+                  <option value={50}>50</option>
+                </select>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setPage((prev) => Math.max(1, prev - 1))}
+                  disabled={currentPage === 1}
+                  className="px-2 py-1 rounded border border-gray-300 text-gray-700 disabled:opacity-50 disabled:cursor-not-allowed bg-white hover:bg-gray-50"
+                >
+                  Prev
+                </button>
+                <span className="text-gray-500">
+                  {currentPage} / {totalPages}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setPage((prev) => Math.min(totalPages, prev + 1))}
+                  disabled={currentPage === totalPages}
+                  className="px-2 py-1 rounded border border-gray-300 text-gray-700 disabled:opacity-50 disabled:cursor-not-allowed bg-white hover:bg-gray-50"
+                >
+                  Next
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}

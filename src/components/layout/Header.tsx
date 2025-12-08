@@ -1,7 +1,10 @@
+import { useState } from 'react'
 import { useAuth } from '@/contexts/AuthContext'
 import { useVendor } from '@/contexts/VendorContext'
 import { Button } from '@/components/ui/Button'
+import { Input } from '@/components/ui/Input'
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
+import * as Select from '@radix-ui/react-select'
 import { ChevronDown, LogOut, Store } from 'lucide-react'
 
 interface HeaderProps {
@@ -13,7 +16,16 @@ export default function Header({ title, description }: HeaderProps) {
   const { user, role, signOut } = useAuth()
   const { memberships, activeVendorId, setActiveVendorId } = useVendor()
 
-  const showVendorSelector = !!user && memberships.length > 1
+  const hasVendors = memberships.length > 0
+  const showVendorSelector = !!user && hasVendors
+  const isGrandUser = role === 'grand_user'
+  const [vendorSearch, setVendorSearch] = useState('')
+
+  const filteredMemberships = memberships.filter(({ vendor }) =>
+    vendor.name.toLowerCase().includes(vendorSearch.toLowerCase()),
+  )
+
+  const selectValue = isGrandUser ? (activeVendorId ?? '__all__') : (activeVendorId ?? '')
 
   return (
     <header className="bg-white border-b border-gray-200 sticky top-0 z-30">
@@ -25,20 +37,58 @@ export default function Header({ title, description }: HeaderProps) {
 
         <div className="flex items-center gap-3">
           {showVendorSelector && (
-            <div className="flex items-center gap-2">
-              <Store className="h-3.5 w-3.5 text-gray-500" />
-              <select
-                value={activeVendorId ?? ''}
-                onChange={(e) => setActiveVendorId(e.target.value || null)}
-                className="max-w-[200px] h-8 px-2 py-1 rounded-full border border-gray-200 bg-white text-xs text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            <div className="flex items-center gap-2 max-w-xs md:max-w-md">
+              <Store className="h-3.5 w-3.5 text-gray-500 flex-shrink-0" />
+              <Select.Root
+                value={selectValue}
+                onValueChange={(value) => {
+                  if (isGrandUser && value === '__all__') {
+                    setActiveVendorId(null)
+                  } else {
+                    setActiveVendorId(value || null)
+                  }
+                }}
               >
-                {role === 'grand_user' && <option value="">All vendors</option>}
-                {memberships.map(({ vendor }) => (
-                  <option key={vendor.id} value={vendor.id}>
-                    {vendor.name}
-                  </option>
-                ))}
-              </select>
+                <Select.Trigger className="inline-flex items-center justify-between gap-2 h-8 px-3 rounded-full border border-gray-200 bg-white text-xs text-gray-800 shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 min-w-[180px]">
+                  <Select.Value
+                    placeholder={isGrandUser ? 'All vendors' : 'Select vendor'}
+                    aria-label="Select vendor"
+                  />
+                  <ChevronDown className="h-3 w-3 text-gray-500" />
+                </Select.Trigger>
+                <Select.Portal>
+                  <Select.Content className="z-50 min-w-[220px] rounded-xl border border-gray-200 bg-white shadow-lg overflow-hidden">
+                    <div className="px-3 py-2 border-b border-gray-100 bg-gray-50">
+                      <Input
+                        type="text"
+                        value={vendorSearch}
+                        onChange={(e) => setVendorSearch(e.target.value)}
+                        placeholder="Search vendors..."
+                        className="h-8 text-xs"
+                      />
+                    </div>
+                    <Select.Viewport className="py-1 max-h-60 overflow-y-auto">
+                      {isGrandUser && (
+                        <Select.Item
+                          value="__all__"
+                          className="px-3 py-1.5 text-xs text-gray-800 rounded-md cursor-pointer flex items-center gap-2 data-[highlighted]:bg-blue-50 data-[highlighted]:text-blue-700 outline-none"
+                        >
+                          <Select.ItemText>All vendors</Select.ItemText>
+                        </Select.Item>
+                      )}
+                      {filteredMemberships.map(({ vendor }) => (
+                        <Select.Item
+                          key={vendor.id}
+                          value={vendor.id}
+                          className="px-3 py-1.5 text-xs text-gray-800 rounded-md cursor-pointer flex items-center gap-2 data-[highlighted]:bg-blue-50 data-[highlighted]:text-blue-700 outline-none"
+                        >
+                          <Select.ItemText>{vendor.name}</Select.ItemText>
+                        </Select.Item>
+                      ))}
+                    </Select.Viewport>
+                  </Select.Content>
+                </Select.Portal>
+              </Select.Root>
             </div>
           )}
 

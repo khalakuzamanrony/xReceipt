@@ -9,6 +9,7 @@ const authProvisionClient = createClient(
     auth: {
       persistSession: false,
       autoRefreshToken: false,
+      storageKey: 'sb-provision-auth-token',
     },
   },
 )
@@ -53,6 +54,14 @@ export const adminService = {
 
     if (error && error.code !== 'PGRST116') throw error
     return data || null
+  },
+
+  async sendPasswordResetEmail(email: string): Promise<void> {
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: window.location.origin,
+    })
+
+    if (error) throw error
   },
 
   // Get admin by email (used for auth mapping)
@@ -106,6 +115,9 @@ export const adminService = {
         await ensureAuthUser(email, password)
       } catch (authError) {
         console.error('Failed to create Supabase Auth user for admin:', authError)
+        const message = authError instanceof Error ? authError.message : 'Failed to create Supabase Auth user for admin'
+        // Surface this so the UI can tell the user why login might fail
+        throw new Error(message)
       }
     }
 
@@ -113,14 +125,20 @@ export const adminService = {
   },
 
   // Create a full-permission vendor super admin for a specific vendor
-  async createVendorSuperAdminForVendor(vendor: Vendor): Promise<User> {
+  async createVendorSuperAdminForVendor(vendor: Vendor, passwordOverride?: string): Promise<User> {
     const base = (vendor.vendor_id || vendor.name)
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, '')
     const safeBase = base || 'shop'
 
-    const email = `${safeBase}@xreceipt.com`
-    const password = `#${safeBase}1`
+    if (!vendor.email) {
+      throw new Error('Vendor email is required to create a vendor super admin')
+    }
+
+    const email = vendor.email
+    const passwordBase = safeBase.charAt(0).toUpperCase() + safeBase.slice(1)
+    const defaultPassword = `#${passwordBase}1`
+    const password = passwordOverride || defaultPassword
 
     const { data, error } = await supabase
       .from('users')

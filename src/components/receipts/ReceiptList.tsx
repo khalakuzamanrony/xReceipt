@@ -85,6 +85,12 @@ export default function ReceiptList() {
   )
 
   const handleAddNew = () => {
+    // Require a vendor selection before creating receipts
+    if (!activeVendorId) {
+      setError('Please select a vendor from the header before creating receipts.')
+      return
+    }
+
     setSelectedReceipt(null)
     setFormData({
       customer_name: '',
@@ -183,6 +189,14 @@ export default function ReceiptList() {
       return
     }
 
+    const isNew = !selectedReceipt
+
+    // New receipts must always be tied to a specific vendor
+    if (isNew && !activeVendorId) {
+      setError('Please select a vendor from the header before creating receipts.')
+      return
+    }
+
     try {
       const totalAmount = calculateTotal()
       const tax = totalAmount * 0.1
@@ -200,7 +214,7 @@ export default function ReceiptList() {
         items, // Include items in the receipt data
       }
 
-      if (activeVendorId) {
+      if (isNew && activeVendorId) {
         receiptData.vendor_id = activeVendorId
       }
 

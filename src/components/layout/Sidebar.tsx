@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Menu, X, LayoutDashboard, Package, Folder, FileText, Users, Settings, Store } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
+import { useVendor } from '@/contexts/VendorContext'
 
 interface SidebarProps {
   currentPage: string
@@ -10,6 +11,7 @@ interface SidebarProps {
 export default function Sidebar({ currentPage, onPageChange }: SidebarProps) {
   const [isOpen, setIsOpen] = useState(false)
   const { role, permissions } = useAuth()
+  const { memberships } = useVendor()
 
   const baseMenuItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -21,30 +23,30 @@ export default function Sidebar({ currentPage, onPageChange }: SidebarProps) {
     { id: 'admin', label: 'Admin', icon: Users },
   ]
 
+  const hasAnyVendorMembership = memberships.length > 0
+  const isVendorSuperAdmin = memberships.some((m) => m.isVendorSuperAdmin)
+
   const menuItems = baseMenuItems.filter((item) => {
     if (item.id === 'dashboard') return true
 
     // Global Grand User can see everything
     if (role === 'grand_user') return true
 
-    // No permissions loaded yet for regular admins
-    if (!permissions) return false
-
     switch (item.id) {
       case 'receipts':
-        return permissions.can_view_receipts
+        return !!permissions?.can_view_receipts
       case 'templates':
-        return permissions.can_view_templates
+        return !!permissions?.can_view_templates
       case 'products':
-        return permissions.can_view_products
+        return !!permissions?.can_view_products
       case 'categories':
-        return permissions.can_view_categories
+        return !!permissions?.can_view_categories
       case 'vendors':
-        // Only super admins (handled above) can see this
-        return false
+        // Any user with vendor memberships can see Vendors
+        return hasAnyVendorMembership
       case 'admin':
-        // Only super admins (handled above) can see this
-        return false
+        // Vendor super admins get Admin access scoped to their vendors
+        return isVendorSuperAdmin
       default:
         return true
     }

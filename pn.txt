@@ -1,129 +1,74 @@
-1 change the new suooerain of newly created vendor is "{superadmin@shopname.com} pass : {#Shopname1}
+How to test everything step by step
+A. Test vendor super admin auto-provision + Auth
+Log in as Grand User.
+Go to Vendors.
+Create a vendor with vendor_id = myshoptest.
+Go to Admins page:
+Confirm you see an admin named like MyShopTest Super Admin.
+Note the email: superadmin@myshoptest.com.
+In Supabase → Auth → Users:
+Search for superadmin@myshoptest.com.
+If present:
+Try logging in from the app with:
+Email: superadmin@myshoptest.com
+Password: #Myshoptest1
+If not present:
+Check DevTools console for a log:
+Failed to create Supabase Auth user for vendor super admin: ...
+and send me the exact error text.
+B. Test manual admin creation + login
+As Grand User, go to Admins.
+Click Add Admin.
+Fill:
+Email: admin1@example.com
+Password: AdminTest#1 (or anything you like).
+Save the admin.
+In Supabase → Auth → Users:
+Verify admin1@example.com exists.
+Log out of the app.
+On Sign-in page, use:
+Email: admin1@example.com
+Password: AdminTest#1
+Use the Show toggle if needed to ensure no typo.
+If sign-in still 400:
+Check the error text shown on the form (e.g. “Invalid login credentials” vs “Email not confirmed”).
+Tell me that exact text.
+C. Test Grand User password reset
+On Admins page (as Grand User):
+In “Send password reset email” form:
+Enter admin1@example.com (or any email that exists in Auth).
+Click Send reset link.
+Check for:
+Green Success message in the app.
+An email in that inbox with a password reset link.
+Follow the reset link, set a new password.
+Go back to your app’s Sign-in page and log in with the new password.
+6. If you still don’t see users in Auth
+If after creating a brand new vendor and new admin you still see no new entries in Supabase → Auth → Users, I need from you:
 
-2 Unable to login for newly created admin : content.js:398 Uncaught TypeError: Failed to execute 'observe' on 'MutationObserver': parameter 1 is not of type 'Node'.
-    at content.js:398:12
-    at content.js:402:3
-(anonymous) @ content.js:398
-(anonymous) @ content.js:402
-client:733 [vite] connecting...
-client:827 [vite] connected.
-react-dom_client.js?v=2c686e8d:20103 Download the React DevTools for a better development experience: https://react.dev/link/react-devtools
-xpath-extractor.js:20 FillBot: XPath Extractor initialized
-screenshot-handler.js:22 FillBot Screenshot Handler initialized
-content.js:75 Content script loaded
-chext_driver.js:539 Initialized driver at: Mon Dec 08 2025 00:22:16 GMT+0600 (Bangladesh Standard Time)
-content.js:108 FillBot: Comparing domains - Current: "", Excluded: "portal.iccbd.com"
-content.js:121 FillBot: Exact match result: false
-content.js:125 FillBot: Subdomain match result: false
-content.js:128 FillBot: Final exclusion result: false
-content.js:108 FillBot: Comparing domains - Current: "", Excluded: "chat.z.ai"
-content.js:121 FillBot: Exact match result: false
-content.js:125 FillBot: Subdomain match result: false
-content.js:128 FillBot: Final exclusion result: false
-content.js:108 FillBot: Comparing domains - Current: "", Excluded: "chat.deepseek.com"
-content.js:121 FillBot: Exact match result: false
-content.js:125 FillBot: Subdomain match result: false
-content.js:128 FillBot: Final exclusion result: false
-content.js:108 FillBot: Comparing domains - Current: "", Excluded: "alljobs.teletalk.com.bd"
-content.js:121 FillBot: Exact match result: false
-content.js:125 FillBot: Subdomain match result: false
-content.js:128 FillBot: Final exclusion result: false
-chext_loader.js:73 Initialized chextloader at: 1765131736249
-content.js:163 FillBot: Custom data loaded: {firstNames: 70, lastNames: 0, emails: 0, passwords: 0, loremKeywords: 0}
-content.js:191 FillBot: Initialized successfully
-AuthContext.tsx:93  POST https://ennacgmobaeukhtvkxgi.supabase.co/auth/v1/token?grant_type=password 400 (Bad Request)
-(anonymous) @ @supabase_supabase-js.js?v=2c686e8d:7597
-_handleRequest3 @ @supabase_supabase-js.js?v=2c686e8d:7887
-_request @ @supabase_supabase-js.js?v=2c686e8d:7877
-signInWithPassword @ @supabase_supabase-js.js?v=2c686e8d:9635
-signIn @ AuthContext.tsx:93
-handleSubmit @ SignInPage.tsx:15
-executeDispatch @ react-dom_client.js?v=2c686e8d:13622
-runWithFiberInDEV @ react-dom_client.js?v=2c686e8d:997
-processDispatchQueue @ react-dom_client.js?v=2c686e8d:13658
-(anonymous) @ react-dom_client.js?v=2c686e8d:14071
-batchedUpdates$1 @ react-dom_client.js?v=2c686e8d:2626
-dispatchEventForPluginEventSystem @ react-dom_client.js?v=2c686e8d:13763
-dispatchEvent @ react-dom_client.js?v=2c686e8d:16784
-dispatchDiscreteEvent @ react-dom_client.js?v=2c686e8d:16765
-<form>
-exports.jsxDEV @ react_jsx-dev-runtime.js?v=2c686e8d:247
-SignInPage @ SignInPage.tsx:25
-react_stack_bottom_frame @ react-dom_client.js?v=2c686e8d:18509
-renderWithHooksAgain @ react-dom_client.js?v=2c686e8d:5729
-renderWithHooks @ react-dom_client.js?v=2c686e8d:5665
-updateFunctionComponent @ react-dom_client.js?v=2c686e8d:7475
-beginWork @ react-dom_client.js?v=2c686e8d:8525
-runWithFiberInDEV @ react-dom_client.js?v=2c686e8d:997
-performUnitOfWork @ react-dom_client.js?v=2c686e8d:12561
-workLoopSync @ react-dom_client.js?v=2c686e8d:12424
-renderRootSync @ react-dom_client.js?v=2c686e8d:12408
-performWorkOnRoot @ react-dom_client.js?v=2c686e8d:11766
-performWorkOnRootViaSchedulerTask @ react-dom_client.js?v=2c686e8d:13505
-performWorkUntilDeadline @ react-dom_client.js?v=2c686e8d:36
-<SignInPage>
-exports.jsxDEV @ react_jsx-dev-runtime.js?v=2c686e8d:247
-App @ App.tsx:40
-react_stack_bottom_frame @ react-dom_client.js?v=2c686e8d:18509
-renderWithHooksAgain @ react-dom_client.js?v=2c686e8d:5729
-renderWithHooks @ react-dom_client.js?v=2c686e8d:5665
-updateFunctionComponent @ react-dom_client.js?v=2c686e8d:7475
-beginWork @ react-dom_client.js?v=2c686e8d:8525
-runWithFiberInDEV @ react-dom_client.js?v=2c686e8d:997
-performUnitOfWork @ react-dom_client.js?v=2c686e8d:12561
-workLoopSync @ react-dom_client.js?v=2c686e8d:12424
-renderRootSync @ react-dom_client.js?v=2c686e8d:12408
-performWorkOnRoot @ react-dom_client.js?v=2c686e8d:11766
-performWorkOnRootViaSchedulerTask @ react-dom_client.js?v=2c686e8d:13505
-performWorkUntilDeadline @ react-dom_client.js?v=2c686e8d:36
-<App>
-exports.jsxDEV @ react_jsx-dev-runtime.js?v=2c686e8d:247
-(anonymous) @ main.tsx:12
-AuthContext.tsx:93  POST https://ennacgmobaeukhtvkxgi.supabase.co/auth/v1/token?grant_type=password 400 (Bad Request)
-(anonymous) @ @supabase_supabase-js.js?v=2c686e8d:7597
-_handleRequest3 @ @supabase_supabase-js.js?v=2c686e8d:7887
-_request @ @supabase_supabase-js.js?v=2c686e8d:7877
-signInWithPassword @ @supabase_supabase-js.js?v=2c686e8d:9635
-signIn @ AuthContext.tsx:93
-handleSubmit @ SignInPage.tsx:15
-executeDispatch @ react-dom_client.js?v=2c686e8d:13622
-runWithFiberInDEV @ react-dom_client.js?v=2c686e8d:997
-processDispatchQueue @ react-dom_client.js?v=2c686e8d:13658
-(anonymous) @ react-dom_client.js?v=2c686e8d:14071
-batchedUpdates$1 @ react-dom_client.js?v=2c686e8d:2626
-dispatchEventForPluginEventSystem @ react-dom_client.js?v=2c686e8d:13763
-dispatchEvent @ react-dom_client.js?v=2c686e8d:16784
-dispatchDiscreteEvent @ react-dom_client.js?v=2c686e8d:16765
-<form>
-exports.jsxDEV @ react_jsx-dev-runtime.js?v=2c686e8d:247
-SignInPage @ SignInPage.tsx:25
-react_stack_bottom_frame @ react-dom_client.js?v=2c686e8d:18509
-renderWithHooksAgain @ react-dom_client.js?v=2c686e8d:5729
-renderWithHooks @ react-dom_client.js?v=2c686e8d:5665
-updateFunctionComponent @ react-dom_client.js?v=2c686e8d:7475
-beginWork @ react-dom_client.js?v=2c686e8d:8525
-runWithFiberInDEV @ react-dom_client.js?v=2c686e8d:997
-performUnitOfWork @ react-dom_client.js?v=2c686e8d:12561
-workLoopSync @ react-dom_client.js?v=2c686e8d:12424
-renderRootSync @ react-dom_client.js?v=2c686e8d:12408
-performWorkOnRoot @ react-dom_client.js?v=2c686e8d:11766
-performWorkOnRootViaSchedulerTask @ react-dom_client.js?v=2c686e8d:13505
-performWorkUntilDeadline @ react-dom_client.js?v=2c686e8d:36
-<SignInPage>
-exports.jsxDEV @ react_jsx-dev-runtime.js?v=2c686e8d:247
-App @ App.tsx:40
-react_stack_bottom_frame @ react-dom_client.js?v=2c686e8d:18509
-renderWithHooksAgain @ react-dom_client.js?v=2c686e8d:5729
-renderWithHooks @ react-dom_client.js?v=2c686e8d:5665
-updateFunctionComponent @ react-dom_client.js?v=2c686e8d:7475
-beginWork @ react-dom_client.js?v=2c686e8d:8525
-runWithFiberInDEV @ react-dom_client.js?v=2c686e8d:997
-performUnitOfWork @ react-dom_client.js?v=2c686e8d:12561
-workLoopSync @ react-dom_client.js?v=2c686e8d:12424
-renderRootSync @ react-dom_client.js?v=2c686e8d:12408
-performWorkOnRoot @ react-dom_client.js?v=2c686e8d:11766
-performWorkOnRootViaSchedulerTask @ react-dom_client.js?v=2c686e8d:13505
-performWorkUntilDeadline @ react-dom_client.js?v=2c686e8d:36
-<App>
-exports.jsxDEV @ react_jsx-dev-runtime.js?v=2c686e8d:247
-(anonymous) @ main.tsx:12
+A screenshot or exact text of the console log:
+Failed to create Supabase Auth user for vendor super admin: ...
+or Failed to create Supabase Auth user for admin: ...
+Confirmation that:
+Email signups are enabled in Supabase Auth.
+You are looking at the Auth page for the same project whose URL is
+https://ennacgmobaeukhtvkxgi.supabase.co.
+With that information, I can identify whether it’s a Supabase configuration issue or something still missing in code.
+
+
+add eye toggle buton in sted of "Show/Hide" text
+on add vendor modal, email field, make the domain part of the email after '@' it will be dynamic based on shop name an it will be disablled not editable, by default on the left part by default put admin[this is editable ]+{@{shopname}}
+add options for multi select assign vendor dropdown while creating new admmin
+unableee to login "{code: "email_not_confirmed", message: "Email not confirmed"}
+code
+: 
+"email_not_confirmed"
+message
+: 
+"Email not confirmed"
+
+how do i confirmmm email automatically as i am trying to using fuklly custom email thats hant any server , wwe will add google later 
+
+
+
+isnt it be like this ? wwhile creating vendor the user creation on admin page is 

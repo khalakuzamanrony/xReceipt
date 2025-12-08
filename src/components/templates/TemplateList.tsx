@@ -67,6 +67,12 @@ export default function TemplateList({ onNavigateToBuilder }: TemplateListProps)
   )
 
   const handleAddNew = () => {
+    // Require a vendor selection before creating templates
+    if (!activeVendorId) {
+      setError('Please select a vendor from the header before creating templates.')
+      return
+    }
+
     setSelectedTemplate(null)
     setFormData({ name: '', description: '', template_html: '' })
     setShowForm(true)
@@ -101,6 +107,14 @@ export default function TemplateList({ onNavigateToBuilder }: TemplateListProps)
       return
     }
 
+    const isNew = !selectedTemplate
+
+    // New templates must always be tied to a specific vendor
+    if (isNew && !activeVendorId) {
+      setError('Please select a vendor from the header before creating templates.')
+      return
+    }
+
     try {
       const templateData: any = {
         name: formData.name,
@@ -108,7 +122,7 @@ export default function TemplateList({ onNavigateToBuilder }: TemplateListProps)
         template_html: formData.template_html,
       }
 
-      if (activeVendorId) {
+      if (isNew && activeVendorId) {
         templateData.vendor_id = activeVendorId
       }
 
@@ -127,6 +141,11 @@ export default function TemplateList({ onNavigateToBuilder }: TemplateListProps)
 
   const handleVisualSave = async (data: { name: string; description: string; elements: any[] }) => {
     try {
+      if (!activeVendorId) {
+        setError('Please select a vendor from the header before creating templates.')
+        return
+      }
+
       // Convert elements to HTML template with absolute positioning
       let html = `<div style="font-family: Arial, sans-serif; position: relative; width: 400px; height: 600px; margin: 0 auto; padding: 0;">`
 
@@ -169,9 +188,7 @@ export default function TemplateList({ onNavigateToBuilder }: TemplateListProps)
         template_html: html,
       }
 
-      if (activeVendorId) {
-        payload.vendor_id = activeVendorId
-      }
+      payload.vendor_id = activeVendorId
 
       await templateService.createTemplate(payload)
 
