@@ -49,7 +49,10 @@ export default function AdminList() {
 
       // Load vendor memberships for each admin for richer UI
       try {
-        const entries = await Promise.all(
+        const entries: [
+          string,
+          { vendorId: string; vendorName: string; isVendorSuperAdmin: boolean }[],
+        ][] = await Promise.all(
           data.map(async (admin) => {
             try {
               const memberships = await vendorAdminService.getVendorsForAdmin(admin.id)
@@ -58,13 +61,19 @@ export default function AdminList() {
                 vendorName: m.vendor.name,
                 isVendorSuperAdmin: m.isVendorSuperAdmin,
               }))
-              return [admin.id, mapped] as const
+              return [admin.id, mapped]
             } catch {
-              return [admin.id, []] as const
+              return [
+                admin.id,
+                [] as { vendorId: string; vendorName: string; isVendorSuperAdmin: boolean }[],
+              ]
             }
           }),
         )
-        const infoMap: Record<string, { vendorId: string; vendorName: string; isVendorSuperAdmin: boolean }[]> = {}
+        const infoMap: Record<
+          string,
+          { vendorId: string; vendorName: string; isVendorSuperAdmin: boolean }[]
+        > = {}
         for (const [adminId, list] of entries) {
           infoMap[adminId] = list
         }
