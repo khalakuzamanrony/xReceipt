@@ -3,6 +3,7 @@ import type { User, AdminPermissions, Vendor } from '@/types'
 import { adminService } from '@/services/adminService'
 import { vendorService } from '@/services/vendorService'
 import { vendorAdminService } from '@/services/vendorAdminService'
+import { useAuth } from '@/contexts/AuthContext'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/Dialog'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
@@ -21,6 +22,7 @@ interface AdminFormProps {
 }
 
 export default function AdminForm({ admin, onClose, canEditEmail = false }: AdminFormProps) {
+  const { role, user } = useAuth()
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -31,6 +33,7 @@ export default function AdminForm({ admin, onClose, canEditEmail = false }: Admi
   const [showPassword, setShowPassword] = useState(false)
   const [vendors, setVendors] = useState<Vendor[]>([])
   const [assignedVendorIds, setAssignedVendorIds] = useState<string[]>([])
+  const [userType, setUserType] = useState<'grand_user' | 'super_admin' | 'admin'>('admin')
 
   const [permissions, setPermissions] = useState<Partial<AdminPermissions>>({
     can_view_products: false,
@@ -71,16 +74,39 @@ export default function AdminForm({ admin, onClose, canEditEmail = false }: Admi
       setAssignedVendorIds([])
       return
     }
+
     const loadVendors = async () => {
       try {
-        const data = await vendorService.getAllVendors()
+        let data = await vendorService.getAllVendors()
+
+        // Grand user can see all vendors. Vendor super admins should only
+        // see vendors where they are marked as super admin.
+        if (role === 'admin' && user) {
+          try {
+            const memberships = await vendorAdminService.getVendorsForAdmin(user.id)
+            const superVendorIds = memberships
+              .filter((m) => m.isVendorSuperAdmin)
+              .map((m) => m.vendor.id)
+
+            if (superVendorIds.length > 0) {
+              data = data.filter((vendor) => superVendorIds.includes(vendor.id))
+            } else {
+              data = []
+            }
+          } catch (membershipError) {
+            console.error('Failed to load current admin vendor memberships:', membershipError)
+            data = []
+          }
+        }
+
         setVendors(data)
       } catch (err) {
         console.error('Failed to load vendors for admin assignment:', err)
       }
     }
+
     loadVendors()
-  }, [admin])
+  }, [admin, role, user])
 
   const loadPermissions = async (adminId: string) => {
     try {
@@ -143,7 +169,20 @@ export default function AdminForm({ admin, onClose, canEditEmail = false }: Admi
           profile_image_url: profileImageUrl,
         })
       } else {
-        // Create new admin
+        // Create new user based on selected userType
+        if (userType === 'grand_user') {
+          await adminService.createGrandUser(
+            formData.name,
+            formData.email,
+            formData.phone,
+            profileImageUrl,
+            formData.password,
+          )
+          onClose()
+          return
+        }
+
+        // Admin or Super Admin (role = 'admin')
         const newAdmin = await adminService.createAdmin(
           formData.name,
           formData.email,
@@ -152,9 +191,30 @@ export default function AdminForm({ admin, onClose, canEditEmail = false }: Admi
           formData.password,
         )
 
-        // Save permissions for new admin
-        await adminService.saveAdminPermissions(newAdmin.id, permissions as any)
-        // Assign vendors for new admin if selected
+        // Permissions: super admins get full permissions by default, admins use configured permissions
+        const basePermissions =
+          userType === 'super_admin'
+            ? {
+                can_view_products: true,
+                can_create_products: true,
+                assigned_product_ids: [],
+                can_view_categories: true,
+                can_create_categories: true,
+                can_assign_categories: true,
+                assigned_category_ids: [],
+                can_view_receipts: true,
+                can_create_receipts: true,
+                can_assign_receipt_templates: true,
+                can_view_templates: true,
+                can_create_templates: true,
+                can_assign_templates: true,
+                assigned_template_ids: [],
+              }
+            : permissions
+
+        await adminService.saveAdminPermissions(newAdmin.id, basePermissions as any)
+
+        // Assign vendors for new admin / super admin if selected
         if (assignedVendorIds.length) {
           try {
             for (const vendorId of assignedVendorIds) {
@@ -165,7 +225,14 @@ export default function AdminForm({ admin, onClose, canEditEmail = false }: Admi
                   admin_id: va.admin_id,
                   is_vendor_super_admin: va.is_vendor_super_admin,
                 })),
-                ...(already ? [] : [{ admin_id: newAdmin.id, is_vendor_super_admin: false }]),
+                ...(already
+                  ? []
+                  : [
+                      {
+                        admin_id: newAdmin.id,
+                        is_vendor_super_admin: userType === 'super_admin',
+                      },
+                    ]),
               ]
               await vendorAdminService.saveAdminsForVendor(vendorId, assignments)
             }
@@ -177,8 +244,8 @@ export default function AdminForm({ admin, onClose, canEditEmail = false }: Admi
         return
       }
 
-      // Save permissions for existing admin
-      if (admin) {
+      // Save permissions for existing admin users only
+      if (admin && admin.role === 'admin') {
         await adminService.saveAdminPermissions(admin.id, permissions as any)
       }
 
@@ -196,7 +263,13 @@ export default function AdminForm({ admin, onClose, canEditEmail = false }: Admi
         <form onSubmit={handleSubmit} className="flex flex-col h-full">
           <DialogHeader className="px-6 pt-6 pb-4 border-b bg-white">
             <DialogTitle className="text-2xl">
-              {admin ? 'Edit Admin' : 'Create New Admin'}
+              {admin
+                ? role === 'grand_user'
+                  ? 'Edit User'
+                  : 'Edit Admin'
+                : role === 'grand_user'
+                  ? 'Create New User'
+                  : 'Create New Admin'}
             </DialogTitle>
           </DialogHeader>
 
@@ -296,7 +369,29 @@ export default function AdminForm({ admin, onClose, canEditEmail = false }: Admi
                   </div>
                 )}
 
-                {!admin && (
+                {!admin && role === 'grand_user' && (
+                  <div className="space-y-2">
+                    <Label className="text-sm font-semibold text-gray-900">User Type</Label>
+                    <div className="inline-flex rounded-lg border border-gray-200 bg-gray-50 p-0.5 text-xs">
+                      {[{ id: 'grand_user', label: 'Grand User' }, { id: 'super_admin', label: 'Super Admin' }, { id: 'admin', label: 'Admin' }].map((option) => (
+                        <button
+                          key={option.id}
+                          type="button"
+                          onClick={() => setUserType(option.id as any)}
+                          className={`px-2.5 py-1 rounded-md font-medium transition-colors ${
+                            userType === option.id
+                              ? 'bg-white text-blue-600 shadow-sm'
+                              : 'text-gray-600 hover:text-gray-900'
+                          }`}
+                        >
+                          {option.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {!admin && userType !== 'grand_user' && (
                   <div className="space-y-2">
                     <Label className="text-sm font-semibold text-gray-900">Assign Vendors</Label>
                     <div className="border border-gray-200 rounded-lg max-h-40 overflow-y-auto p-2 space-y-1">
@@ -327,32 +422,34 @@ export default function AdminForm({ admin, onClose, canEditEmail = false }: Admi
             </Card>
 
             {/* Permissions */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg">Permissions</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <ProductAccessGroup
-                  permissions={permissions}
-                  onChange={handlePermissionChange}
-                />
+            {(admin || userType !== 'grand_user') && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg">Permissions</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <ProductAccessGroup
+                    permissions={permissions}
+                    onChange={handlePermissionChange}
+                  />
 
-                <CategoryAccessGroup
-                  permissions={permissions}
-                  onChange={handlePermissionChange}
-                />
+                  <CategoryAccessGroup
+                    permissions={permissions}
+                    onChange={handlePermissionChange}
+                  />
 
-                <ReceiptAccessGroup
-                  permissions={permissions}
-                  onChange={handlePermissionChange}
-                />
+                  <ReceiptAccessGroup
+                    permissions={permissions}
+                    onChange={handlePermissionChange}
+                  />
 
-                <TemplateAccessGroup
-                  permissions={permissions}
-                  onChange={handlePermissionChange}
-                />
-              </CardContent>
-            </Card>
+                  <TemplateAccessGroup
+                    permissions={permissions}
+                    onChange={handlePermissionChange}
+                  />
+                </CardContent>
+              </Card>
+            )}
           </div>
 
           <DialogFooter className="gap-3 px-6 py-4 border-t bg-white flex justify-end">
@@ -367,7 +464,7 @@ export default function AdminForm({ admin, onClose, canEditEmail = false }: Admi
               type="submit"
               disabled={loading}
             >
-              {loading ? 'Saving...' : 'Save Admin'}
+              {loading ? 'Saving...' : role === 'grand_user' ? 'Save User' : 'Save Admin'}
             </Button>
           </DialogFooter>
         </form>

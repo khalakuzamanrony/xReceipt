@@ -5,6 +5,7 @@ import { Label } from '@/components/ui/Label'
 import { Checkbox } from '@/components/ui/Checkbox'
 import { Dialog, DialogContent } from '@/components/ui/Dialog'
 import { templateService } from '@/services/templateService'
+import { useVendor } from '@/contexts/VendorContext'
 import {
     Building2,
     User,
@@ -176,6 +177,7 @@ interface TemplateData {
 }
 
 export default function CustomTemplateBuilder({ open, onClose, onSave, isFullPage = false, isPage = false }: CustomTemplateBuilderProps) {
+    const { activeVendorId } = useVendor()
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState<string | null>(null)
     const [activeTab, setActiveTab] = useState<'company' | 'client' | 'content' | 'layout' | 'style'>('company')
@@ -977,6 +979,11 @@ export default function CustomTemplateBuilder({ open, onClose, onSave, isFullPag
             return
         }
 
+        if (!activeVendorId) {
+            setError('Please select a vendor from the header before creating templates.')
+            return
+        }
+
         try {
             setLoading(true)
             setError(null)
@@ -987,6 +994,7 @@ export default function CustomTemplateBuilder({ open, onClose, onSave, isFullPag
                 name: data.templateName,
                 description: data.templateDescription,
                 template_html: templateHtml,
+                vendor_id: activeVendorId,
             })
 
             onClose()

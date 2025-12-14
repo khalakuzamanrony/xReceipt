@@ -44,6 +44,18 @@ export const adminService = {
     return data || []
   },
 
+  // Get all users (grand users and admins)
+  async getAllUsers(): Promise<User[]> {
+    const { data, error } = await supabase
+      .from('users')
+      .select('*')
+      .in('role', ['grand_user', 'admin'])
+      .order('created_at', { ascending: false })
+
+    if (error) throw error
+    return data || []
+  },
+
   // Get admin by ID
   async getAdminById(id: string): Promise<User | null> {
     const { data, error } = await supabase
@@ -117,6 +129,44 @@ export const adminService = {
         console.error('Failed to create Supabase Auth user for admin:', authError)
         const message = authError instanceof Error ? authError.message : 'Failed to create Supabase Auth user for admin'
         // Surface this so the UI can tell the user why login might fail
+        throw new Error(message)
+      }
+    }
+
+    return data
+  },
+
+  // Create new grand user
+  async createGrandUser(
+    name: string,
+    email: string,
+    phone?: string,
+    profileImageUrl?: string,
+    password?: string,
+  ): Promise<User> {
+    const { data, error } = await supabase
+      .from('users')
+      .insert({
+        name,
+        email,
+        phone,
+        profile_image_url: profileImageUrl,
+        role: 'grand_user',
+      })
+      .select()
+      .single()
+
+    if (error) throw error
+
+    if (password) {
+      try {
+        await ensureAuthUser(email, password)
+      } catch (authError) {
+        console.error('Failed to create Supabase Auth user for grand user:', authError)
+        const message =
+          authError instanceof Error
+            ? authError.message
+            : 'Failed to create Supabase Auth user for grand user'
         throw new Error(message)
       }
     }

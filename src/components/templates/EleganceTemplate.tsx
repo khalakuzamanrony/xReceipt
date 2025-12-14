@@ -4,6 +4,7 @@ import { Input } from '@/components/ui/Input'
 import { Label } from '@/components/ui/Label'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/Dialog'
 import { templateService } from '@/services/templateService'
+import { useVendor } from '@/contexts/VendorContext'
 
 interface EleganceTemplateProps {
   open: boolean
@@ -12,6 +13,7 @@ interface EleganceTemplateProps {
 }
 
 export default function EleganceTemplate({ open, onClose, onSave }: EleganceTemplateProps) {
+  const { activeVendorId } = useVendor()
   const [companyName, setCompanyName] = useState('Maison Élégance')
   const [companySubtitle, setCompanySubtitle] = useState('ATELIER')
   const [companyAddress, setCompanyAddress] = useState('45 East 78th Street')
@@ -366,6 +368,11 @@ export default function EleganceTemplate({ open, onClose, onSave }: EleganceTemp
   }
 
   const handleSave = async () => {
+    if (!activeVendorId) {
+      setError('Please select a vendor from the header before creating templates.')
+      return
+    }
+
     try {
       setLoading(true)
       setError(null)
@@ -376,6 +383,7 @@ export default function EleganceTemplate({ open, onClose, onSave }: EleganceTemp
         name: `${companyName} Elegance Template`,
         description: `Clean and elegant invoice template for ${companyName}`,
         template_html: templateHtml,
+        vendor_id: activeVendorId,
       })
 
       onClose()

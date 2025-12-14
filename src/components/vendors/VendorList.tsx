@@ -13,7 +13,7 @@ import { useVendor } from '@/contexts/VendorContext'
 
 export default function VendorList() {
   const { role } = useAuth()
-  const { memberships } = useVendor()
+  const { memberships, activeVendorId } = useVendor()
   const [vendors, setVendors] = useState<Vendor[]>([])
   const [admins, setAdmins] = useState<User[]>([])
   const [loading, setLoading] = useState(true)
@@ -134,9 +134,16 @@ export default function VendorList() {
     vendor.vendor_id.toLowerCase().includes(searchTerm.toLowerCase())
   )
 
-  const scopedVendors = isGrandUser
+  // First scope vendors based on membership (non-grand users only see their vendors)
+  let scopedVendors = isGrandUser
     ? filteredVendors
     : filteredVendors.filter((vendor) => membershipVendorIds.includes(vendor.id))
+
+  // Then, if a specific active vendor is selected in the global header,
+  // further narrow the list down to that vendor only.
+  if (activeVendorId) {
+    scopedVendors = scopedVendors.filter((vendor) => vendor.id === activeVendorId)
+  }
 
   const totalVendors = scopedVendors.length
   const totalPages = Math.max(1, Math.ceil(totalVendors / rowsPerPage))

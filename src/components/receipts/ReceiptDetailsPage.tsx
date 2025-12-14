@@ -3,6 +3,8 @@ import type { Receipt, ReceiptTemplate } from '@/types'
 import { receiptService } from '@/services/receiptService'
 import { templateService } from '@/services/templateService'
 import { Button } from '@/components/ui/Button'
+import { Input } from '@/components/ui/Input'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/Dialog'
 import { ArrowLeft, Download, Mail, Copy, Loader, Image } from 'lucide-react'
 import html2canvas from 'html2canvas'
 import jsPDF from 'jspdf'
@@ -20,6 +22,10 @@ export default function ReceiptDetailsPage({ receiptId, onBack }: ReceiptDetails
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [downloading, setDownloading] = useState(false)
+  const [emailModalOpen, setEmailModalOpen] = useState(false)
+  const [emailAddress, setEmailAddress] = useState('')
+  const [sendingEmail, setSendingEmail] = useState(false)
+  const [emailError, setEmailError] = useState<string | null>(null)
 
   useEffect(() => {
     loadReceiptDetails()
@@ -53,6 +59,33 @@ export default function ReceiptDetailsPage({ receiptId, onBack }: ReceiptDetails
       setError(err instanceof Error ? err.message : 'Failed to load receipt')
     } finally {
       setLoading(false)
+    }
+  }
+
+  const openEmailModal = () => {
+    if (!receipt) return
+    setEmailAddress(receipt.customer_email || '')
+    setEmailError(null)
+    setEmailModalOpen(true)
+  }
+
+  const handleSendEmail = async () => {
+    if (!receipt) return
+
+    if (!emailAddress || !emailAddress.includes('@')) {
+      setEmailError('Please enter a valid email address')
+      return
+    }
+
+    try {
+      setSendingEmail(true)
+      setEmailError(null)
+      await receiptService.sendReceiptEmail(receipt.id, emailAddress)
+      setEmailModalOpen(false)
+    } catch (err) {
+      setEmailError(err instanceof Error ? err.message : 'Failed to send email')
+    } finally {
+      setSendingEmail(false)
     }
   }
 
@@ -245,7 +278,7 @@ export default function ReceiptDetailsPage({ receiptId, onBack }: ReceiptDetails
         <div className="flex items-center gap-3 flex-1">
           <button
             onClick={onBack}
-            className="p-2 hover:bg-gray-100 rounded-lg text-gray-600"
+            className="p-2 hover:bg-gray-100 rounded-lg text-gray-600 cursor-pointer"
           >
             <ArrowLeft size={20} />
           </button>
@@ -273,7 +306,7 @@ export default function ReceiptDetailsPage({ receiptId, onBack }: ReceiptDetails
             <Copy size={16} />
           </Button>
           <Button
-            onClick={() => {}}
+            onClick={openEmailModal}
             variant="outline"
             size="sm"
             title="Send email"
@@ -309,24 +342,76 @@ export default function ReceiptDetailsPage({ receiptId, onBack }: ReceiptDetails
             <div className="bg-white p-4 rounded-lg border border-gray-200">
               <p className="text-xs text-gray-600 font-semibold uppercase mb-2">Customer</p>
               <p className="text-sm font-medium text-gray-900">{receipt.customer_name}</p>
-              <p className="text-xs text-gray-500 mt-1 truncate">{receipt.customer_email}</p>
+              <button
+                type="button"
+                onClick={openEmailModal}
+                className="mt-1 text-xs text-blue-600 hover:text-blue-700 underline cursor-pointer truncate"
+              >
+                {receipt.customer_email || 'Click to send via email'}
+              </button>
             </div>
 
             <div className="bg-white p-4 rounded-lg border border-gray-200">
               <p className="text-xs text-gray-600 font-semibold uppercase mb-2">Total</p>
               <p className="text-lg font-bold text-blue-600">${receipt.total?.toFixed(2) || '0.00'}</p>
+              <p className="text-[11px] text-gray-500 mt-1">
+                Subtotal ${receipt.subtotal?.toFixed(2) || '0.00'} · Tax ${receipt.tax?.toFixed(2) || '0.00'}
+              </p>
             </div>
 
             <div className="bg-white p-4 rounded-lg border border-gray-200">
               <p className="text-xs text-gray-600 font-semibold uppercase mb-2">Items</p>
               <p className="text-lg font-bold text-gray-900">{receipt.items?.length || 0}</p>
+              <p className="text-[11px] text-gray-500 mt-1 truncate">
+                {receipt.items && receipt.items.length > 0
+                  ? receipt.items.map((item) => item.name).slice(0, 3).join(', ')
+                  : 'No items'}
+              </p>
             </div>
 
             <div className="bg-white p-4 rounded-lg border border-gray-200">
               <p className="text-xs text-gray-600 font-semibold uppercase mb-2">Date</p>
               <p className="text-sm font-medium text-gray-900">
-                {new Date(receipt.created_at).toLocaleDateString()}
+                {new Date(receipt.created_at).toLocaleDateString()} ·{' '}
+                {new Date(receipt.created_at).toLocaleTimeString()}
               </p>
+              <p className="text-[11px] text-gray-500 mt-1 truncate">
+                Template: {template?.name || 'Default'}
+              </p>
+            </div>
+          </div>
+
+          <div className="bg-white p-4 rounded-lg border border-gray-200">
+            <p className="text-xs text-gray-600 font-semibold uppercase mb-2">Billing details</p>
+            <div className="space-y-1.5 text-sm text-gray-700">
+              <div className="flex justify-between gap-3">
+                <span className="text-xs text-gray-500 uppercase">Company</span>
+                <span className="text-sm text-gray-800 truncate">{receipt.customer_company || 'Not provided'}</span>
+              </div>
+              <div className="flex justify-between gap-3">
+                <span className="text-xs text-gray-500 uppercase">Phone</span>
+                <span className="text-sm text-gray-800 truncate">{receipt.customer_phone || 'Not provided'}</span>
+              </div>
+              <div className="flex justify-between gap-3">
+                <span className="text-xs text-gray-500 uppercase">Address</span>
+                <span className="text-sm text-gray-800 truncate">{receipt.customer_address || 'Not provided'}</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white p-4 rounded-lg border border-gray-200">
+            <p className="text-xs text-gray-600 font-semibold uppercase mb-2">Receipt info</p>
+            <div className="space-y-1.5 text-sm text-gray-700">
+              <div className="flex justify-between gap-3">
+                <span className="text-xs text-gray-500 uppercase">Receipt #</span>
+                <span className="text-sm text-gray-800 truncate">{receipt.receipt_number || receipt.id}</span>
+              </div>
+              <div className="flex justify-between gap-3">
+                <span className="text-xs text-gray-500 uppercase">Status</span>
+                <span className="text-sm text-gray-800 truncate">
+                  {receipt.status.charAt(0).toUpperCase() + receipt.status.slice(1)}
+                </span>
+              </div>
             </div>
           </div>
         </div>
@@ -344,6 +429,52 @@ export default function ReceiptDetailsPage({ receiptId, onBack }: ReceiptDetails
           </div>
         </div>
       </div>
+
+      {/* Send Email Modal */}
+      <Dialog open={emailModalOpen} onOpenChange={setEmailModalOpen}>
+        <DialogContent className="max-w-sm w-full p-0 flex flex-col">
+          <DialogHeader className="px-6 pt-6 pb-3 border-b border-gray-200 bg-white">
+            <DialogTitle className="text-lg">Send Receipt via Email</DialogTitle>
+          </DialogHeader>
+          <div className="px-6 py-4 space-y-3">
+            {emailError && (
+              <p className="text-xs text-red-600 bg-red-50 border border-red-200 px-3 py-2 rounded-md">
+                {emailError}
+              </p>
+            )}
+            <div className="space-y-1">
+              <p className="text-xs font-semibold text-gray-700 uppercase">Email address</p>
+              <Input
+                type="email"
+                value={emailAddress}
+                onChange={(e) => setEmailAddress(e.target.value)}
+                placeholder="customer@example.com"
+                className="h-9 text-sm"
+              />
+            </div>
+            <p className="text-[11px] text-gray-500">
+              The receipt will be sent to this email as a PDF using the selected template.
+            </p>
+          </div>
+          <DialogFooter className="px-6 py-4 border-t border-gray-200 bg-white flex justify-end gap-3">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setEmailModalOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              onClick={handleSendEmail}
+              disabled={sendingEmail}
+              className="bg-blue-600 hover:bg-blue-700 text-white"
+            >
+              {sendingEmail ? 'Sending...' : 'Send'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

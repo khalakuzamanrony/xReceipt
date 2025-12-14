@@ -4,6 +4,7 @@ import { Input } from '@/components/ui/Input'
 import { Label } from '@/components/ui/Label'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/Dialog'
 import { templateService } from '@/services/templateService'
+import { useVendor } from '@/contexts/VendorContext'
 
 interface PocketFilmsTemplateProps {
   open: boolean
@@ -12,6 +13,7 @@ interface PocketFilmsTemplateProps {
 }
 
 export default function PocketFilmsTemplate({ open, onClose, onSave }: PocketFilmsTemplateProps) {
+  const { activeVendorId } = useVendor()
   const [companyName, setCompanyName] = useState('Pocket Films')
   const [logoUrl, setLogoUrl] = useState('https://via.placeholder.com/120x80?text=POCKET+FILMS')
   const [loading, setLoading] = useState(false)
@@ -373,6 +375,11 @@ export default function PocketFilmsTemplate({ open, onClose, onSave }: PocketFil
   }
 
   const handleSave = async () => {
+    if (!activeVendorId) {
+      setError('Please select a vendor from the header before creating templates.')
+      return
+    }
+
     try {
       setLoading(true)
       setError(null)
@@ -383,6 +390,7 @@ export default function PocketFilmsTemplate({ open, onClose, onSave }: PocketFil
         name: `${companyName} Invoice Template`,
         description: `Professional invoice template for ${companyName}`,
         template_html: templateHtml,
+        vendor_id: activeVendorId,
       })
 
       onClose()

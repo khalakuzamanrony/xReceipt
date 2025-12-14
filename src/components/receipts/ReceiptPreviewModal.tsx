@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { Receipt, ReceiptTemplate } from '@/types'
 import { Button } from '@/components/ui/Button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/Dialog'
@@ -11,6 +11,8 @@ interface ReceiptPreviewModalProps {
   receipt: Receipt | null
   template: ReceiptTemplate | null
   onClose: () => void
+  autoDownloadMode?: 'none' | 'pdf' | 'png'
+  onAutoDownloadComplete?: () => void
 }
 
 export default function ReceiptPreviewModal({
@@ -18,9 +20,13 @@ export default function ReceiptPreviewModal({
   receipt,
   template,
   onClose,
+  autoDownloadMode = 'none',
+  onAutoDownloadComplete,
 }: ReceiptPreviewModalProps) {
   const iframeRef = useRef<HTMLIFrameElement>(null)
   const [isDownloading, setIsDownloading] = useState(false)
+  const [iframeLoaded, setIframeLoaded] = useState(false)
+  const [hasAutoDownloaded, setHasAutoDownloaded] = useState(false)
 
   const getPreviewHTML = () => {
     if (!receipt || !template) return ''
@@ -155,6 +161,35 @@ export default function ReceiptPreviewModal({
     }
   }
 
+  // Reset tracking flags when modal is closed or receipt changes
+  useEffect(() => {
+    if (!open) {
+      setIframeLoaded(false)
+      setHasAutoDownloaded(false)
+    } else {
+      setHasAutoDownloaded(false)
+    }
+  }, [open, receipt?.id])
+
+  // Automatically trigger download when requested (e.g. from list Download icon)
+  useEffect(() => {
+    if (!open || !iframeLoaded || hasAutoDownloaded) return
+
+    const run = async () => {
+      if (autoDownloadMode === 'pdf') {
+        await downloadPDF()
+        setHasAutoDownloaded(true)
+        onAutoDownloadComplete?.()
+      } else if (autoDownloadMode === 'png') {
+        await downloadPNG()
+        setHasAutoDownloaded(true)
+        onAutoDownloadComplete?.()
+      }
+    }
+
+    void run()
+  }, [open, iframeLoaded, autoDownloadMode, hasAutoDownloaded])
+
   const downloadPNG = async () => {
     if (!receipt) return
 
@@ -183,48 +218,46 @@ export default function ReceiptPreviewModal({
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="max-w-4xl max-h-[95vh] flex flex-col p-0 border-gray-200 bg-white sm:rounded-2xl">
-        <DialogHeader className="px-6 py-3 border-b border-gray-200 bg-gray-50 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+      <DialogContent className="max-w-4xl w-full h-[95vh] p-0 flex flex-col bg-white sm:rounded-2xl">
+        <DialogHeader className="px-6 py-3 border-b border-gray-200 bg-white">
           <DialogTitle className="flex items-center gap-2 text-base font-semibold text-gray-900">
             <FileText size={18} />
             Receipt Preview
           </DialogTitle>
-          <div className="flex items-center gap-2">
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              onClick={downloadPNG}
-              disabled={isDownloading}
-              className="h-8 px-2 text-xs text-gray-700 hover:bg-gray-100"
-            >
-              <Image size={14} />
-              <span className="hidden sm:inline">PNG</span>
-            </Button>
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              onClick={downloadPDF}
-              disabled={isDownloading}
-              className="h-8 px-2 text-xs text-gray-700 hover:bg-gray-100"
-            >
-              <Download size={14} />
-              <span className="hidden sm:inline">PDF</span>
-            </Button>
-          </div>
         </DialogHeader>
 
-        <div className="flex-1 overflow-auto px-6 py-4 bg-gray-50">
-          <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4 md:p-6">
-            <iframe
-              ref={iframeRef}
-              title="Receipt preview"
-              className="w-full border-0 rounded-md bg-white"
-              style={{ minHeight: '600px' }}
-              srcDoc={getPreviewHTML()}
-            />
-          </div>
+        <div className="flex-1 overflow-auto bg-white">
+          <iframe
+            ref={iframeRef}
+            title="Receipt preview"
+            className="w-full h-full border-0 bg-white"
+            srcDoc={getPreviewHTML()}
+            onLoad={() => setIframeLoaded(true)}
+          />
+        </div>
+
+        <div className="px-6 py-3 border-t border-gray-200 bg-white flex justify-end gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={downloadPNG}
+            disabled={isDownloading}
+            className="h-8 px-3 text-xs"
+          >
+            <Image size={14} />
+            <span className="ml-1">Download PNG</span>
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            onClick={downloadPDF}
+            disabled={isDownloading}
+            className="h-8 px-3 text-xs bg-blue-600 hover:bg-blue-700 text-white"
+          >
+            <Download size={14} />
+            <span className="ml-1">Download PDF</span>
+          </Button>
         </div>
       </DialogContent>
     </Dialog>

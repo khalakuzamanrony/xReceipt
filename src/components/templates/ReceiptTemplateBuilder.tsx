@@ -6,6 +6,7 @@ import { Label } from '@/components/ui/Label'
 import { Input } from '@/components/ui/Input'
 import { Copy, Eye, Plus } from 'lucide-react'
 import { templateService } from '@/services/templateService'
+import { useVendor } from '@/contexts/VendorContext'
 
 interface TemplatePreset {
   id: string
@@ -331,6 +332,7 @@ interface ReceiptTemplateBuilderProps {
 }
 
 export default function ReceiptTemplateBuilder({ onTemplateCreated }: ReceiptTemplateBuilderProps) {
+  const { activeVendorId } = useVendor()
   const [selectedTemplate, setSelectedTemplate] = useState<TemplatePreset | null>(null)
   const [showPreview, setShowPreview] = useState(false)
   const [showForm, setShowForm] = useState(false)
@@ -352,6 +354,11 @@ export default function ReceiptTemplateBuilder({ onTemplateCreated }: ReceiptTem
       return
     }
 
+    if (!activeVendorId) {
+      setError('Please select a vendor from the header before creating templates.')
+      return
+    }
+
     try {
       setLoading(true)
       setError(null)
@@ -360,6 +367,7 @@ export default function ReceiptTemplateBuilder({ onTemplateCreated }: ReceiptTem
         name: customName,
         description: customDescription,
         template_html: selectedTemplate.html,
+        vendor_id: activeVendorId,
       })
 
       setShowForm(false)

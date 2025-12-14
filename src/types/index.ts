@@ -79,6 +79,14 @@ export interface ReceiptTemplate {
   updated_at: string
 }
 
+export interface ReceiptTemplateVendor {
+  id: string
+  template_id: string
+  vendor_id: string
+  created_at: string
+  updated_at: string
+}
+
 // Receipt types
 export interface Receipt {
   id: string

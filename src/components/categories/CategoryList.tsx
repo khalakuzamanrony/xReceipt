@@ -1,19 +1,23 @@
 import { useEffect, useState } from 'react'
-import type { Category } from '@/types'
+import type { Category, Vendor } from '@/types'
 import { categoryService } from '@/services/categoryService'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Label } from '@/components/ui/Label'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/Dialog'
-import { Plus, Edit, Trash2, AlertCircle, FolderOpen, Search } from 'lucide-react'
+import { Plus, Edit, Trash2, AlertCircle, FolderOpen, Search, Funnel, X } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { useVendor } from '@/contexts/VendorContext'
+import * as ToastPrimitive from '@radix-ui/react-toast'
+import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
+import { cn } from '@/lib/utils'
 
 export default function CategoryList() {
   const { role, permissions } = useAuth()
   const canViewCategories = role === 'grand_user' || !!permissions?.can_view_categories
   const canCreateCategories = role === 'grand_user' || !!permissions?.can_create_categories
-  const { activeVendorId, loading: vendorLoading } = useVendor()
+  const { memberships, activeVendorId, loading: vendorLoading } = useVendor()
+  const vendors: Vendor[] = memberships.map((m) => m.vendor)
   const [categories, setCategories] = useState<Category[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -26,6 +30,18 @@ export default function CategoryList() {
   })
   const [page, setPage] = useState(1)
   const [rowsPerPage, setRowsPerPage] = useState(10)
+  const [typeFilter, setTypeFilter] = useState<'all' | 'root' | 'child'>('all')
+  const [toastOpen, setToastOpen] = useState(false)
+  const [toastTitle, setToastTitle] = useState('')
+  const [toastDescription, setToastDescription] = useState('')
+  const [toastVariant, setToastVariant] = useState<'success' | 'error'>('success')
+
+  const showToast = (title: string, description = '', variant: 'success' | 'error' = 'success') => {
+    setToastTitle(title)
+    setToastDescription(description)
+    setToastVariant(variant)
+    setToastOpen(true)
+  }
 
   useEffect(() => {
     if (vendorLoading) return
@@ -58,7 +74,9 @@ export default function CategoryList() {
   const handleAddNew = () => {
     // Require a vendor selection before creating categories
     if (!activeVendorId) {
-      setError('Please select a vendor from the header before creating categories.')
+      const message = 'Please select a vendor from the header before creating categories.'
+      setError(message)
+      showToast('Error', message, 'error')
       return
     }
 
@@ -99,7 +117,9 @@ export default function CategoryList() {
 
     // New categories must always be tied to a specific vendor
     if (isNew && !activeVendorId) {
-      setError('Please select a vendor from the header before creating categories.')
+      const message = 'Please select a vendor from the header before creating categories.'
+      setError(message)
+      showToast('Error', message, 'error')
       return
     }
 
@@ -126,14 +146,49 @@ export default function CategoryList() {
     }
   }
 
-  const filteredCategories = categories.filter(
-    (category) =>
-      category.name.toLowerCase().includes(searchTerm.toLowerCase())
+  const isVendorSuperAdminForActiveVendor =
+    role === 'admin' &&
+    !!activeVendorId &&
+    memberships.some((m) => m.vendor.id === activeVendorId && m.isVendorSuperAdmin)
+
+  const assignedCategoryIds = permissions?.assigned_category_ids || []
+  const permissionFilteredCategories =
+    role === 'admin' &&
+    !isVendorSuperAdminForActiveVendor &&
+    permissions?.can_view_categories &&
+    permissions?.can_assign_categories &&
+    assignedCategoryIds.length > 0
+      ? categories.filter((category) => assignedCategoryIds.includes(category.id))
+      : categories
+
+  const searchFilteredCategories = permissionFilteredCategories.filter((category) =>
+    category.name.toLowerCase().includes(searchTerm.toLowerCase()),
   )
+
+  let filteredCategories = searchFilteredCategories
+
+  if (typeFilter === 'root') {
+    filteredCategories = filteredCategories.filter((category) => !category.parent_id)
+  } else if (typeFilter === 'child') {
+    filteredCategories = filteredCategories.filter((category) => !!category.parent_id)
+  }
 
   const getChildCategories = (parentId: string) => {
     return filteredCategories.filter(c => c.parent_id === parentId)
   }
+
+  const getAssignedVendorForCategory = (category: Category): Vendor | null => {
+    if (!category.vendor_id) return null
+    return vendors.find((v) => v.id === category.vendor_id) || null
+  }
+
+  const buildVendorInitials = (name: string) =>
+    name
+      .split(' ')
+      .filter(Boolean)
+      .map((part) => part.charAt(0).toUpperCase())
+      .slice(0, 2)
+      .join('')
 
   const getParentCategoryName = (parentId: string) => {
     return categories.find(c => c.id === parentId)?.name || 'Unknown'
@@ -174,7 +229,7 @@ export default function CategoryList() {
             <p className="text-sm text-gray-500 mt-1">Manage your product categories</p>
           </div>
 
-          {/* Search Bar */}
+          {/* Search + Filters */}
           <div className="w-full sm:w-auto flex flex-col sm:flex-row gap-3 sm:items-center">
             <div className="flex-1 sm:w-64 bg-white rounded-lg border border-gray-200 h-9 px-3 flex items-center gap-2">
               <Search size={18} className="text-gray-400" />
@@ -187,13 +242,85 @@ export default function CategoryList() {
               />
             </div>
 
-            {/* Add Button */}
-            {canCreateCategories && (
-              <Button onClick={handleAddNew} size="sm">
-                <Plus size={16} />
-                Add Category
-              </Button>
-            )}
+            <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 sm:items-center">
+              <DropdownMenu.Root>
+                <DropdownMenu.Trigger asChild>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="h-9 px-3 flex items-center gap-2 border-gray-200 bg-white text-gray-700 hover:bg-gray-50"
+                  >
+                    <Funnel className="h-4 w-4" />
+                    <span className="text-xs font-medium">Filters</span>
+                  </Button>
+                </DropdownMenu.Trigger>
+                <DropdownMenu.Portal>
+                  <DropdownMenu.Content className="min-w-[220px] rounded-xl border border-gray-200 bg-white shadow-lg p-3 mr-1 mt-2 z-50 space-y-3">
+                    <div>
+                      <p className="text-[10px] font-semibold text-gray-500 uppercase mb-1.5">Category type</p>
+                      <div className="flex flex-col gap-1">
+                        <button
+                          type="button"
+                          onClick={() => setTypeFilter('all')}
+                          className={cn(
+                            'w-full text-left px-2.5 py-1 rounded-md text-[11px] font-medium cursor-pointer transition-colors',
+                            typeFilter === 'all'
+                              ? 'bg-blue-50 text-blue-700'
+                              : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900',
+                          )}
+                        >
+                          All categories
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setTypeFilter('root')}
+                          className={cn(
+                            'w-full text-left px-2.5 py-1 rounded-md text-[11px] font-medium cursor-pointer transition-colors',
+                            typeFilter === 'root'
+                              ? 'bg-blue-50 text-blue-700'
+                              : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900',
+                          )}
+                        >
+                          Root categories only
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setTypeFilter('child')}
+                          className={cn(
+                            'w-full text-left px-2.5 py-1 rounded-md text-[11px] font-medium cursor-pointer transition-colors',
+                            typeFilter === 'child'
+                              ? 'bg-blue-50 text-blue-700'
+                              : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900',
+                          )}
+                        >
+                          Subcategories only
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="pt-2 border-t border-gray-100 flex justify-between items-center">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setTypeFilter('all')
+                        }}
+                        className="text-[11px] font-medium text-gray-500 hover:text-gray-700 cursor-pointer"
+                      >
+                        Reset filters
+                      </button>
+                    </div>
+                  </DropdownMenu.Content>
+                </DropdownMenu.Portal>
+              </DropdownMenu.Root>
+
+              {canCreateCategories && (
+                <Button onClick={handleAddNew} size="sm">
+                  <Plus size={16} />
+                  Add Category
+                </Button>
+              )}
+            </div>
           </div>
         </div>
       </div>
@@ -294,12 +421,14 @@ export default function CategoryList() {
                   <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Name</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Parent Category</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Subcategories</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Assigned</th>
                   <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600 uppercase">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
                 {pagedCategories.map((category) => {
                   const children = getChildCategories(category.id)
+                  const assignedVendor = getAssignedVendorForCategory(category)
                   return (
                     <tr key={category.id} className="hover:bg-gray-50 transition-colors">
                       <td className="px-4 py-3">
@@ -318,23 +447,43 @@ export default function CategoryList() {
                         </p>
                       </td>
                       <td className="px-4 py-3">
-                        <div className="flex gap-2 justify-end">
+                        <div className="flex -space-x-1">
+                          {assignedVendor ? (
+                            assignedVendor.image_url ? (
+                              <img
+                                src={assignedVendor.image_url}
+                                alt={assignedVendor.name}
+                                className="w-7 h-7 rounded-full object-cover"
+                              />
+                            ) : (
+                              <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-blue-50 text-xs font-semibold text-blue-700">
+                                {buildVendorInitials(assignedVendor.name)}
+                              </span>
+                            )
+                          ) : (
+                            <span className="text-xs text-gray-400">Unassigned</span>
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex gap-1.5 justify-end">
                           <Button
-                            variant="outline"
+                            variant="ghost"
                             size="sm"
                             onClick={() => handleEdit(category)}
                             title="Edit"
+                            className="h-8 w-8 p-0 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-full"
                           >
-                            <Edit size={14} />
+                            <Edit size={16} />
                           </Button>
                           <Button
-                            variant="outline"
+                            variant="ghost"
                             size="sm"
                             onClick={() => handleDelete(category.id)}
-                            className="text-red-600 hover:text-red-700"
+                            className="h-8 w-8 p-0 text-red-500 hover:text-red-600 hover:bg-red-50 rounded-full"
                             title="Delete"
                           >
-                            <Trash2 size={14} />
+                            <Trash2 size={16} />
                           </Button>
                         </div>
                       </td>
@@ -393,6 +542,38 @@ export default function CategoryList() {
           </div>
         </div>
       )}
+      {/* Toast notifications */}
+      <ToastPrimitive.Provider swipeDirection="right" duration={4000}>
+        <ToastPrimitive.Root
+          open={toastOpen}
+          onOpenChange={setToastOpen}
+          className={cn(
+            'bg-white border border-gray-200 rounded-lg shadow-lg px-4 py-3 flex items-start gap-3 text-sm',
+            toastVariant === 'success' && 'border-green-200',
+            toastVariant === 'error' && 'border-red-200',
+          )}
+        >
+          <div className="flex-1">
+            <ToastPrimitive.Title className="font-semibold text-gray-900">
+              {toastTitle}
+            </ToastPrimitive.Title>
+            {toastDescription && (
+              <ToastPrimitive.Description className="text-gray-600 mt-0.5">
+                {toastDescription}
+              </ToastPrimitive.Description>
+            )}
+          </div>
+          <button
+            type="button"
+            onClick={() => setToastOpen(false)}
+            className="text-gray-400 hover:text-gray-600 ml-2"
+            aria-label="Close"
+          >
+            <X size={14} />
+          </button>
+        </ToastPrimitive.Root>
+        <ToastPrimitive.Viewport className="fixed top-4 right-4 z-[60] flex flex-col gap-2 w-72 max-w-full outline-none" />
+      </ToastPrimitive.Provider>
     </div>
   )
 }
