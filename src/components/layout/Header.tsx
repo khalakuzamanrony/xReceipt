@@ -1,11 +1,6 @@
 import { useAuth } from '@/contexts/AuthContext'
 
-interface HeaderProps {
-  title?: string
-  description?: string
-}
-
-export default function Header({ title, description }: HeaderProps) {
+export default function Header() {
   const { user } = useAuth()
 
   return (
@@ -16,17 +11,9 @@ export default function Header({ title, description }: HeaderProps) {
             xR
           </div>
           <div className="flex flex-col min-w-0">
-            <span className="text-sm font-semibold text-gray-900 truncate">xReceipt</span>
-            <span className="text-[11px] text-gray-500 truncate">Receipts & expenses</span>
+            <span className="text-base font-semibold text-gray-900 truncate">xReceipt</span>
           </div>
         </div>
-
-        {user && (
-          <div className="hidden md:flex flex-col items-end min-w-0">
-            <span className="text-[11px] font-medium text-gray-900 truncate">{user.name || 'Admin'}</span>
-            <span className="text-[10px] text-gray-500 truncate">{user.email}</span>
-          </div>
-        )}
       </div>
     </header>
   )

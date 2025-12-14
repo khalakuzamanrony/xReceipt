@@ -62,20 +62,6 @@ export default function App() {
     }
   }
 
-  const getPageTitle = () => {
-    const titles: Record<string, string> = {
-      'dashboard': 'Dashboard',
-      'receipts': 'Receipts',
-      'templates': 'Receipt Templates',
-      'template-builder': 'Template Builder',
-      'products': 'Products',
-      'categories': 'Categories',
-      'vendors': 'Vendors',
-      'admin': 'Admin',
-    }
-    return titles[currentPage] || currentPage.charAt(0).toUpperCase() + currentPage.slice(1)
-  }
-
   return (
     <div className="h-screen flex flex-col bg-gray-50">
       {/* Sidebar Navigation */}
@@ -84,7 +70,7 @@ export default function App() {
       {/* Main Content */}
       <div className="md:ml-64 flex flex-col flex-1 overflow-hidden">
         {/* Header */}
-        <Header title={getPageTitle()} />
+        <Header />
 
         {/* Page Content */}
         <main className="flex-1 overflow-auto px-6 md:px-8 py-6">

@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Menu, X, LayoutDashboard, Package, Folder, FileText, Users, Settings, Store, ChevronDown, LogOut } from 'lucide-react'
+import { Menu, X, LayoutDashboard, Package, Folder, FileText, Users, Settings, Store, ChevronDown, ChevronUp, LogOut } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { useVendor } from '@/contexts/VendorContext'
 import { Input } from '@/components/ui/Input'
@@ -44,18 +44,6 @@ export default function Sidebar({ currentPage, onPageChange }: SidebarProps) {
   const selectValue = isGrandUser ? (activeVendorId ?? '__all__') : (activeVendorId ?? '')
 
   const activeVendor = activeVendorId ? vendors.find((v) => v.id === activeVendorId) ?? null : null
-
-  const activeVendorLabel = (() => {
-    if (isGrandUser && !activeVendorId) return 'All vendors'
-    if (activeVendor) return activeVendor.name
-    return isGrandUser ? 'All vendors' : 'Select vendor'
-  })()
-
-  const activeVendorSubLabel = (() => {
-    if (isGrandUser && !activeVendorId) return 'Global workspace'
-    if (activeVendor) return 'Active workspace'
-    return 'No vendor selected'
-  })()
 
   const userInitials = (() => {
     const source = user?.name || user?.email || 'U'
@@ -133,9 +121,7 @@ export default function Sidebar({ currentPage, onPageChange }: SidebarProps) {
                   }
                 }}
               >
-                <Select.Trigger
-                  className="w-full flex items-center justify-between gap-3 rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 shadow-sm hover:bg-gray-100 cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
+                <Select.Trigger className="w-full flex items-center justify-between gap-3 rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 shadow-sm hover:bg-gray-100 cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500">
                   <div className="flex items-center gap-2 min-w-0">
                     {activeVendor?.image_url ? (
                       <img
@@ -154,14 +140,29 @@ export default function Sidebar({ currentPage, onPageChange }: SidebarProps) {
                       </div>
                     )}
                     <div className="flex flex-col min-w-0 text-left">
-                      <span className="text-[12px] font-semibold text-gray-900 truncate">{activeVendorLabel}</span>
-                      <span className="text-[11px] text-gray-500 truncate">{activeVendorSubLabel}</span>
+                      <span className="text-[12px] font-semibold text-gray-900 truncate">
+                        <Select.Value placeholder={isGrandUser ? 'All vendors' : 'Select vendor'} />
+                      </span>
+                      <span className="text-[11px] text-gray-500 truncate">
+                        {isGrandUser && !activeVendorId
+                          ? 'Global workspace'
+                          : activeVendor
+                          ? 'Active workspace'
+                          : 'No vendor selected'}
+                      </span>
                     </div>
                   </div>
-                  <ChevronDown className="h-3.5 w-3.5 text-gray-500 flex-shrink-0" />
+                  <Select.Icon>
+                    <ChevronDown className="h-3.5 w-3.5 text-gray-500 flex-shrink-0" />
+                  </Select.Icon>
                 </Select.Trigger>
                 <Select.Portal>
-                  <Select.Content className="z-50 min-w-[220px] rounded-xl border border-gray-200 bg-white shadow-lg overflow-hidden">
+                  <Select.Content
+                    position="popper"
+                    sideOffset={6}
+                    className="z-50 rounded-xl border border-gray-200 bg-white shadow-lg overflow-hidden"
+                    style={{ minWidth: 'var(--radix-select-trigger-width)' }}
+                  >
                     <div className="px-3 py-2 border-b border-gray-100 bg-gray-50">
                       <Input
                         type="text"
