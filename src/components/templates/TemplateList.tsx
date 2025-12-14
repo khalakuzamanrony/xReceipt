@@ -198,11 +198,6 @@ export default function TemplateList({ onNavigateToBuilder }: TemplateListProps)
     return vendors.filter((v) => baseVendorIds.includes(v.id))
   }
 
-  const getAssignedVendor = (template: ReceiptTemplate): Vendor | null => {
-    const assigned = getAssignedVendorsForTemplate(template)
-    return assigned[0] || null
-  }
-
   const buildTemplatePreviewHtml = (template: ReceiptTemplate) => {
     const sampleItemsHtml = `
       <tr>
