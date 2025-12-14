@@ -725,16 +725,14 @@ export default function TemplateList({ onNavigateToBuilder }: TemplateListProps)
               <tbody className="divide-y divide-gray-200">
                 {pagedTemplates.map((template) => {
                   const assignedVendors = getAssignedVendorsForTemplate(template)
-                  const primaryVendor = assignedVendors[0] || null
 
                   const buildInitials = (name: string) =>
                     name
                       .split(' ')
+                      .filter(Boolean)
                       .map((part) => part.charAt(0).toUpperCase())
                       .slice(0, 2)
                       .join('')
-
-                  const initials = primaryVendor?.name ? buildInitials(primaryVendor.name) : ''
 
                   return (
                     <tr key={template.id} className="hover:bg-gray-50 transition-colors">
@@ -743,6 +741,7 @@ export default function TemplateList({ onNavigateToBuilder }: TemplateListProps)
                       </td>
                       <td className="px-4 py-3">
                         <p className="text-sm text-gray-600 max-w-xs truncate">
+                          {template.description || ' '}
                           {template.description || ''}
                         </p>
                       </td>

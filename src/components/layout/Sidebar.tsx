@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Menu, X, LayoutDashboard, Package, Folder, FileText, Users, Settings, Store, ChevronDown, ChevronUp, LogOut } from 'lucide-react'
+import { Menu, X, LayoutDashboard, Package, Folder, FileText, Users, Settings, Store, ChevronDown, LogOut } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { useVendor } from '@/contexts/VendorContext'
 import { Input } from '@/components/ui/Input'
