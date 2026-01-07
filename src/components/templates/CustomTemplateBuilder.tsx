@@ -1,4 +1,4 @@
-import { useState, type ChangeEvent } from 'react'
+import { useEffect, useRef, useState, type ChangeEvent } from 'react'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Label } from '@/components/ui/Label'
@@ -177,10 +177,16 @@ interface TemplateData {
 }
 
 export default function CustomTemplateBuilder({ open, onClose, onSave, isFullPage = false, isPage = false }: CustomTemplateBuilderProps) {
-    const { activeVendorId } = useVendor()
+    const { activeVendorId, memberships } = useVendor()
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState<string | null>(null)
     const [activeTab, setActiveTab] = useState<'company' | 'client' | 'content' | 'layout' | 'style'>('company')
+
+    const activeVendorName = activeVendorId
+        ? memberships.find((m) => m.vendor.id === activeVendorId)?.vendor.name || ''
+        : ''
+
+    const lastAutoCompanyNameRef = useRef<string>('')
 
     const [data, setData] = useState<TemplateData>({
         templateName: 'Custom Receipt Template',
@@ -236,6 +242,21 @@ export default function CustomTemplateBuilder({ open, onClose, onSave, isFullPag
         footerOrder: DEFAULT_FOOTER_ORDER,
         itemsColumnsOrder: DEFAULT_ITEMS_COLUMNS_ORDER,
     })
+
+    useEffect(() => {
+        if (!activeVendorName) return
+
+        setData((prev) => {
+            const canAutoUpdate = !prev.companyName || prev.companyName === lastAutoCompanyNameRef.current
+            if (!canAutoUpdate) return prev
+
+            lastAutoCompanyNameRef.current = activeVendorName
+            return {
+                ...prev,
+                companyName: activeVendorName,
+            }
+        })
+    }, [activeVendorName])
 
     const updateData = (key: keyof TemplateData, value: any) => {
         setData(prev => ({ ...prev, [key]: value }))
@@ -980,7 +1001,7 @@ export default function CustomTemplateBuilder({ open, onClose, onSave, isFullPag
         }
 
         if (!activeVendorId) {
-            setError('Please select a vendor from the header before creating templates.')
+            setError('Please select a shop from the header before creating templates.')
             return
         }
 

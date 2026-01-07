@@ -50,63 +50,102 @@ export const receiptService = {
     const { items, ...receiptData } = receipt
 
     const vendorId = (receiptData as any).vendor_id as string | null | undefined
-    let receipt_number: string
 
-    if (vendorId) {
-      // Build short vendor-based code like DV-0001
+    const buildPrefixFromVendorName = (nameRaw: string | null | undefined) => {
+      const name = (nameRaw || '').trim()
+      if (!name) return 'RC'
+
+      const safe = name
+        .toUpperCase()
+        .replace(/[^A-Z0-9\s]/g, ' ')
+        .trim()
+
+      const parts = safe.split(/\s+/).filter(Boolean)
+
+      const firstInitial = parts[0]?.[0]
+      const secondInitial = parts.length > 1 ? parts[1]?.[0] : parts[0]?.[1]
+
+      const a = firstInitial && /[A-Z]/.test(firstInitial) ? firstInitial : 'R'
+      const b = secondInitial && /[A-Z]/.test(secondInitial) ? secondInitial : 'C'
+
+      return `${a}${b}`
+    }
+
+    const getReceiptNumberContext = async () => {
+      if (!vendorId) {
+        return { prefix: 'RC', baseSeq: Math.floor(Math.random() * 1_000_0000) }
+      }
+
       let prefix = 'RC'
       try {
         const vendor = await vendorService.getVendorById(vendorId)
-        const name = vendor?.name?.trim() || ''
-        if (name) {
-          const parts = name.split(/\s+/).filter(Boolean)
-          const firstInitial = parts[0]?.[0]?.toUpperCase()
-          const lastInitial =
-            parts.length > 1
-              ? parts[parts.length - 1][0]?.toUpperCase()
-              : parts[0]?.[1]?.toUpperCase()
-
-          if (firstInitial && lastInitial) {
-            prefix = `${firstInitial}${lastInitial}`
-          } else if (firstInitial) {
-            prefix = `${firstInitial}X`
-          }
-        }
+        prefix = buildPrefixFromVendorName(vendor?.name)
       } catch {
-        // fall back to default prefix on error
+        // Keep default prefix
       }
 
-      const { count, error: countError } = await supabase
+      // Find the max suffix currently used for this shop+prefix.
+      // We scan a small recent set to be robust with legacy formats like "AB-0001".
+      const { data: rows, error: lastError } = await supabase
         .from('receipts')
-        .select('*', { count: 'exact', head: true })
+        .select('receipt_number')
         .eq('vendor_id', vendorId)
         .ilike('receipt_number', `${prefix}-%`)
+        .order('receipt_number', { ascending: false })
+        .limit(50)
 
-      if (countError) throw countError
+      if (lastError) throw lastError
 
-      const nextSeq = (count ?? 0) + 1
-      const suffix = nextSeq.toString().padStart(4, '0')
-      receipt_number = `${prefix}-${suffix}`
-    } else {
-      // Fallback: original long random receipt number
-      const now = new Date()
-      const dateStr = now.toISOString().slice(0, 10).replace(/-/g, '')
-      const timeStr = now.toISOString().slice(11, 19).replace(/:/g, '')
-      const random = Math.random().toString(36).substring(2, 8).toUpperCase()
-      receipt_number = `REC-${dateStr}-${timeStr}-${random}`
+      let maxSeq = 0
+      for (const row of rows || []) {
+        const value = (row as any)?.receipt_number
+        if (typeof value !== 'string') continue
+        const parts = value.split('-')
+        if (parts.length !== 2) continue
+        if (parts[0] !== prefix) continue
+        if (!/^\d+$/.test(parts[1])) continue
+        const seq = Number(parts[1]) || 0
+        if (seq > maxSeq) maxSeq = seq
+      }
+
+      return { prefix, baseSeq: maxSeq }
     }
 
-    const { data, error } = await supabase
-      .from('receipts')
-      .insert({
-        ...receiptData,
-        receipt_number,
-        status: 'draft',
-      })
-      .select()
-      .single()
+    const buildReceiptNumberFromContext = (ctx: { prefix: string; baseSeq: number }, offset: number) => {
+      const nextSeq = ctx.baseSeq + 1 + offset
+      if (nextSeq > 9_999_999) {
+        throw new Error('Receipt number limit reached for this shop prefix')
+      }
+      const suffix = nextSeq.toString().padStart(7, '0')
+      return `${ctx.prefix}-${suffix}`
+    }
 
-    if (error) throw error
+    const ctx = await getReceiptNumberContext()
+
+    const tryInsert = async (attempt: number): Promise<any> => {
+      const receipt_number = buildReceiptNumberFromContext(ctx, attempt)
+      const { data, error } = await supabase
+        .from('receipts')
+        .insert({
+          ...receiptData,
+          receipt_number,
+          status: 'draft',
+        })
+        .select()
+        .single()
+
+      if (!error) return data
+
+      // Unique constraint violation (receipt_number is unique)
+      // Postgres error code: 23505
+      if ((error as any)?.code === '23505' && attempt < 5) {
+        return tryInsert(attempt + 1)
+      }
+
+      throw error
+    }
+
+    const data = await tryInsert(0)
 
     // Insert receipt items if provided
     if (items && items.length > 0) {
@@ -114,6 +153,8 @@ export const receiptService = {
         receipt_id: data.id,
         product_id: item.product_id,
         name: item.name,
+        imei_or_model: item.imei_or_model ?? null,
+        color: item.color ?? null,
         quantity: item.quantity,
         unit_price: item.unit_price,
         total: item.total,
@@ -161,6 +202,8 @@ export const receiptService = {
           receipt_id: id,
           product_id: item.product_id,
           name: item.name,
+          imei_or_model: item.imei_or_model ?? null,
+          color: item.color ?? null,
           quantity: item.quantity,
           unit_price: item.unit_price,
           total: item.total,

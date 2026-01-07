@@ -13,6 +13,19 @@ export const vendorAdminService = {
     return data || []
   },
 
+  async getAssignmentsForVendors(vendorIds: string[]): Promise<VendorAdmin[]> {
+    if (!vendorIds.length) return []
+
+    const { data, error } = await supabase
+      .from('vendor_admins')
+      .select('*')
+      .in('vendor_id', vendorIds)
+      .order('created_at', { ascending: true })
+
+    if (error) throw error
+    return (data || []) as VendorAdmin[]
+  },
+
   async saveAdminsForVendor(
     vendorId: string,
     admins: { admin_id: string; is_vendor_super_admin: boolean }[],

@@ -26,6 +26,12 @@ interface ReceiptElement {
   locked?: boolean
 }
 
+interface VisualBuilderDraft {
+  elements: ReceiptElement[]
+  templateName: string
+  templateDesc: string
+}
+
 const ELEMENT_TEMPLATES: Record<string, Omit<ReceiptElement, 'id' | 'x' | 'y'>> = {
   header: {
     type: 'header',
@@ -131,6 +137,7 @@ const ELEMENT_TEMPLATES: Record<string, Omit<ReceiptElement, 'id' | 'x' | 'y'>> 
 }
 
 const GRID_SIZE = 10
+const VISUAL_BUILDER_DRAFT_KEY = 'xreceipt.visualBuilderDraft'
 
 const buildTemplateHtmlFromElements = (elements: ReceiptElement[]): string => {
   let html = `<div style="font-family: Arial, sans-serif; position: relative; width: 400px; height: 600px; margin: 0 auto; padding: 0;">`
@@ -325,6 +332,24 @@ export default function VisualReceiptBuilder({ open, onClose, onSave }: VisualRe
   }
 
   useEffect(() => {
+    if (!open) return
+    if (typeof window === 'undefined') return
+
+    try {
+      const raw = window.localStorage.getItem(VISUAL_BUILDER_DRAFT_KEY)
+      if (!raw) return
+
+      const draft: VisualBuilderDraft = JSON.parse(raw)
+      if (!draft || !Array.isArray(draft.elements)) return
+
+      setElements(draft.elements)
+      setTemplateName(draft.templateName || 'My Custom Receipt')
+      setTemplateDesc(draft.templateDesc || 'A custom receipt template')
+    } catch {
+    }
+  }, [open])
+
+  useEffect(() => {
     if (!resizingId) return
 
     const handleMouseMove = (e: MouseEvent) => {
@@ -356,6 +381,51 @@ export default function VisualReceiptBuilder({ open, onClose, onSave }: VisualRe
   useEffect(() => {
     setPreviewHtml(buildTemplateHtmlFromElements(elements))
   }, [elements])
+
+  useEffect(() => {
+    if (!open) return
+    if (typeof window === 'undefined') return
+
+    const hasContent =
+      elements.length > 0 ||
+      templateName !== 'My Custom Receipt' ||
+      templateDesc !== 'A custom receipt template'
+
+    if (!hasContent) {
+      window.localStorage.removeItem(VISUAL_BUILDER_DRAFT_KEY)
+      return
+    }
+
+    const draft: VisualBuilderDraft = {
+      elements,
+      templateName,
+      templateDesc,
+    }
+
+    try {
+      window.localStorage.setItem(VISUAL_BUILDER_DRAFT_KEY, JSON.stringify(draft))
+    } catch {
+    }
+  }, [elements, templateName, templateDesc, open])
+
+  const handleSave = () => {
+    onSave({
+      name: templateName,
+      description: templateDesc,
+      elements,
+    })
+
+    if (typeof window !== 'undefined') {
+      window.localStorage.removeItem(VISUAL_BUILDER_DRAFT_KEY)
+    }
+  }
+
+  const handleCancel = () => {
+    if (typeof window !== 'undefined') {
+      window.localStorage.removeItem(VISUAL_BUILDER_DRAFT_KEY)
+    }
+    onClose()
+  }
 
   const renderElement = (element: ReceiptElement) => {
     const style = {
@@ -819,17 +889,11 @@ export default function VisualReceiptBuilder({ open, onClose, onSave }: VisualRe
           </div>
 
           <div className="flex gap-3 justify-end">
-            <Button variant="outline" onClick={onClose} className="border-slate-700 text-slate-300">
+            <Button variant="outline" onClick={handleCancel} className="border-slate-700 text-slate-300">
               Cancel
             </Button>
             <Button
-              onClick={() =>
-                onSave({
-                  name: templateName,
-                  description: templateDesc,
-                  elements,
-                })
-              }
+              onClick={handleSave}
               className="bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-500 hover:to-purple-600 text-white"
             >
               <Zap size={16} />

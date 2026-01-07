@@ -135,7 +135,7 @@ export default function AdminList() {
 
   const handleRequestDelete = (admin: User) => {
     if (nonDeletableAdminIds.includes(admin.id)) {
-      setError('This admin is a vendor super user and cannot be deleted. Reassign vendor super admins first.')
+      setError('This admin is a shop super user and cannot be deleted. Reassign shop super admins first.')
       return
     }
     setAdminToDelete(admin)
@@ -146,7 +146,7 @@ export default function AdminList() {
     if (!adminToDelete) return
 
     if (nonDeletableAdminIds.includes(adminToDelete.id)) {
-      setError('This admin is a vendor super user and cannot be deleted. Reassign vendor super admins first.')
+      setError('This admin is a shop super user and cannot be deleted. Reassign shop super admins first.')
       setShowDeleteConfirm(false)
       setAdminToDelete(null)
       return
@@ -251,7 +251,7 @@ export default function AdminList() {
 
   const renderVendorSummary = (adminId: string) => {
     const info = adminVendorInfo[adminId]
-    if (!info || info.length === 0) return 'No vendors assigned'
+    if (!info || info.length === 0) return 'No shops assigned'
 
     const superVendors = info.filter((v) => v.isVendorSuperAdmin)
     const normalVendors = info.filter((v) => !v.isVendorSuperAdmin)
@@ -261,7 +261,7 @@ export default function AdminList() {
       parts.push(`Super for ${superVendors.map((v) => v.vendorName).join(', ')}`)
     }
     if (normalVendors.length) {
-      parts.push(`Vendor ${normalVendors.map((v) => v.vendorName).join(', ')}`)
+      parts.push(`Shop ${normalVendors.map((v) => v.vendorName).join(', ')}`)
     }
     return parts.join(' • ')
   }
@@ -336,7 +336,7 @@ export default function AdminList() {
       setAssignSearch('')
       setAssignError(null)
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to assign vendors to admin'
+      const message = err instanceof Error ? err.message : 'Failed to assign shops to admin'
       setAssignError(message)
     } finally {
       setAssignSaving(false)
@@ -371,8 +371,8 @@ export default function AdminList() {
             <h1 className="text-2xl font-bold text-gray-900">{isGrandUserView ? 'Users' : 'Admins'}</h1>
             <p className="text-sm text-gray-500 mt-1">
               {isGrandUserView
-                ? 'Manage grand users, vendor super admins, and admins'
-                : 'Manage admin users, vendor memberships, and permissions'}
+                ? 'Manage grand users, shop super admins, and admins'
+                : 'Manage admin users, shop memberships, and permissions'}
             </p>
           </div>
 
@@ -524,7 +524,7 @@ export default function AdminList() {
                           }}
                         >
                           {vendors.length === 0 ? (
-                            <span className="text-xs text-gray-400">No vendors</span>
+                            <span className="text-xs text-gray-400">No shops</span>
                           ) : (
                             (() => {
                               const assignedInfo = adminVendorInfo[admin.id] || []
@@ -572,7 +572,7 @@ export default function AdminList() {
                                           ? assignedVendors[0].name
                                           : assignedVendors.length > 1
                                             ? `${assignedVendors[0].name} +${assignedVendors.length - 1}`
-                                            : 'Assign vendors'
+                                            : 'Assign shops'
                                       }
                                     >
                                       {assignedVendors.length > 0 ? (
@@ -610,7 +610,7 @@ export default function AdminList() {
                                       <div className="px-1">
                                         <Input
                                           type="text"
-                                          placeholder="Search vendors..."
+                                          placeholder="Search shops..."
                                           value={assignSearch}
                                           onChange={(e) => setAssignSearch(e.target.value)}
                                           className="h-8 text-xs border-gray-300"
@@ -643,7 +643,7 @@ export default function AdminList() {
                                       )}
                                       <div className="max-h-48 overflow-y-auto space-y-1 mt-1">
                                         {filteredVendors.length === 0 ? (
-                                          <div className="px-2 py-2 text-xs text-gray-500">No vendors found</div>
+                                          <div className="px-2 py-2 text-xs text-gray-500">No shops found</div>
                                         ) : (
                                           filteredVendors.map((vendor) => {
                                             const checked = assignSelectedVendorIds.includes(vendor.id)
@@ -753,7 +753,7 @@ export default function AdminList() {
                             size="sm"
                             onClick={() => handleRequestDelete(admin)}
                             className="h-8 w-8 p-0 text-red-500 hover:text-red-600 hover:bg-red-50 rounded-full"
-                            title={isNonDeletable ? 'Vendor super user cannot be deleted' : 'Delete'}
+                            title={isNonDeletable ? 'Shop super user cannot be deleted' : 'Delete'}
                             disabled={isNonDeletable}
                           >
                             <Trash2 size={16} />

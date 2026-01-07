@@ -69,7 +69,7 @@ export default function ProductList() {
       await productService.updateProduct(product.id, update)
       setProducts((prev) => prev.map((p) => (p.id === product.id ? { ...p, vendor_id: vendorId } : p)))
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to update assigned vendor'
+      const message = err instanceof Error ? err.message : 'Failed to update assigned shop'
       setError(message)
     }
   }
@@ -187,7 +187,7 @@ export default function ProductList() {
   const handleAddNew = () => {
     // Require a vendor selection before creating products
     if (!activeVendorId) {
-      setError('Please select a vendor from the header before creating products.')
+      setError('Please select a shop from the header before creating products.')
       return
     }
 
@@ -240,7 +240,7 @@ export default function ProductList() {
 
     // New products must always be tied to a specific vendor
     if (isNew && !activeVendorId) {
-      setError('Please select a vendor from the header before creating products.')
+      setError('Please select a shop from the header before creating products.')
       return
     }
 
@@ -300,8 +300,8 @@ export default function ProductList() {
     return (
       <div className="bg-white rounded-lg border border-gray-200 p-8 text-center">
         <Package size={32} className="text-gray-300 mx-auto mb-3" />
-        <p className="text-gray-800 font-semibold">No vendor assigned</p>
-        <p className="text-gray-500 text-sm mt-1">You are not assigned to any vendor. Please contact a Grand User.</p>
+        <p className="text-gray-800 font-semibold">No shop assigned</p>
+        <p className="text-gray-500 text-sm mt-1">You are not assigned to any shop. Please contact a Grand User.</p>
       </div>
     )
   }
@@ -480,7 +480,7 @@ export default function ProductList() {
 
             <form onSubmit={handleSubmit} className="space-y-4 py-4">
               <div className="space-y-2">
-                <Label htmlFor="name" className="text-sm font-semibold text-gray-900">Product Name *</Label>
+                <Label htmlFor="name" className="text-sm font-semibold text-gray-900" required>Product Name</Label>
                 <Input
                   id="name"
                   type="text"
@@ -503,7 +503,7 @@ export default function ProductList() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="price" className="text-sm font-semibold text-gray-900">Price *</Label>
+                <Label htmlFor="price" className="text-sm font-semibold text-gray-900" required>Price</Label>
                 <Input
                   id="price"
                   type="number"
@@ -517,7 +517,7 @@ export default function ProductList() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="category" className="text-sm font-semibold text-gray-900">Category *</Label>
+                <Label htmlFor="category" className="text-sm font-semibold text-gray-900" required>Category</Label>
                 <select
                   id="category"
                   value={formData.category_id}
@@ -645,7 +645,7 @@ export default function ProductList() {
                           <DropdownMenu.Portal>
                             <DropdownMenu.Content className="min-w-[220px] rounded-xl border border-gray-200 bg-white shadow-lg p-2 mr-1 mt-2 z-50 space-y-1">
                               <p className="text-[11px] font-semibold text-gray-500 uppercase px-1 pb-1">
-                                Assign vendor
+                                Assign shop
                               </p>
                               {vendors.map((vendor) => {
                                 const isAssigned = product.vendor_id === vendor.id

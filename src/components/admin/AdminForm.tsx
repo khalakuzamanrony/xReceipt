@@ -294,7 +294,7 @@ export default function AdminForm({ admin, onClose, canEditEmail = false }: Admi
               <CardContent className="space-y-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="name">Name *</Label>
+                    <Label htmlFor="name" required>Name</Label>
                     <Input
                       id="name"
                       type="text"
@@ -307,7 +307,7 @@ export default function AdminForm({ admin, onClose, canEditEmail = false }: Admi
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="email">Email *</Label>
+                    <Label htmlFor="email" required>Email</Label>
                     <Input
                       id="email"
                       type="email"
@@ -345,7 +345,7 @@ export default function AdminForm({ admin, onClose, canEditEmail = false }: Admi
 
                 {!admin && (
                   <div className="space-y-2">
-                    <Label htmlFor="password">Password (for Supabase user setup)</Label>
+                    <Label htmlFor="password" required>Password (for Supabase user setup)</Label>
                     <div className="relative">
                       <Input
                         id="password"
@@ -393,7 +393,7 @@ export default function AdminForm({ admin, onClose, canEditEmail = false }: Admi
 
                 {!admin && userType !== 'grand_user' && (
                   <div className="space-y-2">
-                    <Label className="text-sm font-semibold text-gray-900">Assign Vendors</Label>
+                    <Label className="text-sm font-semibold text-gray-900">Assign Shops</Label>
                     <div className="border border-gray-200 rounded-lg max-h-40 overflow-y-auto p-2 space-y-1">
                       {vendors.map((vendor) => {
                         const checked = assignedVendorIds.includes(vendor.id)
@@ -413,7 +413,7 @@ export default function AdminForm({ admin, onClose, canEditEmail = false }: Admi
                         )
                       })}
                       {vendors.length === 0 && (
-                        <p className="text-xs text-gray-500">No vendors available. Create vendors first.</p>
+                        <p className="text-xs text-gray-500">No shops available. Create shops first.</p>
                       )}
                     </div>
                   </div>

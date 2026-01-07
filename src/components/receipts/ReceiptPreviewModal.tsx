@@ -37,13 +37,20 @@ export default function ReceiptPreviewModal({
     const total = receipt.total || 0
 
     // Determine items column order from template (data-items-columns on tbody)
-    let itemsColumns: Array<'description' | 'quantity' | 'price' | 'total'> = ['description', 'quantity', 'price', 'total']
-    const itemsColumnsMatch = template.template_html.match(/data-items-columns="([a-z,]+)"/)
+    let itemsColumns: Array<'description' | 'imei_or_model' | 'color' | 'quantity' | 'price' | 'total'> = ['description', 'quantity', 'price', 'total']
+    const itemsColumnsMatch = template.template_html.match(/data-items-columns="([a-z_,]+)"/)
     if (itemsColumnsMatch && itemsColumnsMatch[1]) {
       const parts = itemsColumnsMatch[1].split(',').map(p => p.trim()).filter(Boolean)
-      const valid: Array<'description' | 'quantity' | 'price' | 'total'> = []
+      const valid: Array<'description' | 'imei_or_model' | 'color' | 'quantity' | 'price' | 'total'> = []
       for (const col of parts) {
-        if (col === 'description' || col === 'quantity' || col === 'price' || col === 'total') {
+        if (
+          col === 'description' ||
+          col === 'imei_or_model' ||
+          col === 'color' ||
+          col === 'quantity' ||
+          col === 'price' ||
+          col === 'total'
+        ) {
           valid.push(col)
         }
       }
@@ -55,12 +62,32 @@ export default function ReceiptPreviewModal({
     // Build items HTML
     let itemsHTML = ''
     if (receipt.items && receipt.items.length > 0) {
+      const hasDedicatedImeiColumn = itemsColumns.includes('imei_or_model')
+      const hasDedicatedColorColumn = itemsColumns.includes('color')
+
       itemsHTML = receipt.items
         .map((item) => {
           const cells = itemsColumns
             .map((col) => {
               if (col === 'description') {
-                return `<td style="padding: 8px; border-bottom: 1px solid #eee;">${item.name}</td>`
+                const metaParts: string[] = []
+                if (!hasDedicatedImeiColumn && item.imei_or_model) {
+                  metaParts.push(`IMEI/Model: ${item.imei_or_model}`)
+                }
+                if (!hasDedicatedColorColumn && item.color) {
+                  metaParts.push(`Color: ${item.color}`)
+                }
+                const metaHtml = metaParts.length
+                  ? `<div style="margin-top: 2px; font-size: 11px; color: #666;">${metaParts.join(' · ')}</div>`
+                  : ''
+
+                return `<td style="padding: 8px; border-bottom: 1px solid #eee;"><div>${item.name}</div>${metaHtml}</td>`
+              }
+              if (col === 'imei_or_model') {
+                return `<td style="padding: 8px; border-bottom: 1px solid #eee;">${item.imei_or_model || ''}</td>`
+              }
+              if (col === 'color') {
+                return `<td style="padding: 8px; border-bottom: 1px solid #eee;">${item.color || ''}</td>`
               }
               if (col === 'quantity') {
                 return `<td style="padding: 8px; border-bottom: 1px solid #eee; text-align: center;">${item.quantity}</td>`
@@ -95,6 +122,8 @@ export default function ReceiptPreviewModal({
     // Check if any item has tax enabled
     const hasTaxableItems = receipt.items && receipt.items.length > 0 && tax > 0
 
+    const companyName = receipt.company_name || 'xReceipt'
+
     let html = template.template_html
       .replace(/{{RECEIPT_ID}}/g, receipt.id)
       .replace(/{{DATE}}/g, new Date(receipt.created_at).toLocaleDateString())
@@ -108,7 +137,7 @@ export default function ReceiptPreviewModal({
       .replace(/{{SUBTOTAL}}/g, subtotal.toFixed(2))
       .replace(/{{TAX}}/g, hasTaxableItems ? tax.toFixed(2) : '0.00')
       .replace(/{{STATUS}}/g, receipt.status)
-      .replace(/{{COMPANY_NAME}}/g, 'xReceipt')
+      .replace(/{{COMPANY_NAME}}/g, companyName)
       .replace(/{{COMPANY_EMAIL}}/g, 'info@xreceipt.com')
       .replace(/{{FOOTER_MESSAGE}}/g, 'Thank you for your business!')
 

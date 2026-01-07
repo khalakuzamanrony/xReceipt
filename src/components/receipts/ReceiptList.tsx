@@ -67,7 +67,10 @@ export default function ReceiptList() {
   const [items, setItems] = useState<ReceiptItem[]>([])
   const [selectedProductId, setSelectedProductId] = useState('')
   const [itemQuantity, setItemQuantity] = useState('1')
+  const [itemImeiOrModel, setItemImeiOrModel] = useState('')
+  const [itemColor, setItemColor] = useState('')
   const [formData, setFormData] = useState({
+    company_name: '',
     customer_name: '',
     customer_email: '',
     customer_company: '',
@@ -90,6 +93,7 @@ export default function ReceiptList() {
   const assignedTemplateIds = permissions?.assigned_template_ids || []
 
   const vendors: Vendor[] = memberships.map((m) => m.vendor)
+  const activeVendorName = activeVendorId ? vendors.find((v) => v.id === activeVendorId)?.name || '' : ''
 
   useEffect(() => {
     if (vendorLoading) return
@@ -200,12 +204,13 @@ export default function ReceiptList() {
   const handleAddNew = () => {
     // Require a vendor selection before creating receipts
     if (!activeVendorId) {
-      setError('Please select a vendor from the header before creating receipts.')
+      setError('Please select a shop from the header before creating receipts.')
       return
     }
 
     setSelectedReceipt(null)
     setFormData({
+      company_name: activeVendorName,
       customer_name: '',
       customer_email: '',
       customer_company: '',
@@ -229,7 +234,11 @@ export default function ReceiptList() {
       }
       
       setSelectedReceipt(fullReceipt)
+      const vendorNameForReceipt = fullReceipt.vendor_id
+        ? vendors.find((v) => v.id === fullReceipt.vendor_id)?.name || ''
+        : ''
       setFormData({
+        company_name: fullReceipt.company_name || vendorNameForReceipt,
         customer_name: fullReceipt.customer_name,
         customer_email: fullReceipt.customer_email,
         customer_company: fullReceipt.customer_company || '',
@@ -268,6 +277,8 @@ export default function ReceiptList() {
       id: Math.random().toString(36).substring(7),
       product_id: product.id,
       name: product.name,
+      imei_or_model: itemImeiOrModel.trim() ? itemImeiOrModel.trim() : null,
+      color: itemColor.trim() ? itemColor.trim() : null,
       quantity,
       unit_price: product.price,
       total,
@@ -276,11 +287,13 @@ export default function ReceiptList() {
     setItems([...items, newItem])
     setSelectedProductId('')
     setItemQuantity('1')
+    setItemImeiOrModel('')
+    setItemColor('')
   }
 
   const handleQuickCreateProduct = async () => {
     if (!activeVendorId) {
-      setQuickProductError('Please select a vendor from the header before creating products.')
+      setQuickProductError('Please select a shop from the header before creating products.')
       return
     }
 
@@ -388,14 +401,14 @@ export default function ReceiptList() {
         prev.map((r) => (r.id === receipt.id ? { ...r, vendor_id: vendorId } : r)),
       )
       showToast(
-        'Assigned vendor updated',
-        vendorId ? 'The receipt has been assigned to the selected vendor.' : 'Vendor assignment removed.',
+        'Assigned shop updated',
+        vendorId ? 'The receipt has been assigned to the selected shop.' : 'Shop assignment removed.',
         'success',
       )
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to update assigned vendor'
+      const message = err instanceof Error ? err.message : 'Failed to update assigned shop'
       setError(message)
-      showToast('Failed to update vendor', message, 'error')
+      showToast('Failed to update shop', message, 'error')
     }
   }
 
@@ -422,13 +435,20 @@ export default function ReceiptList() {
     const tax = receipt.tax || 0
     const total = receipt.total || 0
 
-    let itemsColumns: Array<'description' | 'quantity' | 'price' | 'total'> = ['description', 'quantity', 'price', 'total']
-    const itemsColumnsMatch = templateHtml.match(/data-items-columns="([a-z,]+)"/)
+    let itemsColumns: Array<'description' | 'imei_or_model' | 'color' | 'quantity' | 'price' | 'total'> = ['description', 'quantity', 'price', 'total']
+    const itemsColumnsMatch = templateHtml.match(/data-items-columns="([a-z_,]+)"/)
     if (itemsColumnsMatch && itemsColumnsMatch[1]) {
       const parts = itemsColumnsMatch[1].split(',').map(p => p.trim()).filter(Boolean)
-      const valid: Array<'description' | 'quantity' | 'price' | 'total'> = []
+      const valid: Array<'description' | 'imei_or_model' | 'color' | 'quantity' | 'price' | 'total'> = []
       for (const col of parts) {
-        if (col === 'description' || col === 'quantity' || col === 'price' || col === 'total') {
+        if (
+          col === 'description' ||
+          col === 'imei_or_model' ||
+          col === 'color' ||
+          col === 'quantity' ||
+          col === 'price' ||
+          col === 'total'
+        ) {
           valid.push(col)
         }
       }
@@ -439,12 +459,32 @@ export default function ReceiptList() {
 
     let itemsHTML = ''
     if (receipt.items && receipt.items.length > 0) {
+      const hasDedicatedImeiColumn = itemsColumns.includes('imei_or_model')
+      const hasDedicatedColorColumn = itemsColumns.includes('color')
+
       itemsHTML = receipt.items
         .map((item) => {
           const cells = itemsColumns
             .map((col) => {
               if (col === 'description') {
-                return `<td style="padding: 8px; border-bottom: 1px solid #eee;">${item.name}</td>`
+                const metaParts: string[] = []
+                if (!hasDedicatedImeiColumn && item.imei_or_model) {
+                  metaParts.push(`IMEI/Model: ${item.imei_or_model}`)
+                }
+                if (!hasDedicatedColorColumn && item.color) {
+                  metaParts.push(`Color: ${item.color}`)
+                }
+                const metaHtml = metaParts.length
+                  ? `<div style="margin-top: 2px; font-size: 11px; color: #666;">${metaParts.join(' · ')}</div>`
+                  : ''
+
+                return `<td style="padding: 8px; border-bottom: 1px solid #eee;"><div>${item.name}</div>${metaHtml}</td>`
+              }
+              if (col === 'imei_or_model') {
+                return `<td style="padding: 8px; border-bottom: 1px solid #eee;">${item.imei_or_model || ''}</td>`
+              }
+              if (col === 'color') {
+                return `<td style="padding: 8px; border-bottom: 1px solid #eee;">${item.color || ''}</td>`
               }
               if (col === 'quantity') {
                 return `<td style="padding: 8px; border-bottom: 1px solid #eee; text-align: center;">${item.quantity}</td>`
@@ -478,6 +518,11 @@ export default function ReceiptList() {
 
     const hasTaxableItems = receipt.items && receipt.items.length > 0 && tax > 0
 
+    const companyName =
+      receipt.company_name ||
+      (receipt.vendor_id ? vendors.find((v) => v.id === receipt.vendor_id)?.name : null) ||
+      'xReceipt'
+
     let html = templateHtml
       .replace(/{{RECEIPT_ID}}/g, receipt.id)
       .replace(/{{DATE}}/g, new Date(receipt.created_at).toLocaleDateString())
@@ -491,7 +536,7 @@ export default function ReceiptList() {
       .replace(/{{SUBTOTAL}}/g, subtotal.toFixed(2))
       .replace(/{{TAX}}/g, hasTaxableItems ? tax.toFixed(2) : '0.00')
       .replace(/{{STATUS}}/g, receipt.status)
-      .replace(/{{COMPANY_NAME}}/g, 'xReceipt')
+      .replace(/{{COMPANY_NAME}}/g, companyName)
       .replace(/{{COMPANY_EMAIL}}/g, 'info@xreceipt.com')
       .replace(/{{FOOTER_MESSAGE}}/g, 'Thank you for your business!')
 
@@ -579,7 +624,7 @@ export default function ReceiptList() {
 
     // New receipts must always be tied to a specific vendor
     if (isNew && !activeVendorId) {
-      setError('Please select a vendor from the header before creating receipts.')
+      setError('Please select a shop from the header before creating receipts.')
       return
     }
 
@@ -588,6 +633,7 @@ export default function ReceiptList() {
       const tax = totalAmount * 0.1
       const subtotal = totalAmount - tax
       const receiptData: any = {
+        company_name: formData.company_name || activeVendorName || undefined,
         customer_name: formData.customer_name,
         customer_email: formData.customer_email,
         customer_company: formData.customer_company || undefined,
@@ -667,8 +713,8 @@ export default function ReceiptList() {
     return (
       <div className="bg-white rounded-lg border border-gray-200 p-8 text-center">
         <FileText size={32} className="text-gray-300 mx-auto mb-3" />
-        <p className="text-gray-800 font-semibold">No vendor assigned</p>
-        <p className="text-gray-500 text-sm mt-1">You are not assigned to any vendor. Please contact a Grand User.</p>
+        <p className="text-gray-800 font-semibold">No shop assigned</p>
+        <p className="text-gray-500 text-sm mt-1">You are not assigned to any shop. Please contact a Grand User.</p>
       </div>
     )
   }
@@ -893,10 +939,23 @@ export default function ReceiptList() {
               </DialogHeader>
 
               <div className="flex-1 overflow-y-auto px-6 py-4 bg-gray-50/40 space-y-6">
+              <div>
+                <Label htmlFor="company_name" className="text-sm font-medium text-gray-700">Company Name</Label>
+                <Input
+                  id="company_name"
+                  type="text"
+                  value={formData.company_name}
+                  onChange={(e) => setFormData({ ...formData, company_name: e.target.value })}
+                  placeholder={activeVendorName || 'Company name on receipt'}
+                  className="mt-1 border-0 bg-gray-50 focus:bg-white"
+                />
+              </div>
+
               {/* Customer Info Section */}
               <div className="space-y-3">
+                <h3 className="text-sm font-semibold text-gray-900">Customer Info</h3>
                 <div>
-                  <Label htmlFor="customer_name" className="text-sm font-medium text-gray-700">Customer Name</Label>
+                  <Label htmlFor="customer_name" className="text-sm font-medium text-gray-700" required>Customer Name</Label>
                   <Input
                     id="customer_name"
                     type="text"
@@ -910,7 +969,7 @@ export default function ReceiptList() {
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
-                    <Label htmlFor="customer_email" className="text-sm font-medium text-gray-700">Email Address</Label>
+                    <Label htmlFor="customer_email" className="text-sm font-medium text-gray-700" required>Email Address</Label>
                     <Input
                       id="customer_email"
                       type="email"
@@ -962,7 +1021,7 @@ export default function ReceiptList() {
 
               {/* Template Selection */}
               <div>
-                <Label htmlFor="template" className="text-sm font-medium text-gray-700">Receipt Template</Label>
+                <Label htmlFor="template" className="text-sm font-medium text-gray-700" required>Receipt Template</Label>
                 {(() => {
                   const permissionFilteredTemplates =
                     role === 'admin' &&
@@ -995,10 +1054,10 @@ export default function ReceiptList() {
               {/* Add Products Section */}
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
-                  <h3 className="text-sm font-semibold text-gray-900">Items</h3>
+                  <h3 className="text-sm font-semibold text-gray-900">Products</h3>
                   {items.length > 0 && (
                     <span className="text-xs font-medium text-gray-600 bg-gray-100 px-2.5 py-1 rounded-full">
-                      {items.length} {items.length === 1 ? 'item' : 'items'}
+                      {items.length} {items.length === 1 ? 'product' : 'products'}
                     </span>
                   )}
                 </div>
@@ -1021,6 +1080,36 @@ export default function ReceiptList() {
                         <div className="col-span-5">
                           <p className="text-sm font-medium text-gray-900">{item.name}</p>
                           <p className="text-xs text-gray-600">${item.unit_price.toFixed(2)} each</p>
+                          <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-2">
+                            <Input
+                              type="text"
+                              value={item.imei_or_model || ''}
+                              onChange={(e) => {
+                                const value = e.target.value
+                                setItems((prev) =>
+                                  prev.map((it) =>
+                                    it.id === item.id ? { ...it, imei_or_model: value || null } : it,
+                                  ),
+                                )
+                              }}
+                              placeholder="IMEI / Model"
+                              className="h-8 bg-white text-xs"
+                            />
+                            <Input
+                              type="text"
+                              value={item.color || ''}
+                              onChange={(e) => {
+                                const value = e.target.value
+                                setItems((prev) =>
+                                  prev.map((it) =>
+                                    it.id === item.id ? { ...it, color: value || null } : it,
+                                  ),
+                                )
+                              }}
+                              placeholder="Color"
+                              className="h-8 bg-white text-xs"
+                            />
+                          </div>
                         </div>
                         <div className="col-span-2">
                           <p className="text-sm font-medium text-gray-900">{item.quantity}</p>
@@ -1091,6 +1180,27 @@ export default function ReceiptList() {
                         <Plus size={16} />
                         Add
                       </button>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-12 gap-2">
+                    <div className="col-span-8">
+                      <Input
+                        type="text"
+                        value={itemImeiOrModel}
+                        onChange={(e) => setItemImeiOrModel(e.target.value)}
+                        placeholder="IMEI / Model (optional)"
+                        className="border-0 bg-white text-sm"
+                      />
+                    </div>
+                    <div className="col-span-4">
+                      <Input
+                        type="text"
+                        value={itemColor}
+                        onChange={(e) => setItemColor(e.target.value)}
+                        placeholder="Color (optional)"
+                        className="border-0 bg-white text-sm"
+                      />
                     </div>
                   </div>
 
@@ -1181,7 +1291,7 @@ export default function ReceiptList() {
                 {/* Empty State */}
                 {items.length === 0 && (
                   <div className="text-center py-6 bg-gray-50 rounded-md">
-                    <p className="text-sm text-gray-600">No items added yet</p>
+                    <p className="text-sm text-gray-600">No products added yet</p>
                     <p className="text-xs text-gray-500 mt-1">Add products below to create receipt</p>
                   </div>
                 )}
@@ -1313,7 +1423,7 @@ export default function ReceiptList() {
                         <DropdownMenu.Portal>
                           <DropdownMenu.Content className="min-w-[220px] rounded-xl border border-gray-200 bg-white shadow-lg p-2 mr-1 mt-2 z-50 space-y-1">
                             <p className="text-[11px] font-semibold text-gray-500 uppercase px-1 pb-1">
-                              Assign vendor
+                              Assign shop
                             </p>
                             {vendors.map((vendor) => {
                               const isAssigned = receipt.vendor_id === vendor.id
