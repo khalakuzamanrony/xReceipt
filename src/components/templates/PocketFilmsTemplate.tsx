@@ -376,7 +376,7 @@ export default function PocketFilmsTemplate({ open, onClose, onSave }: PocketFil
 
   const handleSave = async () => {
     if (!activeVendorId) {
-      setError('Please select a vendor from the header before creating templates.')
+      setError('Please select a shop from the header before creating templates.')
       return
     }
 

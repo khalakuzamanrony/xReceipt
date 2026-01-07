@@ -98,6 +98,7 @@ export interface Receipt {
   customer_address?: string
   template_id: string
   vendor_id?: string | null
+  company_name?: string
   subtotal?: number
   tax?: number
   total?: number
@@ -111,6 +112,8 @@ export interface ReceiptItem {
   id: string
   product_id: string
   name: string
+  imei_or_model?: string | null
+  color?: string | null
   quantity: number
   unit_price: number
   total: number
@@ -133,6 +136,7 @@ export interface CreateReceiptFormData {
   customer_company?: string
   customer_phone?: string
   customer_address?: string
+  company_name?: string
   notes?: string
 }
 

@@ -58,7 +58,7 @@ export default function SignInPage() {
             )}
 
             <div className="space-y-2">
-              <Label htmlFor="email" className="text-xs text-gray-700">Email</Label>
+              <Label htmlFor="email" className="text-xs text-gray-700" required>Email</Label>
               <Input
                 id="email"
                 type="email"
@@ -72,7 +72,7 @@ export default function SignInPage() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="password" className="text-xs text-gray-700">Password</Label>
+              <Label htmlFor="password" className="text-xs text-gray-700" required>Password</Label>
               <div className="relative">
                 <Input
                   id="password"

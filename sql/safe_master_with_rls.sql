@@ -11,12 +11,45 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS profile_image_url VARCHAR(500);
 ALTER TABLE users ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP;
 
 ALTER TABLE users DROP CONSTRAINT IF EXISTS users_role_check;
-UPDATE users SET role = 'grand_user' WHERE role IN ('super_admin', 'god_user');
+UPDATE users
+SET role = 'grand_user'
+WHERE role IN ('super_admin', 'god_user');
+
+-- Coerce any legacy/invalid roles into the supported set so the CHECK
+-- constraint can be applied safely on existing databases.
+UPDATE users
+SET role = 'admin'
+WHERE role NOT IN ('grand_user', 'admin') OR role IS NULL;
+
 ALTER TABLE users ADD CONSTRAINT users_role_check CHECK (role IN ('grand_user', 'admin'));
 
 -- ============================================
 -- 2. CREATE NEW TABLES IF THEY DON'T EXIST
 -- ============================================
+
+CREATE TABLE IF NOT EXISTS vendors (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  vendor_id VARCHAR(100) UNIQUE NOT NULL,
+  name VARCHAR(255) NOT NULL,
+  email VARCHAR(255) NOT NULL,
+  address TEXT,
+  url VARCHAR(500),
+  status VARCHAR(50) NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'inactive')),
+  image_url VARCHAR(500),
+  admin_id UUID REFERENCES users(id) ON DELETE SET NULL,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS vendor_admins (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  vendor_id UUID NOT NULL REFERENCES vendors(id) ON DELETE CASCADE,
+  admin_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  is_vendor_super_admin BOOLEAN NOT NULL DEFAULT FALSE,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE (vendor_id, admin_id)
+);
 
 CREATE TABLE IF NOT EXISTS categories (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -44,30 +77,6 @@ CREATE TABLE IF NOT EXISTS products (
 ALTER TABLE products ADD COLUMN IF NOT EXISTS tax_enabled BOOLEAN DEFAULT TRUE;
 ALTER TABLE categories ADD COLUMN IF NOT EXISTS vendor_id UUID REFERENCES vendors(id) ON DELETE CASCADE;
 ALTER TABLE products ADD COLUMN IF NOT EXISTS vendor_id UUID REFERENCES vendors(id) ON DELETE CASCADE;
-
-CREATE TABLE IF NOT EXISTS vendors (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  vendor_id VARCHAR(100) UNIQUE NOT NULL,
-  name VARCHAR(255) NOT NULL,
-  email VARCHAR(255) NOT NULL,
-  address TEXT,
-  url VARCHAR(500),
-  status VARCHAR(50) NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'inactive')),
-  image_url VARCHAR(500),
-  admin_id UUID REFERENCES users(id) ON DELETE SET NULL,
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE TABLE IF NOT EXISTS vendor_admins (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  vendor_id UUID NOT NULL REFERENCES vendors(id) ON DELETE CASCADE,
-  admin_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  is_vendor_super_admin BOOLEAN NOT NULL DEFAULT FALSE,
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-  UNIQUE (vendor_id, admin_id)
-);
 
 CREATE TABLE IF NOT EXISTS receipt_templates (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -125,6 +134,7 @@ CREATE TABLE IF NOT EXISTS receipts (
   template_id UUID REFERENCES receipt_templates(id) ON DELETE SET NULL,
   created_by UUID REFERENCES users(id) ON DELETE SET NULL,
   vendor_id UUID REFERENCES vendors(id) ON DELETE CASCADE,
+  company_name VARCHAR(255),
   customer_name VARCHAR(255),
   customer_email VARCHAR(255),
   customer_company VARCHAR(255),
@@ -141,6 +151,7 @@ CREATE TABLE IF NOT EXISTS receipts (
 
 -- Add status column to existing receipts table if it doesn't exist
 ALTER TABLE receipts ADD COLUMN IF NOT EXISTS status VARCHAR(50) DEFAULT 'draft' CHECK (status IN ('draft', 'sent', 'paid'));
+ALTER TABLE receipts ADD COLUMN IF NOT EXISTS company_name VARCHAR(255);
 ALTER TABLE receipts ADD COLUMN IF NOT EXISTS customer_company VARCHAR(255);
 ALTER TABLE receipts ADD COLUMN IF NOT EXISTS customer_phone VARCHAR(50);
 ALTER TABLE receipts ADD COLUMN IF NOT EXISTS customer_address TEXT;
@@ -152,11 +163,16 @@ CREATE TABLE IF NOT EXISTS receipt_items (
   receipt_id UUID NOT NULL REFERENCES receipts(id) ON DELETE CASCADE,
   product_id UUID REFERENCES products(id) ON DELETE SET NULL,
   name VARCHAR(255) NOT NULL,
+  imei_or_model VARCHAR(255),
+  color VARCHAR(100),
   quantity INTEGER NOT NULL CHECK (quantity > 0),
   unit_price DECIMAL(10, 2) NOT NULL,
   total DECIMAL(10, 2) NOT NULL,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
+
+ALTER TABLE receipt_items ADD COLUMN IF NOT EXISTS imei_or_model VARCHAR(255);
+ALTER TABLE receipt_items ADD COLUMN IF NOT EXISTS color VARCHAR(100);
 
 -- ============================================
 -- 3. CREATE INDEXES IF THEY DON'T EXIST

@@ -23,8 +23,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  const loadUserAndPermissions = async () => {
-    setLoading(true)
+  const loadUserAndPermissions = async (options?: { showLoading?: boolean }) => {
+    const showLoading = options?.showLoading ?? true
+    if (showLoading) {
+      setLoading(true)
+    }
     setError(null)
     try {
       const { data } = await supabase.auth.getUser()
@@ -70,15 +73,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setRole(null)
       setPermissions(null)
     } finally {
-      setLoading(false)
+      if (showLoading) {
+        setLoading(false)
+      }
     }
   }
 
   useEffect(() => {
-    loadUserAndPermissions()
+    void loadUserAndPermissions({ showLoading: true })
 
-    const { data: subscription } = supabase.auth.onAuthStateChange(() => {
-      loadUserAndPermissions()
+    const { data: subscription } = supabase.auth.onAuthStateChange((event) => {
+      // Supabase may refresh tokens when a tab regains focus.
+      // Avoid turning on the full-screen loader for token refresh events.
+      if (event === 'TOKEN_REFRESHED') return
+
+      // These events should update the in-memory user/role/permissions, but should not
+      // present as a full page reload when the user switches tabs or minimizes.
+      void loadUserAndPermissions({ showLoading: false })
     })
 
     return () => {
@@ -95,7 +106,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         password,
       })
       if (signInError) throw signInError
-      await loadUserAndPermissions()
+      await loadUserAndPermissions({ showLoading: false })
+      setLoading(false)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to sign in')
       setUser(null)

@@ -1,0 +1,9 @@
+1. rename the text vendor to 'shop' from entire site only frontend all pages, 
+2. no need to make group for receipt product categories, make as normal option
+3. i see a new issue , the tab gets auto reload if i move to another tab and again come back to the xreceipt tab, same if i minimize the window, this is not browser issue, its a geneuine issue, fix it properly
+4. i wanna add some new option like 'imei or modal' and 'color', these will be added on add receipt modal, and these will related to each product , so adjust it and group customer info as customer info and prouct item as products, also these data will show on generated receipt columns on item section
+5. redesign the dashboard with all view and all info a admin should see with historial data and all the dashboard should be modern and very design 
+6. add red asterisk to all mandatory fields applicable for all forms of entire site
+7. make the receipt number unique and short of 10 digit and it should be unique and must be based on shop name, and incremental number
+8. on receipt, the company name wll be the selected shop name , so filled the receipt builder company name with the selected shop name and can be edited from here 
+9.  no need to show here company name 

@@ -269,7 +269,7 @@ export default function TemplateList({ onNavigateToBuilder }: TemplateListProps)
       setAssignSelectedVendorIds([])
       setAssignSearch('')
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to assign vendors to template'
+      const message = err instanceof Error ? err.message : 'Failed to assign shops to template'
       setAssignError(message)
     } finally {
       setAssignSaving(false)
@@ -279,7 +279,7 @@ export default function TemplateList({ onNavigateToBuilder }: TemplateListProps)
   const handleAddNew = () => {
     // Require a vendor selection before creating templates
     if (!activeVendorId) {
-      setError('Please select a vendor from the header before creating templates.')
+      setError('Please select a shop from the header before creating templates.')
       return
     }
 
@@ -331,7 +331,7 @@ export default function TemplateList({ onNavigateToBuilder }: TemplateListProps)
 
     // New templates must always be tied to a specific vendor
     if (isNew && !activeVendorId) {
-      setError('Please select a vendor from the header before creating templates.')
+      setError('Please select a shop from the header before creating templates.')
       return
     }
 
@@ -362,7 +362,7 @@ export default function TemplateList({ onNavigateToBuilder }: TemplateListProps)
   const handleVisualSave = async (data: { name: string; description: string; elements: any[] }) => {
     try {
       if (!activeVendorId) {
-        setError('Please select a vendor from the header before creating templates.')
+        setError('Please select a shop from the header before creating templates.')
         return
       }
 
@@ -432,8 +432,8 @@ export default function TemplateList({ onNavigateToBuilder }: TemplateListProps)
     return (
       <div className="bg-white rounded-lg border border-gray-200 p-8 text-center">
         <FileCode size={32} className="text-gray-300 mx-auto mb-3" />
-        <p className="text-gray-800 font-semibold">No vendor assigned</p>
-        <p className="text-gray-500 text-sm mt-1">You are not assigned to any vendor. Please contact a Grand User.</p>
+        <p className="text-gray-800 font-semibold">No shop assigned</p>
+        <p className="text-gray-500 text-sm mt-1">You are not assigned to any shop. Please contact a Grand User.</p>
       </div>
     )
   }
@@ -513,7 +513,7 @@ export default function TemplateList({ onNavigateToBuilder }: TemplateListProps)
 
                     {vendors.length > 0 && (
                       <div>
-                        <p className="text-[10px] font-semibold text-gray-500 uppercase mb-1.5">Vendor</p>
+                        <p className="text-[10px] font-semibold text-gray-500 uppercase mb-1.5">Shop</p>
                         <div className="flex flex-col gap-1 max-h-40 overflow-y-auto">
                           <button
                             type="button"
@@ -525,7 +525,7 @@ export default function TemplateList({ onNavigateToBuilder }: TemplateListProps)
                                 : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900',
                             )}
                           >
-                            All vendors
+                            All shops
                           </button>
                           {vendors.map((vendor) => (
                             <button
@@ -634,7 +634,7 @@ export default function TemplateList({ onNavigateToBuilder }: TemplateListProps)
 
             <form onSubmit={handleSubmit} className="space-y-4 py-4">
               <div className="space-y-2">
-                <Label htmlFor="name" className="text-sm font-semibold text-gray-900">Template Name *</Label>
+                <Label htmlFor="name" className="text-sm font-semibold text-gray-900" required>Template Name</Label>
                 <Input
                   id="name"
                   type="text"
@@ -659,7 +659,7 @@ export default function TemplateList({ onNavigateToBuilder }: TemplateListProps)
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="html" className="text-sm font-semibold text-gray-900">Template HTML *</Label>
+                <Label htmlFor="html" className="text-sm font-semibold text-gray-900" required>Template HTML</Label>
                 <textarea
                   id="html"
                   value={formData.template_html}
@@ -787,7 +787,7 @@ export default function TemplateList({ onNavigateToBuilder }: TemplateListProps)
                                       ? assignedVendors[0].name
                                       : assignedVendors.length > 1
                                       ? `${assignedVendors[0].name} +${assignedVendors.length - 1}`
-                                      : 'Assign vendors'
+                                      : 'Assign shops'
                                   }
                                 >
                                   {assignedVendors.length > 0 ? (
@@ -823,13 +823,13 @@ export default function TemplateList({ onNavigateToBuilder }: TemplateListProps)
                               <DropdownMenu.Portal>
                                 <DropdownMenu.Content className="min-w-[260px] rounded-md border border-gray-200 bg-white shadow-lg p-2 mr-1 mt-1 z-50 space-y-2">
                                   {vendors.length === 0 ? (
-                                    <div className="px-2 py-1 text-xs text-gray-500">No vendors available</div>
+                                    <div className="px-2 py-1 text-xs text-gray-500">No shops available</div>
                                   ) : (
                                     <>
                                       <div className="px-1">
                                         <Input
                                           type="text"
-                                          placeholder="Search vendors..."
+                                          placeholder="Search shops..."
                                           value={assignSearch}
                                           onChange={(e) => setAssignSearch(e.target.value)}
                                           className="h-8 text-xs border-gray-300"
@@ -862,7 +862,7 @@ export default function TemplateList({ onNavigateToBuilder }: TemplateListProps)
                                       )}
                                       <div className="max-h-48 overflow-y-auto space-y-1 mt-1">
                                         {filteredVendors.length === 0 ? (
-                                          <div className="px-2 py-2 text-xs text-gray-500">No vendors found</div>
+                                          <div className="px-2 py-2 text-xs text-gray-500">No shops found</div>
                                         ) : (
                                           filteredVendors.map((vendor) => {
                                             const checked = assignSelectedVendorIds.includes(vendor.id)

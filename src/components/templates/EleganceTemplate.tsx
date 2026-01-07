@@ -369,7 +369,7 @@ export default function EleganceTemplate({ open, onClose, onSave }: EleganceTemp
 
   const handleSave = async () => {
     if (!activeVendorId) {
-      setError('Please select a vendor from the header before creating templates.')
+      setError('Please select a shop from the header before creating templates.')
       return
     }
 

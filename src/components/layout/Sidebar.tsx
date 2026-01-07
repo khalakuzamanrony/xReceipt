@@ -17,7 +17,6 @@ export default function Sidebar({ currentPage, onPageChange }: SidebarProps) {
   const { user, role, permissions, signOut } = useAuth()
   const { memberships, activeVendorId, setActiveVendorId } = useVendor()
   const [vendorSearch, setVendorSearch] = useState('')
-  const [isExpensesOpen, setIsExpensesOpen] = useState(true)
 
   const baseMenuItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -25,7 +24,7 @@ export default function Sidebar({ currentPage, onPageChange }: SidebarProps) {
     { id: 'templates', label: 'Receipt Templates', icon: Settings },
     { id: 'products', label: 'Products', icon: Package },
     { id: 'categories', label: 'Categories', icon: Folder },
-    { id: 'vendors', label: 'Vendors', icon: Store },
+    { id: 'vendors', label: 'Shops', icon: Store },
     { id: 'admin', label: 'Admin', icon: Users },
   ]
 
@@ -86,10 +85,6 @@ export default function Sidebar({ currentPage, onPageChange }: SidebarProps) {
     setIsOpen(false)
   }
 
-  const expenseIds = new Set(['receipts', 'products', 'categories'])
-  const expenseItems = menuItems.filter((item) => expenseIds.has(item.id))
-  const primaryItems = menuItems.filter((item) => !expenseIds.has(item.id))
-
   return (
     <>
       {/* Hamburger Button - Mobile */}
@@ -141,14 +136,14 @@ export default function Sidebar({ currentPage, onPageChange }: SidebarProps) {
                     )}
                     <div className="flex flex-col min-w-0 text-left">
                       <span className="text-[12px] font-semibold text-gray-900 truncate">
-                        <Select.Value placeholder={isGrandUser ? 'All vendors' : 'Select vendor'} />
+                        <Select.Value placeholder={isGrandUser ? 'All shops' : 'Select shop'} />
                       </span>
                       <span className="text-[11px] text-gray-500 truncate">
                         {isGrandUser && !activeVendorId
                           ? 'Global workspace'
                           : activeVendor
                           ? 'Active workspace'
-                          : 'No vendor selected'}
+                          : 'No shop selected'}
                       </span>
                     </div>
                   </div>
@@ -168,7 +163,7 @@ export default function Sidebar({ currentPage, onPageChange }: SidebarProps) {
                         type="text"
                         value={vendorSearch}
                         onChange={(e) => setVendorSearch(e.target.value)}
-                        placeholder="Search vendors..."
+                        placeholder="Search shops..."
                         className="h-8 text-xs"
                       />
                     </div>
@@ -178,7 +173,7 @@ export default function Sidebar({ currentPage, onPageChange }: SidebarProps) {
                           value="__all__"
                           className="px-3 py-1.5 text-xs text-gray-800 rounded-md cursor-pointer flex items-center gap-2 data-[highlighted]:bg-blue-50 data-[highlighted]:text-blue-700 outline-none"
                         >
-                          <Select.ItemText>All vendors</Select.ItemText>
+                          <Select.ItemText>All shops</Select.ItemText>
                         </Select.Item>
                       )}
                       {filteredMemberships.map(({ vendor }) => (
@@ -199,7 +194,7 @@ export default function Sidebar({ currentPage, onPageChange }: SidebarProps) {
 
           {/* Menu Items */}
           <nav className="mt-5 flex-1 overflow-y-auto px-3 space-y-1">
-            {primaryItems.map((item) => {
+            {menuItems.map((item) => {
               const Icon = item.icon
               const isActive = currentPage === item.id
 
@@ -217,46 +212,6 @@ export default function Sidebar({ currentPage, onPageChange }: SidebarProps) {
                 </button>
               )
             })}
-
-            {expenseItems.length > 0 && (
-              <div className="mt-4">
-                <button
-                  type="button"
-                  onClick={() => setIsExpensesOpen((prev) => !prev)}
-                  className="w-full flex items-center justify-between px-3 py-1.5 text-[11px] font-semibold text-gray-500 uppercase tracking-wide cursor-pointer hover:text-gray-700"
-                >
-                  <span>Expenses</span>
-                  <ChevronDown
-                    className={cn(
-                      'h-3 w-3 text-gray-400 transition-transform',
-                      !isExpensesOpen && '-rotate-90',
-                    )}
-                  />
-                </button>
-                {isExpensesOpen && (
-                  <div className="mt-1 space-y-1">
-                    {expenseItems.map((item) => {
-                      const Icon = item.icon
-                      const isActive = currentPage === item.id
-
-                      return (
-                        <button
-                          key={item.id}
-                          onClick={() => handleMenuClick(item.id)}
-                          className={cn(
-                            'w-full flex items-center gap-3 pl-7 pr-3 py-2 rounded-lg transition-colors text-sm cursor-pointer',
-                            isActive ? 'bg-blue-50 text-blue-600' : 'text-gray-700 hover:bg-gray-50',
-                          )}
-                        >
-                          <Icon size={16} className="flex-shrink-0" />
-                          <span className="truncate">{item.label}</span>
-                        </button>
-                      )
-                    })}
-                  </div>
-                )}
-              </div>
-            )}
           </nav>
 
           {/* Footer with profile dropup */}
@@ -282,7 +237,7 @@ export default function Sidebar({ currentPage, onPageChange }: SidebarProps) {
                     <div className="flex flex-col min-w-0 text-left">
                       <span className="text-[13px] font-semibold text-gray-900 truncate">{user.name || 'Admin'}</span>
                       <span className="text-[11px] text-gray-500 truncate">
-                        {activeVendor ? activeVendor.name : isGrandUser ? 'All vendors' : 'No vendor selected'}
+                        {activeVendor ? activeVendor.name : isGrandUser ? 'All shops' : 'No shop selected'}
                       </span>
                     </div>
                     <ChevronDown className="h-3 w-3 text-gray-400 ml-auto" />

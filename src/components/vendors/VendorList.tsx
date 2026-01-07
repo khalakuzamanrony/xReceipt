@@ -78,7 +78,7 @@ export default function VendorList() {
       setSuperAdminIds(superAssigned)
       setShowAdminsDialog(true)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load vendor admins')
+      setError(err instanceof Error ? err.message : 'Failed to load shop admins')
     }
   }
 
@@ -119,7 +119,7 @@ export default function VendorList() {
       setShowAdminsDialog(false)
       setAdminsVendor(null)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to save vendor admins')
+      setError(err instanceof Error ? err.message : 'Failed to save shop admins')
     } finally {
       setSavingAdmins(false)
     }
@@ -184,13 +184,13 @@ export default function VendorList() {
   }
 
   const handleDelete = async (id: string) => {
-    if (!confirm('Are you sure you want to delete this vendor?')) return
+    if (!confirm('Are you sure you want to delete this shop?')) return
 
     try {
       await vendorService.deleteVendor(id)
       setVendors(vendors.filter(v => v.id !== id))
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to delete vendor')
+      setError(err instanceof Error ? err.message : 'Failed to delete shop')
     }
   }
 
@@ -198,12 +198,12 @@ export default function VendorList() {
     e.preventDefault()
 
     if (!formData.vendor_id || !formData.name || !formData.email) {
-      setError('Vendor ID, name, and email are required')
+      setError('Shop ID, name, and email are required')
       return
     }
 
     if (!selectedVendor && !superAdminPassword) {
-      setError('Please provide a password for the vendor super admin')
+      setError('Please provide a password for the shop super admin')
       return
     }
 
@@ -237,14 +237,14 @@ export default function VendorList() {
           ])
         } catch (autoError) {
           console.error('Failed to create vendor super admin:', autoError)
-          setError('Vendor created but failed to create default vendor super user. Please create an admin manually.')
+          setError('Shop created but failed to create default shop super user. Please create an admin manually.')
         }
       }
 
       setShowForm(false)
       await loadData()
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to save vendor')
+      setError(err instanceof Error ? err.message : 'Failed to save shop')
     }
   }
 
@@ -257,7 +257,7 @@ export default function VendorList() {
     return (
       <div className="flex flex-col items-center justify-center h-96 gap-4">
         <div className="animate-spin rounded-full h-16 w-16 border-4 border-blue-200 border-t-blue-600"></div>
-        <p className="text-gray-600 font-medium">Loading vendors...</p>
+        <p className="text-gray-600 font-medium">Loading shops...</p>
       </div>
     )
   }
@@ -269,8 +269,8 @@ export default function VendorList() {
         <div className="bg-white p-4 rounded-lg border border-gray-200">
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
             <div>
-              <h1 className="text-2xl font-bold text-gray-900">Vendors</h1>
-              <p className="text-sm text-gray-500 mt-1">Manage vendors / shops and their assigned admins</p>
+              <h1 className="text-2xl font-bold text-gray-900">Shops</h1>
+              <p className="text-sm text-gray-500 mt-1">Manage shops and their assigned admins</p>
             </div>
 
             {/* Search Bar */}
@@ -279,7 +279,7 @@ export default function VendorList() {
                 <Search size={18} className="text-gray-400" />
                 <Input
                   type="text"
-                  placeholder="Search vendors..."
+                  placeholder="Search shops..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className="flex-1 h-9 border-0 focus:ring-0 px-0 py-0 text-sm"
@@ -305,12 +305,12 @@ export default function VendorList() {
           <div className="bg-white rounded-lg border border-gray-200 text-center py-12">
             <Store size={32} className="text-gray-400 mx-auto mb-3" />
             <p className="text-gray-600 font-medium">
-              {searchTerm ? 'No vendors found' : 'No vendors assigned yet. Please contact a Grand User to assign vendors to you.'}
+              {searchTerm ? 'No shops found' : 'No shops assigned yet. Please contact a Grand User to assign shops to you.'}
             </p>
             <p className="text-gray-500 text-sm mt-1">
               {searchTerm
                 ? 'Try adjusting your search terms'
-                : 'No vendors assigned yet. Please contact a Grand User to assign vendors to you.'}
+                : 'No shops assigned yet. Please contact a Grand User to assign shops to you.'}
             </p>
           </div>
         ) : (
@@ -319,8 +319,8 @@ export default function VendorList() {
               <table className="w-full">
                 <thead className="bg-gray-50 border-b border-gray-200">
                   <tr>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Vendor</th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Vendor ID</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Shop</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Shop ID</th>
                     <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Email</th>
                     <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">URL</th>
                     <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Status</th>
@@ -446,8 +446,8 @@ export default function VendorList() {
       <div className="bg-white p-4 rounded-lg border border-gray-200">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Vendors</h1>
-            <p className="text-sm text-gray-500 mt-1">Manage vendors / shops and their assigned admins</p>
+            <h1 className="text-2xl font-bold text-gray-900">Shops</h1>
+            <p className="text-sm text-gray-500 mt-1">Manage shops and their assigned admins</p>
           </div>
 
           {/* Search Bar */}
@@ -456,7 +456,7 @@ export default function VendorList() {
               <Search size={18} className="text-gray-400" />
               <Input
                 type="text"
-                placeholder="Search vendors..."
+                placeholder="Search shops..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="flex-1 h-9 border-0 focus:ring-0 px-0 py-0 text-sm"
@@ -467,7 +467,7 @@ export default function VendorList() {
             {isGrandUser && (
               <Button onClick={handleAddNew} size="sm">
                 <Plus size={16} />
-                Add Vendor
+                Add Shop
               </Button>
             )}
           </div>
@@ -491,63 +491,63 @@ export default function VendorList() {
           <DialogContent className="max-w-lg bg-white">
             <DialogHeader className="border-b border-gray-200 pb-4">
               <DialogTitle className="text-xl font-bold text-gray-900">
-                {selectedVendor ? 'Edit Vendor' : 'Add New Vendor'}
+                {selectedVendor ? 'Edit Shop' : 'Add New Shop'}
               </DialogTitle>
             </DialogHeader>
 
             <form onSubmit={handleSubmit} className="space-y-4 py-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="vendor_id" className="text-sm font-semibold text-gray-900">Vendor ID *</Label>
+                  <Label htmlFor="vendor_id" className="text-sm font-semibold text-gray-900" required>Shop ID</Label>
                   <Input
                     id="vendor_id"
                     type="text"
                     value={formData.vendor_id}
                     onChange={(e) => setFormData({ ...formData, vendor_id: e.target.value })}
-                    placeholder="Unique vendor code"
+                    placeholder="Unique shop code"
                     required
                   />
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="name" className="text-sm font-semibold text-gray-900">Vendor Name *</Label>
+                  <Label htmlFor="name" className="text-sm font-semibold text-gray-900" required>Shop Name</Label>
                   <Input
                     id="name"
                     type="text"
                     value={formData.name}
                     onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                    placeholder="Vendor name"
+                    placeholder="Shop name"
                     required
                   />
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="email" className="text-sm font-semibold text-gray-900">Email *</Label>
+                  <Label htmlFor="email" className="text-sm font-semibold text-gray-900" required>Email</Label>
                   <Input
                     id="email"
                     type="email"
                     value={formData.email}
                     onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                    placeholder="vendor@example.com"
+                    placeholder="shop@example.com"
                     required
                   />
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="url" className="text-sm font-semibold text-gray-900">Vendor URL</Label>
+                  <Label htmlFor="url" className="text-sm font-semibold text-gray-900">Shop URL</Label>
                   <Input
                     id="url"
                     type="url"
                     value={formData.url}
                     onChange={(e) => setFormData({ ...formData, url: e.target.value })}
-                    placeholder="https://vendor-site.com"
+                    placeholder="https://shop-site.com"
                   />
                 </div>
 
                 {!selectedVendor && (
                   <div className="space-y-2 md:col-span-2">
-                    <Label htmlFor="superadmin_password" className="text-sm font-semibold text-gray-900">
-                      Vendor super admin password *
+                    <Label htmlFor="superadmin_password" className="text-sm font-semibold text-gray-900" required>
+                      Shop super admin password
                     </Label>
                     <div className="relative">
                       <Input
@@ -555,7 +555,7 @@ export default function VendorList() {
                         type={showSuperAdminPassword ? 'text' : 'password'}
                         value={superAdminPassword}
                         onChange={(e) => setSuperAdminPassword(e.target.value)}
-                        placeholder="Password for this vendor's super admin"
+                        placeholder="Password for this shop's super admin"
                         className="pr-10"
                         required
                       />
@@ -578,7 +578,7 @@ export default function VendorList() {
                     type="text"
                     value={formData.address}
                     onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-                    placeholder="Vendor address"
+                    placeholder="Shop address"
                   />
                 </div>
 
@@ -613,7 +613,7 @@ export default function VendorList() {
                 </div>
 
                 <div className="space-y-2 md:col-span-2">
-                  <Label htmlFor="image_url" className="text-sm font-semibold text-gray-900">Vendor Image URL</Label>
+                  <Label htmlFor="image_url" className="text-sm font-semibold text-gray-900">Shop Image URL</Label>
                   <Input
                     id="image_url"
                     type="url"
@@ -684,7 +684,7 @@ export default function VendorList() {
                           disabled={!assigned}
                           onChange={(e) => handleToggleSuperAdmin(admin.id, e.target.checked)}
                         />
-                        <span className="text-xs text-gray-700">Vendor super admin</span>
+                        <span className="text-xs text-gray-700">Shop super admin</span>
                       </div>
                     </div>
                   )
@@ -722,16 +722,16 @@ export default function VendorList() {
         <div className="bg-white rounded-lg border border-gray-200 text-center py-12">
           <Store size={32} className="text-gray-400 mx-auto mb-3" />
           <p className="text-gray-600 font-medium">
-            {searchTerm ? 'No vendors found' : isGrandUser
-              ? 'Create your first vendor to get started.'
-              : 'No vendors assigned yet. Please contact a Grand User to assign vendors to you.'}
+            {searchTerm ? 'No shops found' : isGrandUser
+              ? 'Create your first shop to get started.'
+              : 'No shops assigned yet. Please contact a Grand User to assign shops to you.'}
           </p>
           <p className="text-gray-500 text-sm mt-1">
             {searchTerm
               ? 'Try adjusting your search terms'
               : isGrandUser
-                ? 'Create your first vendor to get started.'
-                : 'No vendors assigned yet. Please contact a Grand User to assign vendors to you.'}
+                ? 'Create your first shop to get started.'
+                : 'No shops assigned yet. Please contact a Grand User to assign shops to you.'}
           </p>
         </div>
       ) : (
@@ -740,8 +740,8 @@ export default function VendorList() {
             <table className="w-full">
               <thead className="bg-gray-50 border-b border-gray-200">
                 <tr>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Vendor</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Vendor ID</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Shop</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Shop ID</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Email</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">URL</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Status</th>

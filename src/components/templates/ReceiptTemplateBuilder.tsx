@@ -355,7 +355,7 @@ export default function ReceiptTemplateBuilder({ onTemplateCreated }: ReceiptTem
     }
 
     if (!activeVendorId) {
-      setError('Please select a vendor from the header before creating templates.')
+      setError('Please select a shop from the header before creating templates.')
       return
     }
 
@@ -495,13 +495,14 @@ export default function ReceiptTemplateBuilder({ onTemplateCreated }: ReceiptTem
 
             <div className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="template-name">Template Name *</Label>
+                <Label htmlFor="template-name" required>Template Name</Label>
                 <Input
                   id="template-name"
                   type="text"
                   value={customName}
                   onChange={(e) => setCustomName(e.target.value)}
                   placeholder="Enter template name"
+                  required
                 />
               </div>
 
