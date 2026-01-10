@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Menu, X, LayoutDashboard, Package, Folder, FileText, Users, Settings, Store, ChevronDown, LogOut } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { useVendor } from '@/contexts/VendorContext'
@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/Input'
 import * as Select from '@radix-ui/react-select'
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
 import { cn } from '@/lib/utils'
+import { supabase } from '@/lib/supabase'
 
 interface SidebarProps {
   currentPage: string
@@ -14,9 +15,10 @@ interface SidebarProps {
 
 export default function Sidebar({ currentPage, onPageChange }: SidebarProps) {
   const [isOpen, setIsOpen] = useState(false)
-  const { user, role, permissions, signOut } = useAuth()
-  const { memberships, activeVendorId, setActiveVendorId } = useVendor()
+  const { user, role, signOut } = useAuth()
+  const { memberships, activeVendorId, setActiveVendorId, permissions } = useVendor()
   const [vendorSearch, setVendorSearch] = useState('')
+  const [userAvatarUrl, setUserAvatarUrl] = useState<string>('')
 
   const baseMenuItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -53,6 +55,57 @@ export default function Sidebar({ currentPage, onPageChange }: SidebarProps) {
       .slice(0, 2)
       .join('')
   })()
+
+  useEffect(() => {
+    const resolveStoragePath = (value: string) => {
+      if (!value) return ''
+      if (value.startsWith('data:')) return ''
+      const markers = [
+        '/storage/v1/object/public/admin-profiles/',
+        '/storage/v1/object/admin-profiles/',
+        'admin-profiles/',
+      ]
+
+      for (const marker of markers) {
+        const idx = value.indexOf(marker)
+        if (idx >= 0) {
+          return value.slice(idx + marker.length)
+        }
+      }
+
+      if (!value.startsWith('http') && value.includes('/')) return value
+      return ''
+    }
+
+    const run = async () => {
+      const raw = user?.profile_image_url || ''
+      if (!raw) {
+        setUserAvatarUrl('')
+        return
+      }
+
+      const path = resolveStoragePath(raw)
+      if (!path) {
+        setUserAvatarUrl(raw)
+        return
+      }
+
+      try {
+        const { data, error } = await supabase.storage
+          .from('admin-profiles')
+          .createSignedUrl(path, 60 * 60)
+        if (error || !data?.signedUrl) {
+          setUserAvatarUrl(raw.startsWith('http') ? raw : '')
+          return
+        }
+        setUserAvatarUrl(data.signedUrl)
+      } catch {
+        setUserAvatarUrl(raw.startsWith('http') ? raw : '')
+      }
+    }
+
+    void run()
+  }, [user?.profile_image_url])
 
   const menuItems = baseMenuItems.filter((item) => {
     if (item.id === 'dashboard') return true
@@ -223,14 +276,14 @@ export default function Sidebar({ currentPage, onPageChange }: SidebarProps) {
                     type="button"
                     className="w-full flex items-center gap-3 rounded-lg px-2 py-1.5 hover:bg-gray-50 cursor-pointer"
                   >
-                    {user.profile_image_url ? (
+                    {userAvatarUrl ? (
                       <img
-                        src={user.profile_image_url}
+                        src={userAvatarUrl}
                         alt={user.name || user.email}
                         className="h-9 w-9 rounded-full object-cover"
                       />
                     ) : (
-                      <div className="h-9 w-9 rounded-full bg-gradient-to-br from-blue-500 to-blue-700 text-white text-xs font-semibold flex items-center justify-center">
+                      <div className="h-9 w-9 rounded-full bg-blue-600/10 flex items-center justify-center text-xs font-semibold text-blue-700">
                         {userInitials}
                       </div>
                     )}

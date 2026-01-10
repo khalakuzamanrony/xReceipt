@@ -19,8 +19,8 @@ import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
 import { cn } from '@/lib/utils'
 
 export default function ReceiptList() {
-  const { role, permissions } = useAuth()
-  const { memberships, activeVendorId, loading: vendorLoading } = useVendor()
+  const { role } = useAuth()
+  const { memberships, activeVendorId, permissions, loading: vendorLoading } = useVendor()
 
   const isVendorSuperAdminForActiveVendor =
     role === 'admin' &&
@@ -98,7 +98,7 @@ export default function ReceiptList() {
   useEffect(() => {
     if (vendorLoading) return
 
-    if (role === 'admin' && !activeVendorId) {
+    if (!activeVendorId) {
       setReceipts([])
       setTemplates([])
       setProducts([])
@@ -106,7 +106,7 @@ export default function ReceiptList() {
       return
     }
 
-    void loadData(activeVendorId)
+    loadData()
   }, [vendorLoading, activeVendorId, role])
 
   const loadData = async (vendorId?: string | null) => {
@@ -385,33 +385,6 @@ export default function ReceiptList() {
     setSortDirection((prev) => (prev === 'asc' ? 'desc' : 'asc'))
   }
 
-  const getAssignedVendorsForReceipt = (receipt: Receipt): Vendor[] => {
-    if (!receipt.vendor_id) return []
-    const vendor = vendors.find((v) => v.id === receipt.vendor_id)
-    return vendor ? [vendor] : []
-  }
-
-  const handleAssignVendorToReceipt = async (receipt: Receipt, vendorId: string | null) => {
-    try {
-      const update: Partial<Receipt> = {
-        vendor_id: vendorId,
-      }
-      await receiptService.updateReceipt(receipt.id, update)
-      setReceipts((prev) =>
-        prev.map((r) => (r.id === receipt.id ? { ...r, vendor_id: vendorId } : r)),
-      )
-      showToast(
-        'Assigned shop updated',
-        vendorId ? 'The receipt has been assigned to the selected shop.' : 'Shop assignment removed.',
-        'success',
-      )
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to update assigned shop'
-      setError(message)
-      showToast('Failed to update shop', message, 'error')
-    }
-  }
-
   const openPreview = async (receipt: Receipt, mode: 'view' | 'download') => {
     try {
       const fullReceipt = await receiptService.getReceiptById(receipt.id)
@@ -654,7 +627,7 @@ export default function ReceiptList() {
       if (selectedReceipt) {
         await receiptService.updateReceipt(selectedReceipt.id, receiptData)
         setShowForm(false)
-        loadData()
+        loadData(activeVendorId)
         showToast('Receipt updated', 'The receipt has been updated.', 'success')
       } else {
         createdReceipt = await receiptService.createReceipt(receiptData)
@@ -671,7 +644,7 @@ export default function ReceiptList() {
         setPreviewReceipt(createdReceipt)
         setAutoDownloadMode('none')
         setShowPreview(true)
-        loadData()
+        loadData(activeVendorId)
         showToast('Receipt created', 'The new receipt has been created.', 'success')
       }
     } catch (err) {
@@ -1340,7 +1313,7 @@ export default function ReceiptList() {
                 <tr>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Customer Name</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Receipt ID</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Assigned</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Assigned Shop</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Template</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Created At</th>
                   <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600 uppercase">
@@ -1378,90 +1351,30 @@ export default function ReceiptList() {
                     </td>
                     <td
                       className="px-4 py-3"
-                      onClick={(e) => {
-                        // Prevent opening details when interacting with the assign dropdown
-                        e.stopPropagation()
-                      }}
                     >
-                      <DropdownMenu.Root>
-                        <DropdownMenu.Trigger asChild>
-                          <button
-                            type="button"
-                            className="inline-flex items-center -space-x-1 px-0 py-0 cursor-pointer bg-transparent border-0"
-                          >
-                            {(() => {
-                              const assignedVendors = getAssignedVendorsForReceipt(receipt)
+                      {(() => {
+                        const vendor = receipt.vendor_id ? vendors.find((v) => v.id === receipt.vendor_id) : null
+                        if (!vendor) {
+                          return <span className="text-xs text-gray-400">Unassigned</span>
+                        }
 
-                              if (assignedVendors.length === 0) {
-                                return <span className="text-xs text-gray-400">Unassigned</span>
-                              }
-
-                              return (
-                                <div className="flex -space-x-1">
-                                  {assignedVendors.slice(0, 3).map((v) =>
-                                    v.image_url ? (
-                                      <img
-                                        key={v.id}
-                                        src={v.image_url}
-                                        alt={v.name}
-                                        className="w-7 h-7 rounded-full object-cover"
-                                      />
-                                    ) : (
-                                      <span
-                                        key={v.id}
-                                        className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-blue-50 text-xs font-semibold text-blue-700"
-                                      >
-                                        {buildVendorInitials(v.name)}
-                                      </span>
-                                    ),
-                                  )}
-                                </div>
-                              )
-                            })()}
-                          </button>
-                        </DropdownMenu.Trigger>
-                        <DropdownMenu.Portal>
-                          <DropdownMenu.Content className="min-w-[220px] rounded-xl border border-gray-200 bg-white shadow-lg p-2 mr-1 mt-2 z-50 space-y-1">
-                            <p className="text-[11px] font-semibold text-gray-500 uppercase px-1 pb-1">
-                              Assign shop
-                            </p>
-                            {vendors.map((vendor) => {
-                              const isAssigned = receipt.vendor_id === vendor.id
-                              const vendorInitials = buildVendorInitials(vendor.name)
-
-                              return (
-                                <DropdownMenu.Item
-                                  key={vendor.id}
-                                  className="flex items-center gap-2 px-2 py-1.5 text-xs text-gray-700 rounded cursor-pointer outline-none hover:bg-gray-50"
-                                  onSelect={(event) => {
-                                    event.preventDefault()
-                                    void handleAssignVendorToReceipt(receipt, isAssigned ? null : vendor.id)
-                                  }}
-                                >
-                                  <span
-                                    className={cn(
-                                      'inline-flex h-3 w-3 rounded-full border border-gray-300',
-                                      isAssigned && 'border-blue-500 bg-blue-500',
-                                    )}
-                                  />
-                                  {vendor.image_url ? (
-                                    <img
-                                      src={vendor.image_url}
-                                      alt={vendor.name}
-                                      className="w-6 h-6 rounded-full object-cover"
-                                    />
-                                  ) : (
-                                    <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-blue-50 text-[10px] font-semibold text-blue-700">
-                                      {vendorInitials}
-                                    </span>
-                                  )}
-                                  <span className="flex-1 truncate">{vendor.name}</span>
-                                </DropdownMenu.Item>
-                              )
-                            })}
-                          </DropdownMenu.Content>
-                        </DropdownMenu.Portal>
-                      </DropdownMenu.Root>
+                        return (
+                          <div className="flex items-center gap-2">
+                            {vendor.image_url ? (
+                              <img
+                                src={vendor.image_url}
+                                alt={vendor.name}
+                                className="w-7 h-7 rounded-full object-cover"
+                              />
+                            ) : (
+                              <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-blue-50 text-xs font-semibold text-blue-700">
+                                {buildVendorInitials(vendor.name)}
+                              </span>
+                            )}
+                            <span className="text-sm text-gray-700 truncate max-w-[160px]">{vendor.name}</span>
+                          </div>
+                        )
+                      })()}
                     </td>
                     <td className="px-4 py-3">
                       <p className="text-sm text-gray-600">{getTemplateName(receipt.template_id)}</p>

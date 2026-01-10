@@ -249,4 +249,95 @@ export const receiptService = {
 
     if (error) throw error
   },
+
+  async getReceiptCountsByTemplateIds(
+    templateIds: string[],
+    vendorId?: string | null,
+  ): Promise<Record<string, number>> {
+    if (!templateIds.length) return {}
+
+    let query = supabase.from('receipts').select('template_id').in('template_id', templateIds)
+
+    if (vendorId) {
+      query = query.eq('vendor_id', vendorId)
+    }
+
+    const { data, error } = await query
+
+    if (error) throw error
+
+    const counts: Record<string, number> = {}
+    for (const row of data || []) {
+      const id = (row as any)?.template_id as string | undefined
+      if (!id) continue
+      counts[id] = (counts[id] || 0) + 1
+    }
+
+    return counts
+  },
+
+  async getSoldCountsByProductIds(
+    productIds: string[],
+    vendorId?: string | null,
+  ): Promise<Record<string, number>> {
+    if (!productIds.length) return {}
+
+    const accumulate = (rows: any[] | null | undefined) => {
+      const counts: Record<string, number> = {}
+      for (const row of rows || []) {
+        const id = (row as any)?.product_id as string | undefined
+        if (!id) continue
+        const qtyRaw = (row as any)?.quantity
+        const qty = typeof qtyRaw === 'number' ? qtyRaw : Number(qtyRaw) || 0
+        counts[id] = (counts[id] || 0) + qty
+      }
+      return counts
+    }
+
+    // Preferred: filter by vendor via join to receipts (if relationship exists)
+    if (vendorId) {
+      const { data, error } = await supabase
+        .from('receipt_items')
+        .select('product_id, quantity, receipts!inner(vendor_id)')
+        .in('product_id', productIds)
+        .eq('receipts.vendor_id', vendorId)
+
+      if (!error) {
+        return accumulate(data)
+      }
+
+      // Fallback for environments where the join relationship is not available
+      const { data: receipts, error: receiptsError } = await supabase
+        .from('receipts')
+        .select('id')
+        .eq('vendor_id', vendorId)
+
+      if (receiptsError) throw receiptsError
+
+      const receiptIds = (receipts || [])
+        .map((r: any) => r?.id as string | undefined)
+        .filter(Boolean) as string[]
+
+      if (receiptIds.length === 0) return {}
+
+      const { data: items, error: itemsError } = await supabase
+        .from('receipt_items')
+        .select('product_id, quantity')
+        .in('product_id', productIds)
+        .in('receipt_id', receiptIds)
+
+      if (itemsError) throw itemsError
+
+      return accumulate(items)
+    }
+
+    const { data, error } = await supabase
+      .from('receipt_items')
+      .select('product_id, quantity')
+      .in('product_id', productIds)
+
+    if (error) throw error
+
+    return accumulate(data)
+  },
 }

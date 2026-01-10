@@ -7,9 +7,11 @@ import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Label } from '@/components/ui/Label'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/Dialog'
-import { Plus, Edit, Trash2, AlertCircle, Store, Search, Users, Eye, EyeOff } from 'lucide-react'
+import { Plus, Edit, Trash2, AlertCircle, Store, Search, Eye, EyeOff } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { useVendor } from '@/contexts/VendorContext'
+import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
+import { cn } from '@/lib/utils'
 
 export default function VendorList() {
   const { role } = useAuth()
@@ -28,6 +30,12 @@ export default function VendorList() {
   const [assignedAdminIds, setAssignedAdminIds] = useState<string[]>([])
   const [superAdminIds, setSuperAdminIds] = useState<string[]>([])
   const [savingAdmins, setSavingAdmins] = useState(false)
+  const [vendorAdminAssignments, setVendorAdminAssignments] = useState<
+    Record<string, { adminIds: string[]; superAdminIds: string[] }>
+  >({})
+  const [assignVendorId, setAssignVendorId] = useState<string | null>(null)
+  const [assignSearch, setAssignSearch] = useState('')
+  const [assignSaving, setAssignSaving] = useState(false)
   const [formData, setFormData] = useState({
     vendor_id: '',
     name: '',
@@ -55,6 +63,33 @@ export default function VendorList() {
       ])
       setVendors(vendorsData)
       setAdmins(adminsData)
+
+      try {
+        const vendorIds = vendorsData.map((v) => v.id)
+        if (vendorIds.length > 0) {
+          const assignments = await vendorAdminService.getAssignmentsForVendors(vendorIds)
+          const map: Record<string, { adminIds: string[]; superAdminIds: string[] }> = {}
+
+          for (const row of assignments) {
+            if (!map[row.vendor_id]) {
+              map[row.vendor_id] = { adminIds: [], superAdminIds: [] }
+            }
+            if (!map[row.vendor_id].adminIds.includes(row.admin_id)) {
+              map[row.vendor_id].adminIds.push(row.admin_id)
+            }
+            if (row.is_vendor_super_admin && !map[row.vendor_id].superAdminIds.includes(row.admin_id)) {
+              map[row.vendor_id].superAdminIds.push(row.admin_id)
+            }
+          }
+
+          setVendorAdminAssignments(map)
+        } else {
+          setVendorAdminAssignments({})
+        }
+      } catch (assignErr) {
+        console.error('Failed to load vendor admin assignments', assignErr)
+        setVendorAdminAssignments({})
+      }
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to load data'
       setError(errorMessage)
@@ -116,6 +151,14 @@ export default function VendorList() {
         is_vendor_super_admin: superAdminIds.includes(adminId),
       }))
       await vendorAdminService.saveAdminsForVendor(adminsVendor.id, assignments)
+
+      setVendorAdminAssignments((prev) => ({
+        ...prev,
+        [adminsVendor.id]: {
+          adminIds: assignedAdminIds,
+          superAdminIds: superAdminIds,
+        },
+      }))
       setShowAdminsDialog(false)
       setAdminsVendor(null)
     } catch (err) {
@@ -248,9 +291,56 @@ export default function VendorList() {
     }
   }
 
-  const getAdminName = (adminId?: string | null) => {
-    if (!adminId) return 'Unassigned'
-    return admins.find(a => a.id === adminId)?.name || 'Unknown admin'
+  const getAssignedAdminsForVendor = (vendorId: string) => {
+    const ids = vendorAdminAssignments[vendorId]?.adminIds || []
+    return ids.map((id) => admins.find((a) => a.id === id)).filter(Boolean) as User[]
+  }
+
+  const buildInitials = (name: string) =>
+    name
+      .split(' ')
+      .filter(Boolean)
+      .map((part) => part.charAt(0).toUpperCase())
+      .slice(0, 2)
+      .join('')
+
+  const handleToggleVendorAdminAssignment = async (vendor: Vendor, adminId: string) => {
+    const current = vendorAdminAssignments[vendor.id] || { adminIds: [], superAdminIds: [] }
+    const isAssigned = current.adminIds.includes(adminId)
+    const nextAdminIds = isAssigned
+      ? current.adminIds.filter((id) => id !== adminId)
+      : [...current.adminIds, adminId]
+    const nextSuperAdminIds = isAssigned
+      ? current.superAdminIds.filter((id) => id !== adminId)
+      : current.superAdminIds
+
+    setAssignSaving(true)
+    setError(null)
+    try {
+      const payload = nextAdminIds.map((id) => ({
+        admin_id: id,
+        is_vendor_super_admin: nextSuperAdminIds.includes(id),
+      }))
+      await vendorAdminService.saveAdminsForVendor(vendor.id, payload)
+
+      // Keep legacy vendors.admin_id column in sync with first assigned admin
+      await vendorService.updateVendor(vendor.id, { admin_id: nextAdminIds[0] ?? null })
+      setVendors((prev) =>
+        prev.map((v) => (v.id === vendor.id ? { ...v, admin_id: nextAdminIds[0] ?? null } : v)),
+      )
+
+      setVendorAdminAssignments((prev) => ({
+        ...prev,
+        [vendor.id]: {
+          adminIds: nextAdminIds,
+          superAdminIds: nextSuperAdminIds,
+        },
+      }))
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to update assigned admins')
+    } finally {
+      setAssignSaving(false)
+    }
   }
 
   if (loading) {
@@ -321,14 +411,15 @@ export default function VendorList() {
                   <tr>
                     <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Shop</th>
                     <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Shop ID</th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Email</th>
                     <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">URL</th>
                     <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Status</th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Assigned Admin</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Assign Admin</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200">
-                  {pagedVendors.map((vendor) => (
+                  {pagedVendors.map((vendor) => {
+                    const assignedAdmins = getAssignedAdminsForVendor(vendor.id)
+                    return (
                     <tr key={vendor.id} className="hover:bg-gray-50 transition-colors">
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-3">
@@ -345,14 +436,14 @@ export default function VendorList() {
                               </span>
                             </div>
                           )}
-                          <span className="text-sm font-medium text-gray-900">{vendor.name}</span>
+                          <div className="min-w-0">
+                            <p className="text-sm font-medium text-gray-900 truncate">{vendor.name}</p>
+                            <p className="text-xs text-gray-500 truncate">{vendor.email}</p>
+                          </div>
                         </div>
                       </td>
                       <td className="px-4 py-3">
                         <p className="text-sm text-gray-600">{vendor.vendor_id}</p>
-                      </td>
-                      <td className="px-4 py-3">
-                        <p className="text-sm text-gray-600">{vendor.email}</p>
                       </td>
                       <td className="px-4 py-3">
                         {vendor.url ? (
@@ -380,10 +471,29 @@ export default function VendorList() {
                         </span>
                       </td>
                       <td className="px-4 py-3">
-                        <p className="text-sm text-gray-600">{getAdminName(vendor.admin_id)}</p>
+                        {assignedAdmins.length === 0 ? (
+                          <p className="text-sm text-gray-600">Unassigned</p>
+                        ) : (
+                          <div className="flex items-center -space-x-1">
+                            {assignedAdmins.slice(0, 3).map((admin) => (
+                              <div
+                                key={admin.id}
+                                className="h-7 w-7 rounded-full bg-blue-50 ring-2 ring-white flex items-center justify-center text-[10px] font-semibold text-blue-700"
+                                title={admin.name}
+                              >
+                                {buildInitials(admin.name || admin.email || 'A')}
+                              </div>
+                            ))}
+                            {assignedAdmins.length > 3 && (
+                              <div className="h-7 w-7 rounded-full bg-gray-100 ring-2 ring-white flex items-center justify-center text-[10px] font-semibold text-gray-700">
+                                +{assignedAdmins.length - 3}
+                              </div>
+                            )}
+                          </div>
+                        )}
                       </td>
                     </tr>
-                  ))}
+                  )})}
                 </tbody>
               </table>
             </div>
@@ -742,17 +852,26 @@ export default function VendorList() {
                 <tr>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Shop</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Shop ID</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Email</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">URL</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Status</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Assigned Admin</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Assign Admin</th>
                   {isGrandUser && (
                     <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600 uppercase">Actions</th>
                   )}
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
-                {pagedVendors.map((vendor) => (
+                {pagedVendors.map((vendor) => {
+                  const assignedAdmins = getAssignedAdminsForVendor(vendor.id)
+                  const isOpen = assignVendorId === vendor.id
+                  const filteredAdmins = admins.filter((a) => {
+                    const term = assignSearch.toLowerCase()
+                    const name = (a.name || '').toLowerCase()
+                    const email = (a.email || '').toLowerCase()
+                    return !term || name.includes(term) || email.includes(term)
+                  })
+
+                  return (
                   <tr key={vendor.id} className="hover:bg-gray-50 transition-colors">
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-3">
@@ -769,14 +888,14 @@ export default function VendorList() {
                             </span>
                           </div>
                         )}
-                        <span className="text-sm font-medium text-gray-900">{vendor.name}</span>
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium text-gray-900 truncate">{vendor.name}</p>
+                          <p className="text-xs text-gray-500 truncate">{vendor.email}</p>
+                        </div>
                       </div>
                     </td>
                     <td className="px-4 py-3">
                       <p className="text-sm text-gray-600">{vendor.vendor_id}</p>
-                    </td>
-                    <td className="px-4 py-3">
-                      <p className="text-sm text-gray-600">{vendor.email}</p>
                     </td>
                     <td className="px-4 py-3">
                       {vendor.url ? (
@@ -804,32 +923,119 @@ export default function VendorList() {
                       </span>
                     </td>
                     <td className="px-4 py-3">
-                      <p className="text-sm text-gray-600">{getAdminName(vendor.admin_id)}</p>
+                      <DropdownMenu.Root
+                        open={isOpen}
+                        onOpenChange={(open) => {
+                          if (open) {
+                            setAssignVendorId(vendor.id)
+                            setAssignSearch('')
+                          } else if (!assignSaving) {
+                            setAssignVendorId(null)
+                            setAssignSearch('')
+                          }
+                        }}
+                      >
+                        <DropdownMenu.Trigger asChild>
+                          <button
+                            type="button"
+                            className="inline-flex items-center gap-2 px-0 py-0 cursor-pointer bg-transparent border-0"
+                            disabled={assignSaving}
+                          >
+                            {assignedAdmins.length === 0 ? (
+                              <span className="text-xs text-gray-500">Unassigned</span>
+                            ) : (
+                              <div className="flex items-center -space-x-1">
+                                {assignedAdmins.slice(0, 3).map((admin) => (
+                                  <div
+                                    key={admin.id}
+                                    className="h-7 w-7 rounded-full bg-blue-50 ring-2 ring-white flex items-center justify-center text-[10px] font-semibold text-blue-700"
+                                    title={admin.name}
+                                  >
+                                    {buildInitials(admin.name || admin.email || 'A')}
+                                  </div>
+                                ))}
+                                {assignedAdmins.length > 3 && (
+                                  <div className="h-7 w-7 rounded-full bg-gray-100 ring-2 ring-white flex items-center justify-center text-[10px] font-semibold text-gray-700">
+                                    +{assignedAdmins.length - 3}
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </button>
+                        </DropdownMenu.Trigger>
+                        <DropdownMenu.Portal>
+                          <DropdownMenu.Content className="min-w-[260px] rounded-xl border border-gray-200 bg-white shadow-lg p-2 mr-1 mt-2 z-50 space-y-2">
+                            <div className="px-1">
+                              <Input
+                                type="text"
+                                placeholder="Search admins..."
+                                value={assignSearch}
+                                onChange={(e) => setAssignSearch(e.target.value)}
+                                className="h-8 text-xs border-gray-300"
+                              />
+                            </div>
+                            <div className="max-h-56 overflow-y-auto space-y-1">
+                              {filteredAdmins.map((admin) => {
+                                const current = vendorAdminAssignments[vendor.id]?.adminIds || []
+                                const checked = current.includes(admin.id)
+
+                                return (
+                                  <DropdownMenu.CheckboxItem
+                                    key={admin.id}
+                                    className={cn(
+                                      'flex items-center gap-2 px-2 py-1.5 text-xs text-gray-700 rounded cursor-pointer outline-none hover:bg-gray-50',
+                                      assignSaving && 'opacity-60 pointer-events-none',
+                                    )}
+                                    checked={checked}
+                                    onCheckedChange={() => {
+                                      void handleToggleVendorAdminAssignment(vendor, admin.id)
+                                    }}
+                                  >
+                                    <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-blue-50 text-[10px] font-semibold text-blue-700">
+                                      {buildInitials(admin.name || admin.email || 'A')}
+                                    </span>
+                                    <span className="flex-1 truncate">{admin.name}</span>
+                                  </DropdownMenu.CheckboxItem>
+                                )
+                              })}
+                              {filteredAdmins.length === 0 && (
+                                <div className="px-2 py-2 text-xs text-gray-500">No admins found</div>
+                              )}
+                            </div>
+                            <div className="pt-2 border-t border-gray-100">
+                              <DropdownMenu.Item
+                                className="px-2 py-1.5 text-xs text-gray-700 rounded cursor-pointer outline-none hover:bg-gray-50"
+                                onSelect={(e) => {
+                                  e.preventDefault()
+                                  setAssignVendorId(null)
+                                  setAssignSearch('')
+                                  void handleManageAdmins(vendor)
+                                }}
+                              >
+                                Advanced (shop super admin)
+                              </DropdownMenu.Item>
+                            </div>
+                          </DropdownMenu.Content>
+                        </DropdownMenu.Portal>
+                      </DropdownMenu.Root>
                     </td>
                     {isGrandUser && (
                       <td className="px-4 py-3">
-                        <div className="flex gap-2 justify-end">
+                        <div className="flex gap-1.5 justify-end">
                           <Button
-                            variant="outline"
+                            variant="ghost"
                             size="sm"
                             onClick={() => handleEdit(vendor)}
                             title="Edit"
+                            className="h-8 w-8 p-0 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-full"
                           >
                             <Edit size={14} />
                           </Button>
                           <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handleManageAdmins(vendor)}
-                            title="Manage admins"
-                          >
-                            <Users size={14} />
-                          </Button>
-                          <Button
-                            variant="outline"
+                            variant="ghost"
                             size="sm"
                             onClick={() => handleDelete(vendor.id)}
-                            className="text-red-600 hover:text-red-700"
+                            className="h-8 w-8 p-0 text-red-500 hover:text-red-600 hover:bg-red-50 rounded-full"
                             title="Delete"
                           >
                             <Trash2 size={14} />
@@ -838,7 +1044,7 @@ export default function VendorList() {
                       </td>
                     )}
                   </tr>
-                ))}
+                )})}
               </tbody>
             </table>
           </div>

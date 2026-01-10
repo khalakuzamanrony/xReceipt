@@ -152,6 +152,37 @@ CREATE TABLE IF NOT EXISTS admin_permissions (
 
 CREATE INDEX IF NOT EXISTS idx_admin_permissions_admin_id ON admin_permissions(admin_id);
 
+CREATE TABLE IF NOT EXISTS admin_vendor_permissions (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  admin_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  vendor_id UUID NOT NULL REFERENCES vendors(id) ON DELETE CASCADE,
+
+  can_view_products BOOLEAN DEFAULT FALSE,
+  can_create_products BOOLEAN DEFAULT FALSE,
+  assigned_product_ids UUID[] DEFAULT '{}',
+
+  can_view_categories BOOLEAN DEFAULT FALSE,
+  can_create_categories BOOLEAN DEFAULT FALSE,
+  can_assign_categories BOOLEAN DEFAULT FALSE,
+  assigned_category_ids UUID[] DEFAULT '{}',
+
+  can_view_receipts BOOLEAN DEFAULT FALSE,
+  can_create_receipts BOOLEAN DEFAULT FALSE,
+  can_assign_receipt_templates BOOLEAN DEFAULT FALSE,
+
+  can_view_templates BOOLEAN DEFAULT FALSE,
+  can_create_templates BOOLEAN DEFAULT FALSE,
+  can_assign_templates BOOLEAN DEFAULT FALSE,
+  assigned_template_ids UUID[] DEFAULT '{}',
+
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE (admin_id, vendor_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_admin_vendor_permissions_admin_id ON admin_vendor_permissions(admin_id);
+CREATE INDEX IF NOT EXISTS idx_admin_vendor_permissions_vendor_id ON admin_vendor_permissions(vendor_id);
+
 -- ============================================
 -- 6. RECEIPTS TABLE
 -- ============================================
@@ -200,6 +231,7 @@ CREATE TABLE IF NOT EXISTS receipt_items (
  
 -- For fresh starts, clear all application data but preserve Grand Users
 DELETE FROM vendor_admins;
+DELETE FROM admin_vendor_permissions;
 DELETE FROM admin_permissions;
 DELETE FROM receipt_items;
 DELETE FROM receipts;
@@ -228,12 +260,102 @@ BEGIN
     JOIN pg_namespace n ON n.oid = c.relnamespace
     WHERE n.nspname = 'storage' AND c.relname = 'buckets'
   ) THEN
-    INSERT INTO storage.buckets (id, name, public)
-    VALUES
-      ('admin-profiles', 'admin-profiles', true),
-      ('category-images', 'category-images', true),
-      ('receipt-exports', 'receipt-exports', true)
-    ON CONFLICT (id) DO NOTHING;
+    BEGIN
+      INSERT INTO storage.buckets (id, name, public)
+      VALUES
+        ('admin-profiles', 'admin-profiles', true),
+        ('category-images', 'category-images', true),
+        ('receipt-exports', 'receipt-exports', true)
+      ON CONFLICT (id) DO NOTHING;
+    EXCEPTION
+      WHEN insufficient_privilege THEN
+        NULL;
+    END;
+  END IF;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Storage object policies (Supabase Storage RLS)
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1
+    FROM pg_class c
+    JOIN pg_namespace n ON n.oid = c.relnamespace
+    WHERE n.nspname = 'storage' AND c.relname = 'objects'
+  ) THEN
+    BEGIN
+      ALTER TABLE storage.objects ENABLE ROW LEVEL SECURITY;
+
+      -- Admin profile images
+      DROP POLICY IF EXISTS "Admin profiles read (auth)" ON storage.objects;
+      DROP POLICY IF EXISTS "Admin profiles insert (auth)" ON storage.objects;
+      DROP POLICY IF EXISTS "Admin profiles update (auth)" ON storage.objects;
+      DROP POLICY IF EXISTS "Admin profiles delete (auth)" ON storage.objects;
+
+      CREATE POLICY "Admin profiles read (auth)" ON storage.objects
+        FOR SELECT TO authenticated
+        USING (bucket_id = 'admin-profiles');
+
+      CREATE POLICY "Admin profiles insert (auth)" ON storage.objects
+        FOR INSERT TO authenticated
+        WITH CHECK (bucket_id = 'admin-profiles');
+
+      CREATE POLICY "Admin profiles update (auth)" ON storage.objects
+        FOR UPDATE TO authenticated
+        USING (bucket_id = 'admin-profiles');
+
+      CREATE POLICY "Admin profiles delete (auth)" ON storage.objects
+        FOR DELETE TO authenticated
+        USING (bucket_id = 'admin-profiles');
+
+      -- Category images
+      DROP POLICY IF EXISTS "Category images read (auth)" ON storage.objects;
+      DROP POLICY IF EXISTS "Category images insert (auth)" ON storage.objects;
+      DROP POLICY IF EXISTS "Category images update (auth)" ON storage.objects;
+      DROP POLICY IF EXISTS "Category images delete (auth)" ON storage.objects;
+
+      CREATE POLICY "Category images read (auth)" ON storage.objects
+        FOR SELECT TO authenticated
+        USING (bucket_id = 'category-images');
+
+      CREATE POLICY "Category images insert (auth)" ON storage.objects
+        FOR INSERT TO authenticated
+        WITH CHECK (bucket_id = 'category-images');
+
+      CREATE POLICY "Category images update (auth)" ON storage.objects
+        FOR UPDATE TO authenticated
+        USING (bucket_id = 'category-images');
+
+      CREATE POLICY "Category images delete (auth)" ON storage.objects
+        FOR DELETE TO authenticated
+        USING (bucket_id = 'category-images');
+
+      -- Receipt exports
+      DROP POLICY IF EXISTS "Receipt exports read (auth)" ON storage.objects;
+      DROP POLICY IF EXISTS "Receipt exports insert (auth)" ON storage.objects;
+      DROP POLICY IF EXISTS "Receipt exports update (auth)" ON storage.objects;
+      DROP POLICY IF EXISTS "Receipt exports delete (auth)" ON storage.objects;
+
+      CREATE POLICY "Receipt exports read (auth)" ON storage.objects
+        FOR SELECT TO authenticated
+        USING (bucket_id = 'receipt-exports');
+
+      CREATE POLICY "Receipt exports insert (auth)" ON storage.objects
+        FOR INSERT TO authenticated
+        WITH CHECK (bucket_id = 'receipt-exports');
+
+      CREATE POLICY "Receipt exports update (auth)" ON storage.objects
+        FOR UPDATE TO authenticated
+        USING (bucket_id = 'receipt-exports');
+
+      CREATE POLICY "Receipt exports delete (auth)" ON storage.objects
+        FOR DELETE TO authenticated
+        USING (bucket_id = 'receipt-exports');
+    EXCEPTION
+      WHEN insufficient_privilege THEN
+        NULL;
+    END;
   END IF;
 END;
 $$ LANGUAGE plpgsql;
@@ -249,6 +371,7 @@ ALTER TABLE categories ENABLE ROW LEVEL SECURITY;
 ALTER TABLE products ENABLE ROW LEVEL SECURITY;
 ALTER TABLE receipt_templates ENABLE ROW LEVEL SECURITY;
 ALTER TABLE admin_permissions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE admin_vendor_permissions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE receipts ENABLE ROW LEVEL SECURITY;
 ALTER TABLE receipt_items ENABLE ROW LEVEL SECURITY;
 ALTER TABLE vendor_admins ENABLE ROW LEVEL SECURITY;
@@ -283,6 +406,11 @@ DROP POLICY IF EXISTS "Public read access" ON admin_permissions;
 DROP POLICY IF EXISTS "Public insert access" ON admin_permissions;
 DROP POLICY IF EXISTS "Public update access" ON admin_permissions;
 DROP POLICY IF EXISTS "Public delete access" ON admin_permissions;
+
+DROP POLICY IF EXISTS "Public read access" ON admin_vendor_permissions;
+DROP POLICY IF EXISTS "Public insert access" ON admin_vendor_permissions;
+DROP POLICY IF EXISTS "Public update access" ON admin_vendor_permissions;
+DROP POLICY IF EXISTS "Public delete access" ON admin_vendor_permissions;
 
 DROP POLICY IF EXISTS "Public read access" ON receipts;
 DROP POLICY IF EXISTS "Public insert access" ON receipts;
@@ -335,6 +463,11 @@ CREATE POLICY "Public insert access" ON admin_permissions FOR INSERT WITH CHECK 
 CREATE POLICY "Public update access" ON admin_permissions FOR UPDATE USING (true);
 CREATE POLICY "Public delete access" ON admin_permissions FOR DELETE USING (true);
 
+CREATE POLICY "Public read access" ON admin_vendor_permissions FOR SELECT USING (true);
+CREATE POLICY "Public insert access" ON admin_vendor_permissions FOR INSERT WITH CHECK (true);
+CREATE POLICY "Public update access" ON admin_vendor_permissions FOR UPDATE USING (true);
+CREATE POLICY "Public delete access" ON admin_vendor_permissions FOR DELETE USING (true);
+
 CREATE POLICY "Public read access" ON receipts FOR SELECT USING (true);
 CREATE POLICY "Public insert access" ON receipts FOR INSERT WITH CHECK (true);
 CREATE POLICY "Public update access" ON receipts FOR UPDATE USING (true);
@@ -375,6 +508,7 @@ DROP TRIGGER IF EXISTS update_categories_updated_at ON categories;
 DROP TRIGGER IF EXISTS update_products_updated_at ON products;
 DROP TRIGGER IF EXISTS update_receipt_templates_updated_at ON receipt_templates;
 DROP TRIGGER IF EXISTS update_admin_permissions_updated_at ON admin_permissions;
+DROP TRIGGER IF EXISTS update_admin_vendor_permissions_updated_at ON admin_vendor_permissions;
 DROP TRIGGER IF EXISTS update_receipts_updated_at ON receipts;
 DROP TRIGGER IF EXISTS update_vendor_admins_updated_at ON vendor_admins;
 DROP TRIGGER IF EXISTS update_receipt_template_vendors_updated_at ON receipt_template_vendors;
@@ -396,6 +530,9 @@ CREATE TRIGGER update_receipt_templates_updated_at BEFORE UPDATE ON receipt_temp
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 CREATE TRIGGER update_admin_permissions_updated_at BEFORE UPDATE ON admin_permissions
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER update_admin_vendor_permissions_updated_at BEFORE UPDATE ON admin_vendor_permissions
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 CREATE TRIGGER update_receipts_updated_at BEFORE UPDATE ON receipts

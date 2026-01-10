@@ -4,6 +4,7 @@ import { productService } from '@/services/productService'
 import { Checkbox } from '@/components/ui/Checkbox'
 import { Label } from '@/components/ui/Label'
 import { AlertCircle } from 'lucide-react'
+import { useVendor } from '@/contexts/VendorContext'
 
 interface ProductAccessGroupProps {
   permissions: Partial<AdminPermissions>
@@ -14,6 +15,7 @@ export default function ProductAccessGroup({
   permissions,
   onChange,
 }: ProductAccessGroupProps) {
+  const { activeVendorId } = useVendor()
   const [products, setProducts] = useState<any[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -23,13 +25,17 @@ export default function ProductAccessGroup({
     if (permissions.can_view_products) {
       loadProducts()
     }
-  }, [permissions.can_view_products])
+  }, [permissions.can_view_products, activeVendorId])
 
   const loadProducts = async () => {
     try {
       setLoading(true)
       setError(null)
-      const data = await productService.getAllProducts()
+      if (!activeVendorId) {
+        setProducts([])
+        return
+      }
+      const data = await productService.getAllProducts(activeVendorId)
       setProducts(data)
     } catch (err) {
       setError('Failed to load products')

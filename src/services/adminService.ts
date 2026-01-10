@@ -1,6 +1,6 @@
 import { supabase } from '@/lib/supabase'
 import { createClient } from '@supabase/supabase-js'
-import type { User, AdminPermissions, Vendor } from '@/types'
+import type { User, AdminPermissions, AdminVendorPermissions, Vendor } from '@/types'
 
 const authProvisionClient = createClient(
   import.meta.env.VITE_SUPABASE_URL!,
@@ -29,6 +29,29 @@ async function ensureAuthUser(email: string, password: string) {
       throw error
     }
   }
+}
+
+function resolveAdminProfileStoragePath(value: string): string {
+  if (!value) return ''
+  if (value.startsWith('data:')) return ''
+
+  const cleaned = value.split('#')[0].split('?')[0]
+
+  const markers = [
+    '/storage/v1/object/public/admin-profiles/',
+    '/storage/v1/object/admin-profiles/',
+    'admin-profiles/',
+  ]
+
+  for (const marker of markers) {
+    const idx = cleaned.indexOf(marker)
+    if (idx >= 0) {
+      return cleaned.slice(idx + marker.length).replace(/^\/+/, '')
+    }
+  }
+
+  if (!cleaned.startsWith('http') && cleaned.includes('/')) return cleaned.replace(/^\/+/, '')
+  return ''
 }
 
 export const adminService = {
@@ -94,10 +117,22 @@ export const adminService = {
       .from('admin_permissions')
       .select('*')
       .eq('admin_id', adminId)
-      .single()
+      .maybeSingle()
 
     if (error && error.code !== 'PGRST116') throw error
     return data || null
+  },
+
+  async getAdminVendorPermissions(adminId: string, vendorId: string): Promise<AdminVendorPermissions | null> {
+    const { data, error } = await supabase
+      .from('admin_vendor_permissions')
+      .select('*')
+      .eq('admin_id', adminId)
+      .eq('vendor_id', vendorId)
+      .maybeSingle()
+
+    if (error && error.code !== 'PGRST116') throw error
+    return (data as AdminVendorPermissions) || null
   },
 
   // Create new admin
@@ -246,24 +281,34 @@ export const adminService = {
   },
 
   // Delete admin (blocked if admin is vendor super admin for any vendor)
-  async deleteAdmin(id: string): Promise<void> {
-    const { data: vendorSuperAdmins, error: vendorSuperError } = await supabase
-      .from('vendor_admins')
-      .select('id')
-      .eq('admin_id', id)
-      .eq('is_vendor_super_admin', true)
+  async deleteAdmin(
+    id: string,
+  ): Promise<{ storageDeleted: boolean; storageError: string | null; authDeleted: boolean }> {
+    const { data, error } = await supabase.functions.invoke('delete-user', {
+      body: { userId: id },
+    })
 
-    if (vendorSuperError) throw vendorSuperError
+    if (error) throw error
 
-    if (vendorSuperAdmins && vendorSuperAdmins.length > 0) {
-      throw new Error('Cannot delete an admin who is a vendor super admin. Update vendor admin assignments first.')
+    const payload = (data || {}) as any
+    if (payload?.error) {
+      throw new Error(String(payload.error))
     }
 
-    const { error } = await supabase
-      .from('users')
-      .delete()
-      .eq('id', id)
+    return {
+      storageDeleted: payload?.storageDeleted ?? true,
+      storageError: payload?.storageError ?? null,
+      authDeleted: payload?.authDeleted ?? false,
+    }
+  },
 
+  getProfileImageStoragePath(profileImageUrl: string): string {
+    return resolveAdminProfileStoragePath(profileImageUrl)
+  },
+
+  async deleteProfileImageByPath(path: string): Promise<void> {
+    if (!path) return
+    const { error } = await supabase.storage.from('admin-profiles').remove([path])
     if (error) throw error
   },
 
@@ -304,34 +349,79 @@ export const adminService = {
     }
   },
 
+  async saveAdminVendorPermissions(
+    adminId: string,
+    vendorId: string,
+    permissions: Omit<AdminPermissions, 'id' | 'admin_id' | 'created_at' | 'updated_at'>,
+  ): Promise<AdminVendorPermissions> {
+    const existing = await this.getAdminVendorPermissions(adminId, vendorId)
+
+    if (existing) {
+      const { data, error } = await supabase
+        .from('admin_vendor_permissions')
+        .update({
+          ...permissions,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('admin_id', adminId)
+        .eq('vendor_id', vendorId)
+        .select()
+        .single()
+
+      if (error) throw error
+      return data as AdminVendorPermissions
+    }
+
+    const { data, error } = await supabase
+      .from('admin_vendor_permissions')
+      .insert({
+        admin_id: adminId,
+        vendor_id: vendorId,
+        ...permissions,
+      })
+      .select()
+      .single()
+
+    if (error) throw error
+    return data as AdminVendorPermissions
+  },
+
   // Upload profile image to storage
   async uploadProfileImage(
     adminId: string,
     file: File
-  ): Promise<string> {
+  ): Promise<{ publicUrl: string; path: string; error: string | null }> {
     try {
-      const fileName = `${adminId}-${Date.now()}`
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
+
+      const ownerId = user?.id || adminId
+      const ext = file.name.includes('.') ? (file.name.split('.').pop() || '') : ''
+      const fileName = `${adminId}-${Date.now()}${ext ? `.${ext}` : ''}`
+      const path = `${ownerId}/${fileName}`
       const { error: uploadError } = await supabase.storage
         .from('admin-profiles')
-        .upload(fileName, file, {
+        .upload(path, file, {
           upsert: true,
+          contentType: file.type || undefined,
         })
 
       if (uploadError) {
+        const message = uploadError instanceof Error ? uploadError.message : String(uploadError)
         console.warn('Storage upload failed:', uploadError)
-        // Return empty string if upload fails - allow form to continue
-        return ''
+        return { publicUrl: '', path: '', error: message }
       }
 
       const { data } = supabase.storage
         .from('admin-profiles')
-        .getPublicUrl(fileName)
+        .getPublicUrl(path)
 
-      return data.publicUrl
+      return { publicUrl: data.publicUrl, path, error: null }
     } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
       console.warn('Image upload error:', error)
-      // Return empty string if upload fails - allow form to continue
-      return ''
+      return { publicUrl: '', path: '', error: message }
     }
   },
 }
