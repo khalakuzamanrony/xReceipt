@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import type { ReceiptTemplate, Vendor } from '@/types'
 import { templateService } from '@/services/templateService'
 import { templateVendorService } from '@/services/templateVendorService'
+import { receiptService } from '@/services/receiptService'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Label } from '@/components/ui/Label'
@@ -15,14 +16,20 @@ import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
 import { cn } from '@/lib/utils'
 
 interface TemplateListProps {
-  onNavigateToBuilder?: () => void
+  onNavigateToBuilder?: (templateId?: string) => void
 }
 
 export default function TemplateList({ onNavigateToBuilder }: TemplateListProps) {
-  const { role, permissions } = useAuth()
-  const canViewTemplates = role === 'grand_user' || !!permissions?.can_view_templates
-  const canCreateTemplates = role === 'grand_user' || !!permissions?.can_create_templates
-  const { memberships, activeVendorId, loading: vendorLoading } = useVendor()
+  const { role } = useAuth()
+  const { memberships, activeVendorId, permissions, loading: vendorLoading } = useVendor()
+
+  const isVendorSuperAdminForActiveVendor =
+    role === 'admin' &&
+    !!activeVendorId &&
+    memberships.some((m) => m.vendor.id === activeVendorId && m.isVendorSuperAdmin)
+
+  const canViewTemplates = role === 'grand_user' || isVendorSuperAdminForActiveVendor || !!permissions?.can_view_templates
+  const canCreateTemplates = role === 'grand_user' || isVendorSuperAdminForActiveVendor || !!permissions?.can_create_templates
   const isGrandUser = role === 'grand_user'
   const [templates, setTemplates] = useState<ReceiptTemplate[]>([])
   const [loading, setLoading] = useState(true)
@@ -48,6 +55,7 @@ export default function TemplateList({ onNavigateToBuilder }: TemplateListProps)
   const [assignError, setAssignError] = useState<string | null>(null)
   const [previewTemplate, setPreviewTemplate] = useState<ReceiptTemplate | null>(null)
   const [templateVendorAssignments, setTemplateVendorAssignments] = useState<Record<string, string[]>>({})
+  const [templateUsageCounts, setTemplateUsageCounts] = useState<Record<string, number>>({})
   const [vendorFilter, setVendorFilter] = useState<string>('all')
   const [dateRangeFilter, setDateRangeFilter] = useState<'all' | 'today' | '7d' | '30d'>('all')
   const [assignmentFilter, setAssignmentFilter] = useState<'all' | 'assigned' | 'unassigned'>('all')
@@ -55,7 +63,7 @@ export default function TemplateList({ onNavigateToBuilder }: TemplateListProps)
   useEffect(() => {
     if (vendorLoading) return
 
-    if (role === 'admin' && !activeVendorId) {
+    if (!activeVendorId) {
       setTemplates([])
       setLoading(false)
       return
@@ -97,6 +105,14 @@ export default function TemplateList({ onNavigateToBuilder }: TemplateListProps)
       } else {
         setTemplateVendorAssignments({})
       }
+
+      try {
+        const counts = await receiptService.getReceiptCountsByTemplateIds(templateIds, vendorId ?? null)
+        setTemplateUsageCounts(counts)
+      } catch (countErr) {
+        console.error('Failed to load template usage counts', countErr)
+        setTemplateUsageCounts({})
+      }
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to load templates'
       setError(errorMessage)
@@ -105,11 +121,6 @@ export default function TemplateList({ onNavigateToBuilder }: TemplateListProps)
       setLoading(false)
     }
   }
-
-  const isVendorSuperAdminForActiveVendor =
-    role === 'admin' &&
-    !!activeVendorId &&
-    memberships.some((m) => m.vendor.id === activeVendorId && m.isVendorSuperAdmin)
 
   const assignedTemplateIds = permissions?.assigned_template_ids || []
   const permissionFilteredTemplates =
@@ -285,16 +296,6 @@ export default function TemplateList({ onNavigateToBuilder }: TemplateListProps)
 
     setSelectedTemplate(null)
     setFormData({ name: '', description: '', template_html: '' })
-    setShowForm(true)
-  }
-
-  const handleEdit = (template: ReceiptTemplate) => {
-    setSelectedTemplate(template)
-    setFormData({
-      name: template.name,
-      description: template.description || '',
-      template_html: template.template_html,
-    })
     setShowForm(true)
   }
 
@@ -712,8 +713,8 @@ export default function TemplateList({ onNavigateToBuilder }: TemplateListProps)
                 <tr>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Name</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Description</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Assigned</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Preview</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Assigned Shop</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Used</th>
                   <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600 uppercase">Actions</th>
                 </tr>
               </thead>
@@ -737,7 +738,6 @@ export default function TemplateList({ onNavigateToBuilder }: TemplateListProps)
                       <td className="px-4 py-3">
                         <p className="text-sm text-gray-600 max-w-xs truncate">
                           {template.description || ' '}
-                          {template.description || ''}
                         </p>
                       </td>
                       <td className="px-4 py-3">
@@ -968,9 +968,9 @@ export default function TemplateList({ onNavigateToBuilder }: TemplateListProps)
                         )}
                       </td>
                       <td className="px-4 py-3">
-                        <p className="text-xs text-gray-500 font-mono max-w-xs truncate">
-                          {template.template_html.substring(0, 50)}...
-                        </p>
+                        <span className="inline-flex items-center rounded-full bg-gray-100 text-gray-700 px-2.5 py-1 text-xs font-semibold">
+                          {templateUsageCounts[template.id] ?? 0}
+                        </span>
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex gap-1.5 justify-end">
@@ -986,7 +986,7 @@ export default function TemplateList({ onNavigateToBuilder }: TemplateListProps)
                           <Button
                             variant="ghost"
                             size="sm"
-                            onClick={() => handleEdit(template)}
+                            onClick={() => onNavigateToBuilder?.(template.id)}
                             title="Edit"
                             className="h-8 w-8 p-0 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-full"
                           >

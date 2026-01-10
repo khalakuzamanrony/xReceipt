@@ -1,9 +1,10 @@
 import { createContext, useContext, useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
-import type { Vendor } from '@/types'
+import type { Vendor, AdminVendorPermissions } from '@/types'
 import { useAuth } from '@/contexts/AuthContext'
 import { vendorService } from '@/services/vendorService'
 import { vendorAdminService } from '@/services/vendorAdminService'
+import { adminService } from '@/services/adminService'
 
 interface VendorMembership {
   vendor: Vendor
@@ -14,6 +15,8 @@ interface VendorContextValue {
   memberships: VendorMembership[]
   activeVendorId: string | null
   setActiveVendorId: (vendorId: string | null) => void
+  permissions: AdminVendorPermissions | null
+  permissionsLoading: boolean
   loading: boolean
   error: string | null
 }
@@ -24,6 +27,8 @@ export function VendorProvider({ children }: { children: ReactNode }) {
   const { user, role } = useAuth()
   const [memberships, setMemberships] = useState<VendorMembership[]>([])
   const [activeVendorId, setActiveVendorId] = useState<string | null>(null)
+  const [permissions, setPermissions] = useState<AdminVendorPermissions | null>(null)
+  const [permissionsLoading, setPermissionsLoading] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -31,6 +36,7 @@ export function VendorProvider({ children }: { children: ReactNode }) {
     if (!user || !role) {
       setMemberships([])
       setActiveVendorId(null)
+      setPermissions(null)
       return
     }
 
@@ -71,10 +77,53 @@ export function VendorProvider({ children }: { children: ReactNode }) {
     void loadMemberships()
   }, [user?.id, role])
 
+  useEffect(() => {
+    if (!user || !role) {
+      setPermissions(null)
+      setPermissionsLoading(false)
+      return
+    }
+
+    if (role !== 'admin') {
+      setPermissions(null)
+      setPermissionsLoading(false)
+      return
+    }
+
+    if (!activeVendorId) {
+      setPermissions(null)
+      setPermissionsLoading(false)
+      return
+    }
+
+    if (!memberships.some((m) => m.vendor.id === activeVendorId)) {
+      setPermissions(null)
+      setPermissionsLoading(false)
+      return
+    }
+
+    const loadPermissions = async () => {
+      try {
+        setPermissionsLoading(true)
+        const data = await adminService.getAdminVendorPermissions(user.id, activeVendorId)
+        setPermissions(data)
+      } catch (err) {
+        console.error('Failed to load vendor permissions:', err)
+        setPermissions(null)
+      } finally {
+        setPermissionsLoading(false)
+      }
+    }
+
+    void loadPermissions()
+  }, [user?.id, role, activeVendorId, memberships])
+
   const value: VendorContextValue = {
     memberships,
     activeVendorId,
     setActiveVendorId,
+    permissions,
+    permissionsLoading,
     loading,
     error,
   }

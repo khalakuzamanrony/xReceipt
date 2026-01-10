@@ -10,8 +10,10 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Checkbox } from '@/components/ui/Checkbox'
 import { Plus, Edit, Trash2, AlertCircle, Users, Search, Mail } from 'lucide-react'
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
+import * as Popover from '@radix-ui/react-popover'
 import { useAuth } from '@/contexts/AuthContext'
 import { useVendor } from '@/contexts/VendorContext'
+import { supabase } from '@/lib/supabase'
 
 export default function AdminList() {
   const { role, user } = useAuth()
@@ -21,6 +23,7 @@ export default function AdminList() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [info, setInfo] = useState<string | null>(null)
+  const [warning, setWarning] = useState<string | null>(null)
   const [searchTerm, setSearchTerm] = useState('')
   const [roleFilter, setRoleFilter] = useState<'all' | 'grand_user' | 'super_admin' | 'admin'>('all')
   const [page, setPage] = useState(1)
@@ -36,9 +39,11 @@ export default function AdminList() {
   const [assignSelectedVendorIds, setAssignSelectedVendorIds] = useState<string[]>([])
   const [assignSaving, setAssignSaving] = useState(false)
   const [assignError, setAssignError] = useState<string | null>(null)
+  const [assignedShopTooltipAdminId, setAssignedShopTooltipAdminId] = useState<string | null>(null)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [adminToDelete, setAdminToDelete] = useState<User | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
+  const [adminAvatarUrls, setAdminAvatarUrls] = useState<Record<string, string>>({})
 
   const isGrandUserView = role === 'grand_user'
 
@@ -51,10 +56,59 @@ export default function AdminList() {
       setLoading(true)
       setError(null)
       setInfo(null)
+      setWarning(null)
       const data = role === 'grand_user'
         ? await adminService.getAllUsers()
         : await adminService.getAllAdmins()
       setAdmins(data)
+
+      const resolveStoragePath = (value: string) => {
+        if (!value) return ''
+        if (value.startsWith('data:')) return ''
+        const markers = [
+          '/storage/v1/object/public/admin-profiles/',
+          '/storage/v1/object/admin-profiles/',
+          'admin-profiles/',
+        ]
+
+        for (const marker of markers) {
+          const idx = value.indexOf(marker)
+          if (idx >= 0) {
+            return value.slice(idx + marker.length)
+          }
+        }
+
+        // If it's already a plain path like "<uuid>/<file>.png" return it
+        if (!value.startsWith('http') && value.includes('/')) return value
+        return ''
+      }
+
+      try {
+        const entries = await Promise.all(
+          data.map(async (admin) => {
+            const raw = admin.profile_image_url || ''
+            const path = resolveStoragePath(raw)
+            if (!path) return [admin.id, raw] as const
+
+            const { data: signed, error: signedErr } = await supabase.storage
+              .from('admin-profiles')
+              .createSignedUrl(path, 60 * 60)
+            if (signedErr || !signed?.signedUrl) {
+              // If raw is already a fully qualified URL (e.g. CDN/external), keep it.
+              // If it's a storage path and signing failed, don't use it as <img src>.
+              return [admin.id, raw.startsWith('http') ? raw : ''] as const
+            }
+            return [admin.id, signed.signedUrl] as const
+          }),
+        )
+
+        setAdminAvatarUrls((prev) => ({
+          ...prev,
+          ...Object.fromEntries(entries.filter(([, url]) => !!url)),
+        }))
+      } catch (avatarErr) {
+        console.warn('Failed to resolve admin avatar URLs:', avatarErr)
+      }
 
       try {
         const superAdminIds = await vendorAdminService.getVendorSuperAdminAdminIds()
@@ -154,10 +208,25 @@ export default function AdminList() {
 
     try {
       setIsDeleting(true)
-      await adminService.deleteAdmin(adminToDelete.id)
+      const result = await adminService.deleteAdmin(adminToDelete.id)
       setAdmins((prev) => prev.filter((a) => a.id !== adminToDelete.id))
       setShowDeleteConfirm(false)
       setAdminToDelete(null)
+
+      if (!result.authDeleted) {
+        setWarning(
+          'User deleted from the app database, but the Supabase Auth account could not be deleted. You may need to deploy the Supabase Edge Function "delete-user" with a service role key, then try again, or delete the Auth user manually from the Supabase dashboard.',
+        )
+      }
+
+      if (!result.storageDeleted) {
+        const msg = (result.storageError || '').toLowerCase()
+        setWarning(
+          msg.includes('row-level security')
+            ? 'Admin deleted, but the profile image could not be deleted from Supabase Storage due to RLS. Ask the Supabase project owner to add a DELETE policy for bucket "admin-profiles".'
+            : 'Admin deleted, but the profile image could not be deleted from Supabase Storage.',
+        )
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to delete admin')
     } finally {
@@ -248,23 +317,6 @@ export default function AdminList() {
   const currentPage = Math.min(page, totalPages)
   const startIndex = (currentPage - 1) * rowsPerPage
   const pagedAdmins = filteredAdmins.slice(startIndex, startIndex + rowsPerPage)
-
-  const renderVendorSummary = (adminId: string) => {
-    const info = adminVendorInfo[adminId]
-    if (!info || info.length === 0) return 'No shops assigned'
-
-    const superVendors = info.filter((v) => v.isVendorSuperAdmin)
-    const normalVendors = info.filter((v) => !v.isVendorSuperAdmin)
-
-    const parts: string[] = []
-    if (superVendors.length) {
-      parts.push(`Super for ${superVendors.map((v) => v.vendorName).join(', ')}`)
-    }
-    if (normalVendors.length) {
-      parts.push(`Shop ${normalVendors.map((v) => v.vendorName).join(', ')}`)
-    }
-    return parts.join(' • ')
-  }
 
   const buildVendorInitials = (name: string) =>
     name
@@ -444,6 +496,16 @@ export default function AdminList() {
         </div>
       )}
 
+      {warning && (
+        <div className="bg-yellow-50 border-l-4 border-yellow-500 text-yellow-700 px-4 py-4 rounded-lg flex gap-3">
+          <AlertCircle size={20} className="flex-shrink-0 mt-0.5" />
+          <div>
+            <p className="font-semibold">Warning</p>
+            <p className="text-sm mt-1">{warning}</p>
+          </div>
+        </div>
+      )}
+
       {/* Admin Form Modal */}
       {showForm && (
         <AdminForm
@@ -476,7 +538,7 @@ export default function AdminList() {
                   <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Email</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Phone</th>
                   {isGrandUserView && (
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Assigned</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">ASSIGNED SHOP</th>
                   )}
                   <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Created</th>
                   <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600 uppercase">Actions</th>
@@ -490,9 +552,9 @@ export default function AdminList() {
                       <td className="px-4 py-3">
                         <div className="flex flex-col gap-1">
                           <div className="flex items-center gap-3">
-                            {admin.profile_image_url ? (
+                            {adminAvatarUrls[admin.id] || admin.profile_image_url ? (
                               <img
-                                src={admin.profile_image_url}
+                                src={adminAvatarUrls[admin.id] || admin.profile_image_url}
                                 alt={admin.name}
                                 className="w-10 h-10 rounded-full object-cover ring-2 ring-gray-200"
                               />
@@ -505,9 +567,6 @@ export default function AdminList() {
                             )}
                             <span className="text-sm font-medium text-gray-900">{admin.name}</span>
                           </div>
-                          <p className="text-[11px] text-gray-500">
-                            {renderVendorSummary(admin.id)}
-                          </p>
                         </div>
                       </td>
                       <td className="px-4 py-3">
@@ -563,48 +622,109 @@ export default function AdminList() {
                                     }
                                   }}
                                 >
-                                  <DropdownMenu.Trigger asChild>
-                                    <button
-                                      type="button"
-                                      className="inline-flex items-center -space-x-1 px-0 py-0 cursor-pointer bg-transparent border-0"
-                                      title={
-                                        assignedVendors.length === 1
-                                          ? assignedVendors[0].name
-                                          : assignedVendors.length > 1
-                                            ? `${assignedVendors[0].name} +${assignedVendors.length - 1}`
-                                            : 'Assign shops'
-                                      }
-                                    >
-                                      {assignedVendors.length > 0 ? (
-                                        <div className="flex items-center -space-x-1">
-                                          {assignedVendors.slice(0, 3).map((v) => (
-                                            v.image_url ? (
-                                              <img
-                                                key={v.id}
-                                                src={v.image_url}
-                                                alt={v.name}
-                                                className="w-7 h-7 rounded-full object-cover"
-                                              />
+                                  <Popover.Root
+                                    open={
+                                      assignedVendors.length > 0 &&
+                                      assignedShopTooltipAdminId === admin.id &&
+                                      assignAdminId !== admin.id
+                                    }
+                                    onOpenChange={(open) => {
+                                      if (!assignedVendors.length) return
+                                      setAssignedShopTooltipAdminId(open ? admin.id : null)
+                                    }}
+                                  >
+                                    <Popover.Anchor asChild>
+                                      <div
+                                        className="inline-flex"
+                                        onMouseEnter={() => {
+                                          if (!assignedVendors.length) return
+                                          if (assignAdminId === admin.id) return
+                                          setAssignedShopTooltipAdminId(admin.id)
+                                        }}
+                                        onMouseLeave={() => {
+                                          if (assignedShopTooltipAdminId === admin.id) {
+                                            setAssignedShopTooltipAdminId(null)
+                                          }
+                                        }}
+                                      >
+                                        <DropdownMenu.Trigger asChild>
+                                          <button
+                                            type="button"
+                                            className="inline-flex items-center -space-x-1 px-0 py-0 cursor-pointer bg-transparent border-0"
+                                            onFocus={() => {
+                                              if (!assignedVendors.length) return
+                                              if (assignAdminId === admin.id) return
+                                              setAssignedShopTooltipAdminId(admin.id)
+                                            }}
+                                            onBlur={() => {
+                                              if (assignedShopTooltipAdminId === admin.id) {
+                                                setAssignedShopTooltipAdminId(null)
+                                              }
+                                            }}
+                                          >
+                                            {assignedVendors.length > 0 ? (
+                                              <div className="flex items-center -space-x-1">
+                                                {assignedVendors.slice(0, 3).map((v) =>
+                                                  v.image_url ? (
+                                                    <img
+                                                      key={v.id}
+                                                      src={v.image_url}
+                                                      alt={v.name}
+                                                      className="w-7 h-7 rounded-full object-cover"
+                                                    />
+                                                  ) : (
+                                                    <span
+                                                      key={v.id}
+                                                      className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-blue-50 text-xs font-semibold text-blue-700"
+                                                    >
+                                                      {buildVendorInitials(v.name)}
+                                                    </span>
+                                                  ),
+                                                )}
+                                                {assignedVendors.length > 3 && (
+                                                  <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-gray-100 text-[10px] font-semibold text-gray-700">
+                                                    +{assignedVendors.length - 3}
+                                                  </span>
+                                                )}
+                                              </div>
                                             ) : (
-                                              <span
-                                                key={v.id}
-                                                className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-blue-50 text-xs font-semibold text-blue-700"
-                                              >
-                                                {buildVendorInitials(v.name)}
-                                              </span>
-                                            )
-                                          ))}
-                                          {assignedVendors.length > 3 && (
-                                            <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-gray-100 text-[10px] font-semibold text-gray-700">
-                                              +{assignedVendors.length - 3}
-                                            </span>
-                                          )}
-                                        </div>
-                                      ) : (
-                                        <span className="text-xs text-gray-500 px-1">Assign</span>
-                                      )}
-                                    </button>
-                                  </DropdownMenu.Trigger>
+                                              <span className="text-xs text-gray-500 px-1">Assign</span>
+                                            )}
+                                          </button>
+                                        </DropdownMenu.Trigger>
+                                      </div>
+                                    </Popover.Anchor>
+
+                                    {assignedVendors.length > 0 && (
+                                      <Popover.Portal>
+                                        <Popover.Content
+                                          side="top"
+                                          align="start"
+                                          sideOffset={6}
+                                          className="rounded-md border border-gray-200 bg-white shadow-lg px-3 py-2 text-xs text-gray-700 max-w-xs"
+                                          onMouseEnter={() => {
+                                            if (assignAdminId === admin.id) return
+                                            setAssignedShopTooltipAdminId(admin.id)
+                                          }}
+                                          onMouseLeave={() => {
+                                            if (assignedShopTooltipAdminId === admin.id) {
+                                              setAssignedShopTooltipAdminId(null)
+                                            }
+                                          }}
+                                        >
+                                          <div className="font-semibold text-gray-900 mb-1">Assigned shop</div>
+                                          <div className="space-y-0.5">
+                                            {assignedVendors.map((v) => (
+                                              <div key={v.id} className="truncate">
+                                                {v.name}
+                                              </div>
+                                            ))}
+                                          </div>
+                                        </Popover.Content>
+                                      </Popover.Portal>
+                                    )}
+                                  </Popover.Root>
+
                                   <DropdownMenu.Portal>
                                     <DropdownMenu.Content className="min-w-[260px] rounded-md border border-gray-200 bg-white shadow-lg p-2 mr-1 mt-1 z-50 space-y-2">
                                       <div className="px-1">

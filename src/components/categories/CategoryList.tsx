@@ -13,10 +13,16 @@ import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
 import { cn } from '@/lib/utils'
 
 export default function CategoryList() {
-  const { role, permissions } = useAuth()
-  const canViewCategories = role === 'grand_user' || !!permissions?.can_view_categories
-  const canCreateCategories = role === 'grand_user' || !!permissions?.can_create_categories
-  const { memberships, activeVendorId, loading: vendorLoading } = useVendor()
+  const { role } = useAuth()
+  const { memberships, activeVendorId, permissions, loading: vendorLoading } = useVendor()
+
+  const isVendorSuperAdminForActiveVendor =
+    role === 'admin' &&
+    !!activeVendorId &&
+    memberships.some((m) => m.vendor.id === activeVendorId && m.isVendorSuperAdmin)
+
+  const canViewCategories = role === 'grand_user' || isVendorSuperAdminForActiveVendor || !!permissions?.can_view_categories
+  const canCreateCategories = role === 'grand_user' || isVendorSuperAdminForActiveVendor || !!permissions?.can_create_categories
   const vendors: Vendor[] = memberships.map((m) => m.vendor)
   const [categories, setCategories] = useState<Category[]>([])
   const [loading, setLoading] = useState(true)
@@ -35,10 +41,6 @@ export default function CategoryList() {
   const [toastTitle, setToastTitle] = useState('')
   const [toastDescription, setToastDescription] = useState('')
   const [toastVariant, setToastVariant] = useState<'success' | 'error'>('success')
-  const [assignCategoryId, setAssignCategoryId] = useState<string | null>(null)
-  const [assignSearch, setAssignSearch] = useState('')
-  const [assignError, setAssignError] = useState<string | null>(null)
-  const [assignSaving, setAssignSaving] = useState(false)
 
   const showToast = (title: string, description = '', variant: 'success' | 'error' = 'success') => {
     setToastTitle(title)
@@ -50,7 +52,7 @@ export default function CategoryList() {
   useEffect(() => {
     if (vendorLoading) return
 
-    if (role === 'admin' && !activeVendorId) {
+    if (!activeVendorId) {
       setCategories([])
       setLoading(false)
       return
@@ -147,18 +149,13 @@ export default function CategoryList() {
       }
 
       setShowForm(false)
-      loadCategories()
+      void loadCategories(activeVendorId)
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to save category'
       setError(message)
       showToast('Error', message, 'error')
     }
   }
-
-  const isVendorSuperAdminForActiveVendor =
-    role === 'admin' &&
-    !!activeVendorId &&
-    memberships.some((m) => m.vendor.id === activeVendorId && m.isVendorSuperAdmin)
 
   const assignedCategoryIds = permissions?.assigned_category_ids || []
   const permissionFilteredCategories =
@@ -189,28 +186,6 @@ export default function CategoryList() {
   const getAssignedVendorForCategory = (category: Category): Vendor | null => {
     if (!category.vendor_id) return null
     return vendors.find((v) => v.id === category.vendor_id) || null
-  }
-
-  const handleAssignVendorToCategory = async (category: Category, vendorId: string | null) => {
-    try {
-      setAssignSaving(true)
-      setAssignError(null)
-
-      const updates: Partial<Category> = {
-        vendor_id: vendorId,
-      }
-
-      await categoryService.updateCategory(category.id, updates)
-
-      setCategories((prev) =>
-        prev.map((c) => (c.id === category.id ? { ...c, vendor_id: vendorId } : c)),
-      )
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to update assigned shop'
-      setAssignError(message)
-    } finally {
-      setAssignSaving(false)
-    }
   }
 
   const buildVendorInitials = (name: string) =>
@@ -452,7 +427,7 @@ export default function CategoryList() {
                   <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Name</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Parent Category</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Subcategories</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Assigned</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Assigned Shop</th>
                   <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600 uppercase">Actions</th>
                 </tr>
               </thead>
@@ -460,6 +435,7 @@ export default function CategoryList() {
                 {pagedCategories.map((category) => {
                   const children = getChildCategories(category.id)
                   const assignedVendor = getAssignedVendorForCategory(category)
+                  const initials = assignedVendor ? buildVendorInitials(assignedVendor.name) : ''
                   return (
                     <tr key={category.id} className="hover:bg-gray-50 transition-colors">
                       <td className="px-4 py-3">
@@ -483,111 +459,28 @@ export default function CategoryList() {
                           e.stopPropagation()
                         }}
                       >
-                        <DropdownMenu.Root
-                          open={assignCategoryId === category.id}
-                          onOpenChange={(open) => {
-                            if (open) {
-                              setAssignCategoryId(category.id)
-                              setAssignSearch('')
-                              setAssignError(null)
-                            } else if (assignCategoryId === category.id && !assignSaving) {
-                              setAssignCategoryId(null)
-                              setAssignSearch('')
-                              setAssignError(null)
-                            }
-                          }}
-                        >
-                          <DropdownMenu.Trigger asChild>
-                            <button
-                              type="button"
-                              className="inline-flex items-center -space-x-1 px-0 py-0 cursor-pointer bg-transparent border-0"
-                            >
-                              {assignedVendor ? (
-                                <div className="flex -space-x-1">
-                                  {assignedVendor.image_url ? (
-                                    <img
-                                      src={assignedVendor.image_url}
-                                      alt={assignedVendor.name}
-                                      className="w-7 h-7 rounded-full object-cover"
-                                    />
-                                  ) : (
-                                    <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-blue-50 text-xs font-semibold text-blue-700">
-                                      {buildVendorInitials(assignedVendor.name)}
-                                    </span>
-                                  )}
-                                </div>
-                              ) : (
-                                <span className="text-xs text-gray-400">Unassigned</span>
-                              )}
-                            </button>
-                          </DropdownMenu.Trigger>
-                          <DropdownMenu.Portal>
-                            <DropdownMenu.Content className="min-w-[220px] rounded-xl border border-gray-200 bg-white shadow-lg p-2 mr-1 mt-2 z-50 space-y-2">
-                              {vendors.length === 0 ? (
-                                <div className="px-2 py-1 text-xs text-gray-500">No shops available</div>
-                              ) : (
-                                <>
-                                  <div className="px-1">
-                                    <Input
-                                      type="text"
-                                      placeholder="Search shops..."
-                                      value={assignSearch}
-                                      onChange={(e) => setAssignSearch(e.target.value)}
-                                      className="h-8 text-xs border-gray-300"
-                                    />
-                                  </div>
-                                  {assignError && (
-                                    <p className="px-1 text-[11px] text-red-600">{assignError}</p>
-                                  )}
-                                  <div className="max-h-48 overflow-y-auto space-y-1 mt-1">
-                                    {vendors
-                                      .filter((v) =>
-                                        v.name.toLowerCase().includes(assignSearch.toLowerCase()),
-                                      )
-                                      .map((vendor) => {
-                                        const isAssigned = category.vendor_id === vendor.id
-                                        const vendorInitials = vendor.name
-                                          .split(' ')
-                                          .map((part) => part.charAt(0).toUpperCase())
-                                          .slice(0, 2)
-                                          .join('')
-
-                                        return (
-                                          <DropdownMenu.Item
-                                            key={vendor.id}
-                                            className="flex items-center gap-2 px-2 py-1.5 text-xs text-gray-700 rounded cursor-pointer outline-none hover:bg-gray-50"
-                                            onSelect={(event) => {
-                                              event.preventDefault()
-                                              void handleAssignVendorToCategory(category, isAssigned ? null : vendor.id)
-                                            }}
-                                          >
-                                            <span
-                                              className={cn(
-                                                'inline-flex h-3 w-3 rounded-full border border-gray-300',
-                                                isAssigned && 'border-blue-500 bg-blue-500',
-                                              )}
-                                            />
-                                            {vendor.image_url ? (
-                                              <img
-                                                src={vendor.image_url}
-                                                alt={vendor.name}
-                                                className="w-6 h-6 rounded-full object-cover"
-                                              />
-                                            ) : (
-                                              <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-blue-50 text-[10px] font-semibold text-blue-700">
-                                                {vendorInitials}
-                                              </span>
-                                            )}
-                                            <span className="flex-1 truncate">{vendor.name}</span>
-                                          </DropdownMenu.Item>
-                                        )
-                                      })}
-                                  </div>
-                                </>
-                              )}
-                            </DropdownMenu.Content>
-                          </DropdownMenu.Portal>
-                        </DropdownMenu.Root>
+                        <div className="inline-flex items-center gap-2 min-w-0">
+                          {assignedVendor ? (
+                            assignedVendor.image_url ? (
+                              <img
+                                src={assignedVendor.image_url}
+                                alt={assignedVendor.name}
+                                className="w-6 h-6 rounded-full object-cover"
+                              />
+                            ) : (
+                              <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-blue-50 text-[10px] font-semibold text-blue-700">
+                                {initials}
+                              </span>
+                            )
+                          ) : (
+                            <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-gray-100 text-[10px] font-semibold text-gray-500">
+                              —
+                            </span>
+                          )}
+                          <span className="truncate text-xs text-gray-700">
+                            {assignedVendor ? assignedVendor.name : 'Unassigned'}
+                          </span>
+                        </div>
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex gap-1.5 justify-end">

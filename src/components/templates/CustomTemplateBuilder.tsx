@@ -26,6 +26,7 @@ interface CustomTemplateBuilderProps {
     onSave?: () => void
     isFullPage?: boolean
     isPage?: boolean
+    templateId?: string | null
 }
 
 type LayoutVariant =
@@ -176,7 +177,7 @@ interface TemplateData {
     itemsColumnsOrder: ItemsColumnId[]
 }
 
-export default function CustomTemplateBuilder({ open, onClose, onSave, isFullPage = false, isPage = false }: CustomTemplateBuilderProps) {
+export default function CustomTemplateBuilder({ open, onClose, onSave, isFullPage = false, isPage = false, templateId = null }: CustomTemplateBuilderProps) {
     const { activeVendorId, memberships } = useVendor()
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState<string | null>(null)
@@ -243,6 +244,88 @@ export default function CustomTemplateBuilder({ open, onClose, onSave, isFullPag
         itemsColumnsOrder: DEFAULT_ITEMS_COLUMNS_ORDER,
     })
 
+    const [draggingSection, setDraggingSection] = useState<BodySectionId | null>(null)
+    const [draggingHeaderMeta, setDraggingHeaderMeta] = useState<HeaderMetaModuleId | null>(null)
+    const [draggingTotalsModule, setDraggingTotalsModule] = useState<TotalsModuleId | null>(null)
+    const [draggingFooterModule, setDraggingFooterModule] = useState<FooterModuleId | null>(null)
+    const [draggingItemsColumn, setDraggingItemsColumn] = useState<ItemsColumnId | null>(null)
+
+    const [rawTemplateHtml, setRawTemplateHtml] = useState<string>('')
+    const [isRawEditMode, setIsRawEditMode] = useState(false)
+
+    const BUILDER_META_PREFIX = 'XRECEIPT_CUSTOM_TEMPLATE_BUILDER:'
+
+    const encodeBuilderData = (value: TemplateData) => {
+        try {
+            return btoa(unescape(encodeURIComponent(JSON.stringify(value))))
+        } catch {
+            return ''
+        }
+    }
+
+    const decodeBuilderData = (encoded: string): TemplateData | null => {
+        try {
+            const json = decodeURIComponent(escape(atob(encoded)))
+            return JSON.parse(json) as TemplateData
+        } catch {
+            return null
+        }
+    }
+
+    const extractBuilderData = (templateHtml: string): TemplateData | null => {
+        const match = templateHtml.match(
+            /<!--\s*XRECEIPT_CUSTOM_TEMPLATE_BUILDER:([A-Za-z0-9+/=]+)\s*-->/,
+        )
+        if (!match || !match[1]) return null
+        return decodeBuilderData(match[1])
+    }
+
+    useEffect(() => {
+        if (!open) return
+
+        if (!templateId) {
+            setIsRawEditMode(false)
+            setRawTemplateHtml('')
+            return
+        }
+
+        const loadExisting = async () => {
+            try {
+                setLoading(true)
+                setError(null)
+
+                const tpl = await templateService.getTemplateById(templateId)
+                if (!tpl) {
+                    setError('Template not found')
+                    return
+                }
+
+                setData((prev) => ({
+                    ...prev,
+                    templateName: tpl.name || prev.templateName,
+                    templateDescription: tpl.description || prev.templateDescription,
+                }))
+
+                const builderMeta = extractBuilderData(tpl.template_html)
+                if (builderMeta) {
+                    lastAutoCompanyNameRef.current = builderMeta.companyName || ''
+                    setIsRawEditMode(false)
+                    setRawTemplateHtml('')
+                    setData(builderMeta)
+                } else {
+                    setIsRawEditMode(true)
+                    setRawTemplateHtml(tpl.template_html)
+                }
+            } catch (err) {
+                setError(err instanceof Error ? err.message : 'Failed to load template')
+            } finally {
+                setLoading(false)
+            }
+        }
+
+        void loadExisting()
+    }, [open, templateId])
+
     useEffect(() => {
         if (!activeVendorName) return
 
@@ -259,17 +342,12 @@ export default function CustomTemplateBuilder({ open, onClose, onSave, isFullPag
     }, [activeVendorName])
 
     const updateData = (key: keyof TemplateData, value: any) => {
-        setData(prev => ({ ...prev, [key]: value }))
+        setData((prev) => ({ ...prev, [key]: value }))
     }
-    const [draggingSection, setDraggingSection] = useState<BodySectionId | null>(null)
-    const [draggingHeaderMeta, setDraggingHeaderMeta] = useState<HeaderMetaModuleId | null>(null)
-    const [draggingTotalsModule, setDraggingTotalsModule] = useState<TotalsModuleId | null>(null)
-    const [draggingFooterModule, setDraggingFooterModule] = useState<FooterModuleId | null>(null)
-    const [draggingItemsColumn, setDraggingItemsColumn] = useState<ItemsColumnId | null>(null)
 
     const setLayoutVariant = (variant: LayoutVariant) => {
         const config = LAYOUT_PRESETS[variant]
-        setData(prev => ({
+        setData((prev) => ({
             ...prev,
             layoutVariant: variant,
             bodyOrder: [...config.bodyOrder],
@@ -290,6 +368,9 @@ export default function CustomTemplateBuilder({ open, onClose, onSave, isFullPag
     }
 
     const generateTemplateHTML = (): string => {
+        const builderMeta = encodeBuilderData(data)
+        const builderMetaComment = builderMeta ? `<!-- ${BUILDER_META_PREFIX}${builderMeta} -->\n` : ''
+
         const hasCompanyInfo = data.companyName || data.companyEmail || data.companyPhone ||
             data.companyAddress || data.companyCity || data.companyZip ||
             data.companyWebsite || data.companyTaxId
@@ -303,7 +384,7 @@ export default function CustomTemplateBuilder({ open, onClose, onSave, isFullPag
 
         const buildHeaderMetaHTML = () => {
             return headerMetaOrder
-                .map(moduleId => {
+                .map((moduleId) => {
                     if (moduleId === 'receiptNumber' && data.showReceiptNumber) {
                         return `
       <div class="meta-item">
@@ -463,7 +544,7 @@ export default function CustomTemplateBuilder({ open, onClose, onSave, isFullPag
             ? data.itemsColumnsOrder
             : DEFAULT_ITEMS_COLUMNS_ORDER
 
-        const visibleItemsColumns = itemsColumnsOrder.filter(colId => {
+        const visibleItemsColumns = itemsColumnsOrder.filter((colId) => {
             if (colId === 'description') return data.showItemDescription
             if (colId === 'quantity') return data.showItemQuantity
             if (colId === 'price') return data.showItemPrice
@@ -472,7 +553,7 @@ export default function CustomTemplateBuilder({ open, onClose, onSave, isFullPag
         })
 
         const itemsHeaderCellsHTML = visibleItemsColumns
-            .map(colId => {
+            .map((colId) => {
                 if (colId === 'description') return '<th>Description</th>'
                 if (colId === 'quantity') return '<th class="text-center">Quantity</th>'
                 if (colId === 'price') return '<th class="text-right">Price</th>'
@@ -505,7 +586,7 @@ export default function CustomTemplateBuilder({ open, onClose, onSave, isFullPag
             : DEFAULT_TOTALS_ORDER
 
         const totalsRowsHTML = totalsOrder
-            .map(moduleId => {
+            .map((moduleId) => {
                 if (moduleId === 'subtotal' && data.showSubtotal) {
                     return `
         <div class="total-row subtotal">
@@ -556,7 +637,7 @@ export default function CustomTemplateBuilder({ open, onClose, onSave, isFullPag
             : DEFAULT_FOOTER_ORDER
 
         const footerModulesHTML = footerOrder
-            .map(moduleId => {
+            .map((moduleId) => {
                 if (moduleId === 'notes' && data.footerNotes) {
                     return `
       <div class="footer-notes">
@@ -590,11 +671,10 @@ export default function CustomTemplateBuilder({ open, onClose, onSave, isFullPag
         const orderFromState = data.bodyOrder && data.bodyOrder.length ? data.bodyOrder : layoutConfig.bodyOrder
 
         const bodyHTML = orderFromState
-            .map(section => bodySectionMap[section])
+            .map((section) => bodySectionMap[section])
             .join('\n')
 
-        return `
-<!DOCTYPE html>
+        return `${builderMetaComment}<!DOCTYPE html>
 <html>
 <head>
   <meta charset="UTF-8">
@@ -1000,7 +1080,7 @@ export default function CustomTemplateBuilder({ open, onClose, onSave, isFullPag
             return
         }
 
-        if (!activeVendorId) {
+        if (!templateId && !activeVendorId) {
             setError('Please select a shop from the header before creating templates.')
             return
         }
@@ -1009,14 +1089,22 @@ export default function CustomTemplateBuilder({ open, onClose, onSave, isFullPag
             setLoading(true)
             setError(null)
 
-            const templateHtml = generateTemplateHTML()
+            const templateHtml = templateId && isRawEditMode ? rawTemplateHtml : generateTemplateHTML()
 
-            await templateService.createTemplate({
-                name: data.templateName,
-                description: data.templateDescription,
-                template_html: templateHtml,
-                vendor_id: activeVendorId,
-            })
+            if (templateId) {
+                await templateService.updateTemplate(templateId, {
+                    name: data.templateName,
+                    description: data.templateDescription,
+                    template_html: templateHtml,
+                })
+            } else {
+                await templateService.createTemplate({
+                    name: data.templateName,
+                    description: data.templateDescription,
+                    template_html: templateHtml,
+                    vendor_id: activeVendorId,
+                })
+            }
 
             onClose()
             if (onSave) onSave()
@@ -1363,6 +1451,24 @@ export default function CustomTemplateBuilder({ open, onClose, onSave, isFullPag
                                             Configure products/items table and totals section
                                         </p>
                                     </div>
+
+                                    {templateId && isRawEditMode && (
+                                        <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 space-y-3">
+                                            <p className="text-sm font-semibold text-amber-900">Editing raw HTML</p>
+                                            <p className="text-xs text-amber-800">
+                                                This template was created outside of the builder (no builder metadata found). You can edit its HTML below.
+                                            </p>
+                                            <div className="space-y-2">
+                                                <Label htmlFor="raw-template-html" className="text-xs font-semibold text-amber-900">Template HTML</Label>
+                                                <textarea
+                                                    id="raw-template-html"
+                                                    value={rawTemplateHtml}
+                                                    onChange={(e) => setRawTemplateHtml(e.target.value)}
+                                                    className="w-full px-3 py-2 border border-amber-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-400 font-mono text-xs bg-white min-h-[220px]"
+                                                />
+                                            </div>
+                                        </div>
+                                    )}
 
                                     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
                                         {/* Items Section */}
@@ -2048,7 +2154,7 @@ export default function CustomTemplateBuilder({ open, onClose, onSave, isFullPag
                                 title="Template preview"
                                 className="w-full border-0 rounded-md bg-white"
                                 style={{ height: "640px" }}
-                                srcDoc={generateTemplateHTML()}
+                                srcDoc={templateId && isRawEditMode ? rawTemplateHtml : generateTemplateHTML()}
                             />
                         </div>
                     </div>

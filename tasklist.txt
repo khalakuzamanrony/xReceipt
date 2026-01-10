@@ -6,4 +6,48 @@
 6. add red asterisk to all mandatory fields applicable for all forms of entire site
 7. make the receipt number unique and short of 10 digit and it should be unique and must be based on shop name, and incremental number
 8. on receipt, the company name wll be the selected shop name , so filled the receipt builder company name with the selected shop name and can be edited from here 
-9.  no need to show here company name 
+9. no need to show here company name 
+
+
+
+10. If a do a simple reload it holds the old data and layout, doing hard refresh shows the updated data
+--11. admin can see all systems product after reload
+--12. admin can edit and delete with view permission 
+--13. Super admin can see only his shops data such as receipts, templates, admins , products, categories etc
+--14. Dashboard data are not showing for admins
+--15. As admin Unable to update categories 
+--16. grand admin > Add/edit user , need to work on assign specific part
+``17. unable to set image for admin AS GRAND USER
+~~18. Remove shop name from below admin name on user tab, and show tooltip on hover on assign column shops name, also make column title from assign to ASSIGNED SHOP
+19. Need to work on permissions 
+    . admins permissions should be shop specific, 
+    . like an admin can be assigned to multiple shops but he can have full permission for a shop and also he can have a very small permission for another shop
+20. Deleting any user from system should also delete from superbase authentication too also delete from user table 
+~~21. On add user modal , i want to show data in tabs like basic info as a tab and permission in separate tab~~
+~~22. on Receipt page do the followings~~
+~~    . receipt can be associated with only one shop, so remove multi selectable and show only the shop under whose the receipt is created.~~
+~~    . change column name from “ASSIGNED” to “ASSIGNED SHOP”~~
+~~    . Unable to edit receipt and save~~
+~~23. on Receipt Template page do the followings~~
+    . clicking edit should open the template bulder with existing data 
+    . remove preview column 
+    . Rename ASSIGNED to “ASSIGNED SHOP”
+    . Add new column “USED” ; this will show total number how much this template is already used
+~~24. on Products page do the following changes~~
+    . Rename “ASSIGNED” to “ASSIGNED SHOP” 
+    . remove multi selection feature from assigned column and it should be single one meaning 1 product can be assigned to only one shop
+    . Add a new column “SOLD” this will show total number of how many times this product is sold 
+~~25. on Categories page do the following changes~~
+    . Rename “ASSIGNED” to “ASSIGNED SHOP” 
+    . remove multi selection feature from assigned column and it should be single selected meaning 1 category can be assigned to only one shop
+~~26. on Shops page do the following changes~~
+    . show email below shop name 
+    . remove email column
+    . Make ASSIGN ADMIN multi selectable 
+    . make the action buttons borderless 
+    . remove the 2nd action button
+    . 
+27. Responsiveness
+    . Need to work on this for each page
+28. 
+

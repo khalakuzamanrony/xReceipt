@@ -16,6 +16,15 @@ self.addEventListener('install', (event) => {
 
 // Fetch event
 self.addEventListener('fetch', (event) => {
+  // Only handle GET requests, and ignore non-http(s) schemes (e.g. chrome-extension://)
+  try {
+    if (event.request.method !== 'GET') return
+    const url = new URL(event.request.url)
+    if (url.protocol !== 'http:' && url.protocol !== 'https:') return
+  } catch {
+    return
+  }
+
   event.respondWith(
     caches.match(event.request).then((response) => {
       if (response) {

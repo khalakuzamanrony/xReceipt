@@ -20,6 +20,8 @@ export default function App() {
     return stored || 'dashboard'
   })
 
+  const [templateBuilderTemplateId, setTemplateBuilderTemplateId] = useState<string | null>(null)
+
   useEffect(() => {
     if (typeof window === 'undefined') return
     window.localStorage.setItem('xreceipt.currentPage', currentPage)
@@ -47,9 +49,24 @@ export default function App() {
       case 'receipts':
         return <ReceiptList />
       case 'templates':
-        return <TemplateList onNavigateToBuilder={() => setCurrentPage('template-builder')} />
+        return (
+          <TemplateList
+            onNavigateToBuilder={(templateId?: string) => {
+              setTemplateBuilderTemplateId(templateId ?? null)
+              setCurrentPage('template-builder')
+            }}
+          />
+        )
       case 'template-builder':
-        return <TemplateBuilderPage onBack={() => setCurrentPage('templates')} />
+        return (
+          <TemplateBuilderPage
+            templateId={templateBuilderTemplateId}
+            onBack={() => {
+              setTemplateBuilderTemplateId(null)
+              setCurrentPage('templates')
+            }}
+          />
+        )
       case 'products':
         return <ProductList />
       case 'categories':

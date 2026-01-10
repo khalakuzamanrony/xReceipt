@@ -25,8 +25,8 @@ interface TopProductRow {
 }
 
 export default function Dashboard() {
-  const { role, permissions } = useAuth()
-  const { memberships, activeVendorId, loading: vendorLoading, error: vendorError } = useVendor()
+  const { role } = useAuth()
+  const { memberships, activeVendorId, permissions, loading: vendorLoading, error: vendorError } = useVendor()
 
   const [dateRange, setDateRange] = useState<DateRangeId>('30d')
 
@@ -57,10 +57,15 @@ export default function Dashboard() {
     return match?.vendor?.name ?? null
   }, [activeVendorId, memberships])
 
-  const canViewReceipts = role === 'grand_user' || permissions?.can_view_receipts
-  const canViewProducts = role === 'grand_user' || permissions?.can_view_products
-  const canViewCategories = role === 'grand_user' || permissions?.can_view_categories
-  const canViewTemplates = role === 'grand_user' || permissions?.can_view_templates
+  const isAdmin = role === 'admin'
+  const adminPermissionFallback = isAdmin && !permissions
+
+  // Dashboard should always show shop-scoped metrics for admins.
+  // Permissions can still be enforced in the feature pages (receipts/products/etc).
+  const canViewReceipts = role === 'grand_user' || isAdmin || permissions?.can_view_receipts || adminPermissionFallback
+  const canViewProducts = role === 'grand_user' || isAdmin || permissions?.can_view_products || adminPermissionFallback
+  const canViewCategories = role === 'grand_user' || isAdmin || permissions?.can_view_categories || adminPermissionFallback
+  const canViewTemplates = role === 'grand_user' || isAdmin || permissions?.can_view_templates || adminPermissionFallback
 
   useEffect(() => {
     void loadDashboard()
@@ -94,10 +99,45 @@ export default function Dashboard() {
       setLoading(true)
       setError(null)
 
+      const activeVendorAllowed = !activeVendorId || memberships.some((m) => m.vendor.id === activeVendorId)
+
+      if (isAdmin && (!activeVendorId || !activeVendorAllowed)) {
+        setStats({
+          admins: 0,
+          products: 0,
+          categories: 0,
+          templates: 0,
+          receipts: 0,
+          revenue: 0,
+          avgReceipt: 0,
+          status: {
+            draft: { count: 0, amount: 0 },
+            sent: { count: 0, amount: 0 },
+            paid: { count: 0, amount: 0 },
+          } as StatusSummary,
+        })
+        setRecentReceipts([])
+        setTopProducts([])
+        return
+      }
+
       const startDate = getStartDate(dateRange)
 
-      const [admins, products, categories, templates, receipts] = await Promise.all([
-        adminService.getAllAdmins(),
+      const [adminsCount, products, categories, templates, receipts] = await Promise.all([
+        (async () => {
+          if (!activeVendorId) {
+            const admins = await adminService.getAllAdmins()
+            return admins.length
+          }
+          const { data, error: adminCountError } = await supabase
+            .from('vendor_admins')
+            .select('admin_id')
+            .eq('vendor_id', activeVendorId)
+
+          if (adminCountError) throw adminCountError
+          const ids = Array.from(new Set((data || []).map((row: any) => row.admin_id).filter(Boolean)))
+          return ids.length
+        })(),
         canViewProducts ? productService.getAllProducts(activeVendorId ?? undefined) : Promise.resolve([]),
         canViewCategories ? categoryService.getAllCategories(activeVendorId ?? undefined) : Promise.resolve([]),
         canViewTemplates ? templateService.getAllTemplates(activeVendorId ?? undefined) : Promise.resolve([]),
@@ -132,7 +172,7 @@ export default function Dashboard() {
       const avgReceipt = receiptsCount > 0 ? revenue / receiptsCount : 0
 
       setStats({
-        admins: admins.length,
+        admins: adminsCount,
         products: products.length,
         categories: categories.length,
         templates: templates.length,

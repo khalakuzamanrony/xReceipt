@@ -43,6 +43,10 @@ export interface AdminPermissions {
   updated_at: string
 }
 
+export interface AdminVendorPermissions extends AdminPermissions {
+  vendor_id: string
+}
+
 // Product types
 export interface Product {
   id: string

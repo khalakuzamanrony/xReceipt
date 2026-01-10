@@ -4,9 +4,10 @@ import { Sparkles, ArrowLeft } from 'lucide-react'
 
 interface TemplateBuilderPageProps {
   onBack: () => void
+  templateId?: string | null
 }
 
-export default function TemplateBuilderPage({ onBack }: TemplateBuilderPageProps) {
+export default function TemplateBuilderPage({ onBack, templateId }: TemplateBuilderPageProps) {
   return (
     <div className="space-y-4">
       <div className="bg-white p-4 rounded-lg border border-gray-200 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
@@ -33,6 +34,7 @@ export default function TemplateBuilderPage({ onBack }: TemplateBuilderPageProps
           onClose={onBack}
           onSave={onBack}
           isPage={true}
+          templateId={templateId}
         />
       </div>
     </div>

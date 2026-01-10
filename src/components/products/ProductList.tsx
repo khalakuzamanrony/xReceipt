@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import type { Product, Vendor } from '@/types'
 import { productService } from '@/services/productService'
 import { categoryService } from '@/services/categoryService'
+import { receiptService } from '@/services/receiptService'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Label } from '@/components/ui/Label'
@@ -13,10 +14,16 @@ import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
 import { cn } from '@/lib/utils'
 
 export default function ProductList() {
-  const { role, permissions } = useAuth()
-  const canViewProducts = role === 'grand_user' || !!permissions?.can_view_products
-  const canCreateProducts = role === 'grand_user' || !!permissions?.can_create_products
-  const { memberships, activeVendorId, loading: vendorLoading } = useVendor()
+  const { role } = useAuth()
+  const { memberships, activeVendorId, permissions, loading: vendorLoading } = useVendor()
+
+  const isVendorSuperAdminForActiveVendor =
+    role === 'admin' &&
+    !!activeVendorId &&
+    memberships.some((m) => m.vendor.id === activeVendorId && m.isVendorSuperAdmin)
+
+  const canViewProducts = role === 'grand_user' || isVendorSuperAdminForActiveVendor || !!permissions?.can_view_products
+  const canCreateProducts = role === 'grand_user' || isVendorSuperAdminForActiveVendor || !!permissions?.can_create_products
   const [products, setProducts] = useState<Product[]>([])
   const [categories, setCategories] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
@@ -40,11 +47,12 @@ export default function ProductList() {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [productToDelete, setProductToDelete] = useState<Product | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
+  const [productSoldCounts, setProductSoldCounts] = useState<Record<string, number>>({})
 
   useEffect(() => {
     if (vendorLoading) return
 
-    if (role === 'admin' && !activeVendorId) {
+    if (!activeVendorId) {
       setProducts([])
       setCategories([])
       setLoading(false)
@@ -59,19 +67,6 @@ export default function ProductList() {
   const getAssignedVendorForProduct = (product: Product): Vendor | null => {
     if (!product.vendor_id) return null
     return vendors.find((v) => v.id === product.vendor_id) || null
-  }
-
-  const handleAssignVendorToProduct = async (product: Product, vendorId: string | null) => {
-    try {
-      const update: Partial<Product> = {
-        vendor_id: vendorId,
-      }
-      await productService.updateProduct(product.id, update)
-      setProducts((prev) => prev.map((p) => (p.id === product.id ? { ...p, vendor_id: vendorId } : p)))
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to update assigned shop'
-      setError(message)
-    }
   }
 
   const buildVendorInitials = (name: string) =>
@@ -94,6 +89,19 @@ export default function ProductList() {
       ])
       setProducts(productsData)
       setCategories(categoriesData)
+
+      const productIds = productsData.map((p) => p.id)
+      if (productIds.length > 0) {
+        try {
+          const counts = await receiptService.getSoldCountsByProductIds(productIds, vendorId ?? null)
+          setProductSoldCounts(counts)
+        } catch (countErr) {
+          console.error('Failed to load product sold counts', countErr)
+          setProductSoldCounts({})
+        }
+      } else {
+        setProductSoldCounts({})
+      }
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to load data'
       setError(errorMessage)
@@ -102,11 +110,6 @@ export default function ProductList() {
       setLoading(false)
     }
   }
-
-  const isVendorSuperAdminForActiveVendor =
-    role === 'admin' &&
-    !!activeVendorId &&
-    memberships.some((m) => m.vendor.id === activeVendorId && m.isVendorSuperAdmin)
 
   const assignedProductIds = permissions?.assigned_product_ids || []
   const permissionFilteredProducts =
@@ -263,7 +266,7 @@ export default function ProductList() {
       }
 
       setShowForm(false)
-      loadData()
+      void loadData(activeVendorId)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to save product')
     }
@@ -296,12 +299,12 @@ export default function ProductList() {
     )
   }
 
-  if (role === 'admin' && !activeVendorId) {
+  if (!activeVendorId) {
     return (
       <div className="bg-white rounded-lg border border-gray-200 p-8 text-center">
         <Package size={32} className="text-gray-300 mx-auto mb-3" />
-        <p className="text-gray-800 font-semibold">No shop assigned</p>
-        <p className="text-gray-500 text-sm mt-1">You are not assigned to any shop. Please contact a Grand User.</p>
+        <p className="text-gray-800 font-semibold">Select a shop</p>
+        <p className="text-gray-500 text-sm mt-1">Please select a shop from the sidebar to view products.</p>
       </div>
     )
   }
@@ -577,7 +580,8 @@ export default function ProductList() {
                   <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Name</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Description</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Category</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Assigned</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Assigned Shop</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Sold</th>
                   <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600 uppercase">
                     <button
                       type="button"
@@ -595,6 +599,7 @@ export default function ProductList() {
                 {pagedProducts.map((product) => {
                   const assignedVendor = getAssignedVendorForProduct(product)
                   const initials = assignedVendor ? buildVendorInitials(assignedVendor.name) : ''
+                  const soldCount = productSoldCounts[product.id] ?? 0
 
                   return (
                     <tr key={product.id} className="hover:bg-gray-50 transition-colors">
@@ -617,73 +622,33 @@ export default function ProductList() {
                           e.stopPropagation()
                         }}
                       >
-                        <DropdownMenu.Root>
-                          <DropdownMenu.Trigger asChild>
-                            <button
-                              type="button"
-                              className="inline-flex items-center -space-x-1 px-0 py-0 cursor-pointer bg-transparent border-0"
-                            >
-                              {assignedVendor ? (
-                                <div className="flex -space-x-1">
-                                  {assignedVendor.image_url ? (
-                                    <img
-                                      src={assignedVendor.image_url}
-                                      alt={assignedVendor.name}
-                                      className="w-7 h-7 rounded-full object-cover"
-                                    />
-                                  ) : (
-                                    <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-blue-50 text-xs font-semibold text-blue-700">
-                                      {initials}
-                                    </span>
-                                  )}
-                                </div>
-                              ) : (
-                                <span className="text-xs text-gray-400">Unassigned</span>
-                              )}
-                            </button>
-                          </DropdownMenu.Trigger>
-                          <DropdownMenu.Portal>
-                            <DropdownMenu.Content className="min-w-[220px] rounded-xl border border-gray-200 bg-white shadow-lg p-2 mr-1 mt-2 z-50 space-y-1">
-                              <p className="text-[11px] font-semibold text-gray-500 uppercase px-1 pb-1">
-                                Assign shop
-                              </p>
-                              {vendors.map((vendor) => {
-                                const isAssigned = product.vendor_id === vendor.id
-                                const vendorInitials = buildVendorInitials(vendor.name)
-
-                                return (
-                                  <DropdownMenu.Item
-                                    key={vendor.id}
-                                    className="flex items-center gap-2 px-2 py-1.5 text-xs text-gray-700 rounded cursor-pointer outline-none hover:bg-gray-50"
-                                    onSelect={(event) => {
-                                      event.preventDefault()
-                                      void handleAssignVendorToProduct(product, isAssigned ? null : vendor.id)
-                                    }}
-                                  >
-                                    <span
-                                      className={cn(
-                                        'inline-flex h-3 w-3 rounded-full border border-gray-300',
-                                        isAssigned && 'border-blue-500 bg-blue-500',
-                                      )}
-                                    />
-                                    {vendor.image_url ? (
-                                      <img
-                                        src={vendor.image_url}
-                                        alt={vendor.name}
-                                        className="w-6 h-6 rounded-full object-cover"
-                                      />
-                                    ) : (
-                                      <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-blue-50 text-[10px] font-semibold text-blue-700">
-                                        {vendorInitials}
-                                      </span>
-                                    )}
-                                    <span className="flex-1 truncate">{vendor.name}</span>
-                                  </DropdownMenu.Item>
-                                )
-                              })}
-                            </DropdownMenu.Content>
-                          </DropdownMenu.Portal>
-                        </DropdownMenu.Root>
+                        <div className="inline-flex items-center gap-2 min-w-0">
+                          {assignedVendor ? (
+                            assignedVendor.image_url ? (
+                              <img
+                                src={assignedVendor.image_url}
+                                alt={assignedVendor.name}
+                                className="w-6 h-6 rounded-full object-cover"
+                              />
+                            ) : (
+                              <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-blue-50 text-[10px] font-semibold text-blue-700">
+                                {initials}
+                              </span>
+                            )
+                          ) : (
+                            <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-gray-100 text-[10px] font-semibold text-gray-500">
+                              —
+                            </span>
+                          )}
+                          <span className="truncate text-xs text-gray-700">
+                            {assignedVendor ? assignedVendor.name : 'Unassigned'}
+                          </span>
+                        </div>
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className="inline-flex items-center rounded-full bg-gray-100 text-gray-700 px-2.5 py-1 text-xs font-semibold">
+                          {soldCount}
+                        </span>
                       </td>
                       <td className="px-4 py-3 text-right">
                         <p className="text-sm font-semibold text-gray-900">${product.price.toFixed(2)}</p>
