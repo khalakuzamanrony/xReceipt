@@ -49,5 +49,13 @@
     . 
 27. Responsiveness
     . Need to work on this for each page
-28. 
+28. i see a issue, as grand user, when all shop is selected, he can see all items like receipts, templates, products, categories etc he will see all the items  in the db, but  create button will be disabled and show tooltip as "Select a shop first" then after he selects any shop the create button should be enabled,
+29. grand user can see the dropdown items in modals(new receipt , receipt template dropdown) , show only items in the selected shop, not all the items of db, also applies for  super admin and admin
+30. as grand user  then receipt tab, show all receipts of all shops if all shops is selected, if any shop is selected then show only receipts of that shop
+31. Need to add image upload functionality for shop, images will be saved at db , and reupload will replace the image and delete wil also delete the image from db storage too
+32. as admin he can not see menu options, though admin has permissions for those menu tab,
+33. as grand admin, shop page, clicking on assigned admin, it show 2 modal, on the dropdown make the modal multi selectable with highlighted with light shade color , or you can use checkbox similar we have on user page 
 
+
+34. still double dropdown issue on receipt template page
+35. on shop page, the assign admin dropdown should be multi selectable and shows exact behavior of user page assigned admin drpdown

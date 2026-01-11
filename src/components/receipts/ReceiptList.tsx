@@ -22,6 +22,8 @@ export default function ReceiptList() {
   const { role } = useAuth()
   const { memberships, activeVendorId, permissions, loading: vendorLoading } = useVendor()
 
+  const isGrandUserAllShops = role === 'grand_user' && !activeVendorId
+
   const isVendorSuperAdminForActiveVendor =
     role === 'admin' &&
     !!activeVendorId &&
@@ -89,16 +91,20 @@ export default function ReceiptList() {
   const [quickProductError, setQuickProductError] = useState<string | null>(null)
   const [showQuickProductForm, setShowQuickProductForm] = useState(false)
 
+  const [modalTemplates, setModalTemplates] = useState<any[]>([])
+
   const assignedProductIds = permissions?.assigned_product_ids || []
   const assignedTemplateIds = permissions?.assigned_template_ids || []
 
   const vendors: Vendor[] = memberships.map((m) => m.vendor)
   const activeVendorName = activeVendorId ? vendors.find((v) => v.id === activeVendorId)?.name || '' : ''
 
+  const vendorIdForReceiptModal = activeVendorId || selectedReceipt?.vendor_id || null
+
   useEffect(() => {
     if (vendorLoading) return
 
-    if (!activeVendorId) {
+    if (!activeVendorId && !isGrandUserAllShops) {
       setReceipts([])
       setTemplates([])
       setProducts([])
@@ -106,7 +112,7 @@ export default function ReceiptList() {
       return
     }
 
-    loadData()
+    loadData(activeVendorId ?? null)
   }, [vendorLoading, activeVendorId, role])
 
   const loadData = async (vendorId?: string | null) => {
@@ -256,6 +262,41 @@ export default function ReceiptList() {
     }
   }
 
+  const templatesForReceiptModal = (() => {
+    if (!vendorIdForReceiptModal) return templates
+    return templates.filter((tpl: any) => tpl.vendor_id === vendorIdForReceiptModal)
+  })()
+
+  const productsForReceiptModal = (() => {
+    if (!vendorIdForReceiptModal) return products
+    return products.filter((p: any) => p.vendor_id === vendorIdForReceiptModal)
+  })()
+
+  useEffect(() => {
+    if (!showForm) {
+      setModalTemplates([])
+      return
+    }
+
+    if (!vendorIdForReceiptModal) {
+      setModalTemplates([])
+      return
+    }
+
+    // Provide an immediate filtered fallback while we fetch the authoritative list
+    // (includes templates assigned via receipt_template_vendors).
+    setModalTemplates(templatesForReceiptModal)
+
+    templateService
+      .getAllTemplates(vendorIdForReceiptModal)
+      .then((rows) => {
+        setModalTemplates(rows)
+      })
+      .catch(() => {
+        // Keep fallback
+      })
+  }, [showForm, vendorIdForReceiptModal])
+
   const addItem = () => {
     if (!selectedProductId || !itemQuantity) return
 
@@ -264,8 +305,8 @@ export default function ReceiptList() {
       !isVendorSuperAdminForActiveVendor &&
       permissions?.can_view_products &&
       assignedProductIds.length > 0
-        ? products.filter((p) => assignedProductIds.includes(p.id))
-        : products
+        ? productsForReceiptModal.filter((p) => assignedProductIds.includes(p.id))
+        : productsForReceiptModal
 
     const product = permissionFilteredProducts.find(p => p.id === selectedProductId)
     if (!product) return
@@ -292,7 +333,8 @@ export default function ReceiptList() {
   }
 
   const handleQuickCreateProduct = async () => {
-    if (!activeVendorId) {
+    const vendorId = activeVendorId || vendorIdForReceiptModal
+    if (!vendorId) {
       setQuickProductError('Please select a shop from the header before creating products.')
       return
     }
@@ -317,7 +359,7 @@ export default function ReceiptList() {
         description: quickProductDescription.trim() || null,
         price,
         category_id: null,
-        vendor_id: activeVendorId,
+        vendor_id: vendorId,
       }
 
       const newProduct = await productService.createProduct(productData)
@@ -879,10 +921,15 @@ export default function ReceiptList() {
 
               {/* Add Button */}
               {canCreateReceipts && (
-                <Button onClick={handleAddNew} size="sm">
-                  <Plus size={16} />
-                  New Receipt
-                </Button>
+                <span
+                  title={isGrandUserAllShops ? 'Select a shop first' : undefined}
+                  className="inline-flex"
+                >
+                  <Button onClick={handleAddNew} size="sm" disabled={isGrandUserAllShops}>
+                    <Plus size={16} />
+                    New Receipt
+                  </Button>
+                </span>
               )}
             </div>
           </div>
@@ -903,7 +950,7 @@ export default function ReceiptList() {
       {/* Receipt Form Modal */}
       {showForm && (
         <Dialog open={true} onOpenChange={setShowForm}>
-          <DialogContent className="max-w-2xl w-full h-[90vh] p-0 flex flex-col">
+          <DialogContent className="max-w-2xl max-h-[calc(100dvh-2rem)] p-0 flex flex-col overflow-hidden">
             <form onSubmit={handleSubmit} className="flex flex-col h-full">
               <DialogHeader className="px-6 pt-6 pb-4 border-b border-gray-200 bg-white">
                 <DialogTitle className="text-2xl">
@@ -996,14 +1043,15 @@ export default function ReceiptList() {
               <div>
                 <Label htmlFor="template" className="text-sm font-medium text-gray-700" required>Receipt Template</Label>
                 {(() => {
+                  const baseTemplates = vendorIdForReceiptModal ? modalTemplates : templatesForReceiptModal
                   const permissionFilteredTemplates =
                     role === 'admin' &&
                     !isVendorSuperAdminForActiveVendor &&
                     permissions?.can_view_templates &&
                     permissions?.can_assign_receipt_templates &&
                     assignedTemplateIds.length > 0
-                      ? templates.filter((template) => assignedTemplateIds.includes(template.id))
-                      : templates
+                      ? baseTemplates.filter((template: any) => assignedTemplateIds.includes(template.id))
+                      : baseTemplates
 
                   return (
                     <select
@@ -1114,8 +1162,8 @@ export default function ReceiptList() {
                           role === 'admin' &&
                           permissions?.can_view_products &&
                           assignedProductIds.length > 0
-                            ? products.filter((product) => assignedProductIds.includes(product.id))
-                            : products
+                            ? productsForReceiptModal.filter((product) => assignedProductIds.includes(product.id))
+                            : productsForReceiptModal
 
                         return (
                           <select
@@ -1307,7 +1355,114 @@ export default function ReceiptList() {
         </div>
       ) : (
         <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
-          <div className="overflow-x-auto">
+          {/* Mobile cards */}
+          <div className="md:hidden divide-y divide-gray-200">
+            {pagedReceipts.map((receipt) => {
+              const vendor = receipt.vendor_id ? vendors.find((v) => v.id === receipt.vendor_id) : null
+              const templateName = getTemplateName(receipt.template_id)
+              const createdAt = new Date(receipt.created_at).toLocaleString()
+
+              return (
+                <div
+                  key={receipt.id}
+                  className="p-4 space-y-3 cursor-pointer"
+                  onClick={() => openDetails(receipt)}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-gray-900 truncate">{receipt.customer_name}</p>
+                      <p className="text-xs text-gray-500 truncate">{receipt.customer_email || '—'}</p>
+                      <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-gray-600">
+                        <span className="font-mono">{getShortReceiptId(receipt)}</span>
+                        <span className="text-gray-400">•</span>
+                        <span className="truncate max-w-[220px]">{templateName || '—'}</span>
+                      </div>
+                    </div>
+
+                    <div className="text-right flex-shrink-0">
+                      <p className="text-sm font-bold text-gray-900">${(receipt.total ?? 0).toFixed(2)}</p>
+                      <p className="text-[11px] text-gray-500 mt-0.5">{createdAt}</p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-2 min-w-0">
+                      {vendor ? (
+                        vendor.image_url ? (
+                          <img
+                            src={vendor.image_url}
+                            alt={vendor.name}
+                            className="w-7 h-7 rounded-full object-cover"
+                          />
+                        ) : (
+                          <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-blue-50 text-xs font-semibold text-blue-700">
+                            {buildVendorInitials(vendor.name)}
+                          </span>
+                        )
+                      ) : (
+                        <span className="text-xs text-gray-400">Unassigned</span>
+                      )}
+                      {vendor && <span className="text-xs text-gray-700 truncate">{vendor.name}</span>}
+                    </div>
+
+                    <div className="flex items-center gap-1.5">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          void openPreview(receipt, 'view')
+                        }}
+                        title="Preview"
+                        className="h-9 w-9 p-0 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-full"
+                      >
+                        <Eye size={16} />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          void handleDirectDownload(receipt)
+                        }}
+                        title="Download PDF"
+                        className="h-9 w-9 p-0 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-full"
+                      >
+                        <Download size={16} />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          handleEdit(receipt)
+                        }}
+                        title="Edit"
+                        className="h-9 w-9 p-0 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-full"
+                      >
+                        <Edit size={16} />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          handleRequestDelete(receipt)
+                        }}
+                        className="h-9 w-9 p-0 text-red-500 hover:text-red-600 hover:bg-red-50 rounded-full"
+                        title="Delete"
+                      >
+                        <Trash2 size={16} />
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+
+          {/* Desktop table */}
+          <div className="hidden md:block overflow-x-auto">
             <table className="w-full">
               <thead className="bg-gray-50 border-b border-gray-200">
                 <tr>
@@ -1448,12 +1603,12 @@ export default function ReceiptList() {
           </div>
 
           {/* Pagination */}
-          <div className="px-4 py-2 border-t border-gray-200 flex items-center justify-between text-xs text-gray-600">
+          <div className="px-4 py-3 border-t border-gray-200 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 text-xs text-gray-600">
             <div>
               Showing {totalReceipts === 0 ? 0 : startIndex + 1}–
               {Math.min(startIndex + rowsPerPage, totalReceipts)} of {totalReceipts}
             </div>
-            <div className="flex items-center gap-3">
+            <div className="flex flex-col sm:flex-row sm:items-center gap-3">
               <div className="flex items-center gap-1">
                 <span className="text-gray-500">Rows per page</span>
                 <select
@@ -1470,7 +1625,7 @@ export default function ReceiptList() {
                   <option value={50}>50</option>
                 </select>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 justify-between sm:justify-start">
                 <button
                   type="button"
                   onClick={() => setPage((prev) => Math.max(1, prev - 1))}
@@ -1507,7 +1662,7 @@ export default function ReceiptList() {
             }
           }}
         >
-          <DialogContent className="max-w-sm w-full p-0 flex flex-col">
+          <DialogContent className="max-w-sm p-0 flex flex-col">
             <DialogHeader className="px-6 pt-6 pb-3 border-b border-gray-200 bg-white">
               <DialogTitle className="text-lg">Delete Receipt</DialogTitle>
             </DialogHeader>

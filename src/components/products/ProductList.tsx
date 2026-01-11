@@ -17,6 +17,8 @@ export default function ProductList() {
   const { role } = useAuth()
   const { memberships, activeVendorId, permissions, loading: vendorLoading } = useVendor()
 
+  const isGrandUserAllShops = role === 'grand_user' && !activeVendorId
+
   const isVendorSuperAdminForActiveVendor =
     role === 'admin' &&
     !!activeVendorId &&
@@ -52,14 +54,14 @@ export default function ProductList() {
   useEffect(() => {
     if (vendorLoading) return
 
-    if (!activeVendorId) {
+    if (!activeVendorId && !isGrandUserAllShops) {
       setProducts([])
       setCategories([])
       setLoading(false)
       return
     }
 
-    void loadData(activeVendorId)
+    void loadData(activeVendorId ?? null)
   }, [vendorLoading, activeVendorId, role])
 
   const vendors: Vendor[] = memberships.map((m) => m.vendor)
@@ -299,7 +301,7 @@ export default function ProductList() {
     )
   }
 
-  if (!activeVendorId) {
+  if (!activeVendorId && role !== 'grand_user') {
     return (
       <div className="bg-white rounded-lg border border-gray-200 p-8 text-center">
         <Package size={32} className="text-gray-300 mx-auto mb-3" />
@@ -308,6 +310,12 @@ export default function ProductList() {
       </div>
     )
   }
+
+  const categoriesForModal = (() => {
+    const vendorId = activeVendorId || selectedProduct?.vendor_id || null
+    if (!vendorId) return categories
+    return categories.filter((cat: any) => cat.vendor_id === vendorId)
+  })()
 
   return (
     <div className="space-y-4">
@@ -450,10 +458,15 @@ export default function ProductList() {
               </DropdownMenu.Root>
 
               {canCreateProducts && (
-                <Button onClick={handleAddNew} size="sm">
-                  <Plus size={16} />
-                  Add Product
-                </Button>
+                <span
+                  title={isGrandUserAllShops ? 'Select a shop first' : undefined}
+                  className="inline-flex"
+                >
+                  <Button onClick={handleAddNew} size="sm" disabled={isGrandUserAllShops}>
+                    <Plus size={16} />
+                    Add Product
+                  </Button>
+                </span>
               )}
             </div>
           </div>
@@ -529,7 +542,7 @@ export default function ProductList() {
                   required
                 >
                   <option value="">Select a category</option>
-                  {categories.map((cat) => (
+                  {categoriesForModal.map((cat: any) => (
                     <option key={cat.id} value={cat.id}>
                       {cat.name}
                     </option>
@@ -573,7 +586,85 @@ export default function ProductList() {
         </div>
       ) : (
         <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
-          <div className="overflow-x-auto">
+          {/* Mobile cards */}
+          <div className="md:hidden divide-y divide-gray-200">
+            {pagedProducts.map((product) => {
+              const assignedVendor = getAssignedVendorForProduct(product)
+              const initials = assignedVendor ? buildVendorInitials(assignedVendor.name) : ''
+              const soldCount = productSoldCounts[product.id] ?? 0
+
+              return (
+                <div key={product.id} className="p-4 space-y-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-gray-900 truncate">{product.name}</p>
+                      <p className="text-xs text-gray-500 truncate">{product.description || '—'}</p>
+                      <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-gray-600">
+                        <span className="truncate max-w-[240px]">{getCategoryName(product.category_id)}</span>
+                        <span className="text-gray-400">•</span>
+                        <span className="font-semibold text-gray-900">${product.price.toFixed(2)}</span>
+                      </div>
+                    </div>
+
+                    <div className="flex-shrink-0 text-right">
+                      <span className="inline-flex items-center rounded-full bg-gray-100 text-gray-700 px-2.5 py-1 text-xs font-semibold">
+                        Sold {soldCount}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-2 min-w-0">
+                      {assignedVendor ? (
+                        assignedVendor.image_url ? (
+                          <img
+                            src={assignedVendor.image_url}
+                            alt={assignedVendor.name}
+                            className="w-7 h-7 rounded-full object-cover"
+                          />
+                        ) : (
+                          <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-blue-50 text-[10px] font-semibold text-blue-700">
+                            {initials}
+                          </span>
+                        )
+                      ) : (
+                        <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-gray-100 text-[10px] font-semibold text-gray-500">
+                          —
+                        </span>
+                      )}
+                      <span className="truncate text-xs text-gray-700">
+                        {assignedVendor ? assignedVendor.name : 'Unassigned'}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleEdit(product)}
+                        title="Edit"
+                        className="h-9 w-9 p-0 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-full"
+                      >
+                        <Edit size={16} />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleRequestDelete(product)}
+                        className="h-9 w-9 p-0 text-red-500 hover:text-red-600 hover:bg-red-50 rounded-full"
+                        title="Delete"
+                      >
+                        <Trash2 size={16} />
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+
+          {/* Desktop table */}
+          <div className="hidden md:block overflow-x-auto">
             <table className="w-full">
               <thead className="bg-gray-50 border-b border-gray-200">
                 <tr>
@@ -683,12 +774,12 @@ export default function ProductList() {
           </div>
 
           {/* Pagination */}
-          <div className="px-4 py-2 border-t border-gray-200 flex items-center justify-between text-xs text-gray-600">
+          <div className="px-4 py-3 border-t border-gray-200 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 text-xs text-gray-600">
             <div>
               Showing {totalProducts === 0 ? 0 : startIndex + 1}–
               {Math.min(startIndex + rowsPerPage, totalProducts)} of {totalProducts}
             </div>
-            <div className="flex items-center gap-3">
+            <div className="flex flex-col sm:flex-row sm:items-center gap-3">
               <div className="flex items-center gap-1">
                 <span className="text-gray-500">Rows per page</span>
                 <select
@@ -705,7 +796,7 @@ export default function ProductList() {
                   <option value={50}>50</option>
                 </select>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 justify-between sm:justify-start">
                 <button
                   type="button"
                   onClick={() => setPage((prev) => Math.max(1, prev - 1))}
@@ -742,7 +833,7 @@ export default function ProductList() {
             }
           }}
         >
-          <DialogContent className="max-w-sm w-full p-0 flex flex-col">
+          <DialogContent className="max-w-sm p-0 flex flex-col">
             <DialogHeader className="px-6 pt-6 pb-3 border-b border-gray-200 bg-white">
               <DialogTitle className="text-lg">Delete Product</DialogTitle>
             </DialogHeader>

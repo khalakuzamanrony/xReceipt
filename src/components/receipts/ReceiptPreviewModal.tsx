@@ -247,7 +247,7 @@ export default function ReceiptPreviewModal({
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="max-w-4xl w-full h-[95vh] p-0 flex flex-col bg-white sm:rounded-2xl">
+      <DialogContent className="max-w-4xl max-h-[calc(100dvh-2rem)] p-0 flex flex-col bg-white overflow-hidden sm:rounded-2xl">
         <DialogHeader className="px-6 py-3 border-b border-gray-200 bg-white">
           <DialogTitle className="flex items-center gap-2 text-base font-semibold text-gray-900">
             <FileText size={18} />

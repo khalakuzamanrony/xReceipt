@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/Input'
 import { Label } from '@/components/ui/Label'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/Dialog'
 import { Checkbox } from '@/components/ui/Checkbox'
-import { Plus, Edit, Trash2, AlertCircle, FileCode, Search, Zap, Eye, Funnel } from 'lucide-react'
+import { Plus, Edit, Trash2, AlertCircle, FileCode, Search, Zap, Funnel } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { useVendor } from '@/contexts/VendorContext'
 import VisualReceiptBuilder from './VisualReceiptBuilder'
@@ -22,6 +22,8 @@ interface TemplateListProps {
 export default function TemplateList({ onNavigateToBuilder }: TemplateListProps) {
   const { role } = useAuth()
   const { memberships, activeVendorId, permissions, loading: vendorLoading } = useVendor()
+
+  const isGrandUserAllShops = role === 'grand_user' && !activeVendorId
 
   const isVendorSuperAdminForActiveVendor =
     role === 'admin' &&
@@ -53,7 +55,6 @@ export default function TemplateList({ onNavigateToBuilder }: TemplateListProps)
   const [assignSelectedVendorIds, setAssignSelectedVendorIds] = useState<string[]>([])
   const [assignSaving, setAssignSaving] = useState(false)
   const [assignError, setAssignError] = useState<string | null>(null)
-  const [previewTemplate, setPreviewTemplate] = useState<ReceiptTemplate | null>(null)
   const [templateVendorAssignments, setTemplateVendorAssignments] = useState<Record<string, string[]>>({})
   const [templateUsageCounts, setTemplateUsageCounts] = useState<Record<string, number>>({})
   const [vendorFilter, setVendorFilter] = useState<string>('all')
@@ -63,13 +64,13 @@ export default function TemplateList({ onNavigateToBuilder }: TemplateListProps)
   useEffect(() => {
     if (vendorLoading) return
 
-    if (!activeVendorId) {
+    if (!activeVendorId && !isGrandUserAllShops) {
       setTemplates([])
       setLoading(false)
       return
     }
 
-    void loadTemplates(activeVendorId)
+    void loadTemplates(activeVendorId ?? null)
   }, [vendorLoading, activeVendorId, role])
 
   const loadTemplates = async (vendorId?: string | null) => {
@@ -207,46 +208,6 @@ export default function TemplateList({ onNavigateToBuilder }: TemplateListProps)
     if (baseVendorIds.length === 0) return []
 
     return vendors.filter((v) => baseVendorIds.includes(v.id))
-  }
-
-  const buildTemplatePreviewHtml = (template: ReceiptTemplate) => {
-    const sampleItemsHtml = `
-      <tr>
-        <td style="padding: 8px; border-bottom: 1px solid #eee;">Sample item A</td>
-        <td style="padding: 8px; border-bottom: 1px solid #eee; text-align: center;">1</td>
-        <td style="padding: 8px; border-bottom: 1px solid #eee; text-align: right;">$50.00</td>
-        <td style="padding: 8px; border-bottom: 1px solid #eee; text-align: right;">$50.00</td>
-      </tr>
-      <tr>
-        <td style="padding: 8px; border-bottom: 1px solid #eee;">Sample item B</td>
-        <td style="padding: 8px; border-bottom: 1px solid #eee; text-align: center;">2</td>
-        <td style="padding: 8px; border-bottom: 1px solid #eee; text-align: right;">$25.00</td>
-        <td style="padding: 8px; border-bottom: 1px solid #eee; text-align: right;">$50.00</td>
-      </tr>
-    `
-
-    let html = template.template_html
-      .replace(/{{RECEIPT_ID}}/g, 'PREVIEW-001')
-      .replace(/{{DATE}}/g, new Date().toLocaleDateString())
-      .replace(/{{CUSTOMER_NAME}}/g, 'Customer Name (preview only)')
-      .replace(/{{CUSTOMER_EMAIL}}/g, 'customer.preview@example.test')
-      .replace(/{{CUSTOMER_COMPANY}}/g, 'Customer Company (preview only)')
-      .replace(/{{CUSTOMER_PHONE}}/g, '+1 (000) 000-0000')
-      .replace(/{{CUSTOMER_ADDRESS}}/g, 'Customer address (preview only)')
-      .replace(/{{ITEMS}}/g, sampleItemsHtml)
-      .replace(/{{TOTAL}}/g, '100.00')
-      .replace(/{{SUBTOTAL}}/g, '90.00')
-      .replace(/{{TAX}}/g, '10.00')
-      .replace(/{{STATUS}}/g, 'preview')
-      .replace(/{{COMPANY_NAME}}/g, 'xReceipt – Template Preview')
-      .replace(/{{COMPANY_EMAIL}}/g, 'preview@xreceipt.local')
-      .replace(/{{FOOTER_MESSAGE}}/g, 'This is a template preview using only sample data.')
-
-    return html
-  }
-
-  const handleOpenPreview = (template: ReceiptTemplate) => {
-    setPreviewTemplate(template)
   }
 
   const handleSaveVendorAssignments = async (template: ReceiptTemplate) => {
@@ -593,18 +554,38 @@ export default function TemplateList({ onNavigateToBuilder }: TemplateListProps)
               {/* Action Buttons */}
               {canCreateTemplates && (
                 <div className="flex gap-2 flex-wrap sm:justify-end">
-                  <Button onClick={() => onNavigateToBuilder?.()} size="sm">
-                    <Plus size={16} />
-                    Template Builder
-                  </Button>
-                  <Button onClick={() => setShowVisualBuilder(true)} size="sm" variant="secondary">
-                    <Zap size={16} />
-                    Visual Builder
-                  </Button>
-                  <Button onClick={handleAddNew} size="sm">
-                    <Plus size={16} />
-                    Custom
-                  </Button>
+                  <span
+                    title={isGrandUserAllShops ? 'Select a shop first' : undefined}
+                    className="inline-flex"
+                  >
+                    <Button onClick={() => onNavigateToBuilder?.()} size="sm" disabled={isGrandUserAllShops}>
+                      <Plus size={16} />
+                      Template Builder
+                    </Button>
+                  </span>
+                  <span
+                    title={isGrandUserAllShops ? 'Select a shop first' : undefined}
+                    className="inline-flex"
+                  >
+                    <Button
+                      onClick={() => setShowVisualBuilder(true)}
+                      size="sm"
+                      variant="secondary"
+                      disabled={isGrandUserAllShops}
+                    >
+                      <Zap size={16} />
+                      Visual Builder
+                    </Button>
+                  </span>
+                  <span
+                    title={isGrandUserAllShops ? 'Select a shop first' : undefined}
+                    className="inline-flex"
+                  >
+                    <Button onClick={handleAddNew} size="sm" disabled={isGrandUserAllShops}>
+                      <Plus size={16} />
+                      Custom
+                    </Button>
+                  </span>
                 </div>
               )}
             </div>
@@ -707,7 +688,265 @@ export default function TemplateList({ onNavigateToBuilder }: TemplateListProps)
         </div>
       ) : (
         <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
-          <div className="overflow-x-auto">
+          {/* Mobile cards */}
+          <div className="md:hidden divide-y divide-gray-200">
+            {pagedTemplates.map((template) => {
+              const assignedVendors = getAssignedVendorsForTemplate(template)
+              const usedCount = templateUsageCounts[template.id] ?? 0
+
+              const buildInitials = (name: string) =>
+                name
+                  .split(' ')
+                  .filter(Boolean)
+                  .map((part) => part.charAt(0).toUpperCase())
+                  .slice(0, 2)
+                  .join('')
+
+              return (
+                <div key={template.id} className="p-4 space-y-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-gray-900 truncate">{template.name}</p>
+                      <p className="text-xs text-gray-500 truncate">{template.description || '—'}</p>
+                      <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-gray-600">
+                        <span className="inline-flex items-center rounded-full bg-gray-100 text-gray-700 px-2.5 py-1 text-xs font-semibold">
+                          Used {usedCount}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-1.5">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => onNavigateToBuilder?.(template.id)}
+                        title="Edit"
+                        className="h-9 w-9 p-0 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-full"
+                      >
+                        <Edit size={16} />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleRequestDelete(template)}
+                        className="h-9 w-9 p-0 text-red-500 hover:text-red-600 hover:bg-red-50 rounded-full"
+                        title="Delete"
+                      >
+                        <Trash2 size={16} />
+                      </Button>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-xs text-gray-500">Assigned shop</span>
+                    <div className="min-w-0">
+                      {isGrandUser ? (() => {
+                        const search = assignSearch.toLowerCase()
+                        const filteredVendors = vendors.filter((v) =>
+                          v.name.toLowerCase().includes(search),
+                        )
+                        const filteredIds = filteredVendors.map((v) => v.id)
+                        const allSelectedForFiltered =
+                          filteredIds.length > 0 &&
+                          filteredIds.every((id) => assignSelectedVendorIds.includes(id))
+
+                        return (
+                          <DropdownMenu.Root
+                            open={assignTemplateId === template.id}
+                            onOpenChange={(open) => {
+                              if (open) {
+                                setAssignTemplateId(template.id)
+                                setAssignSearch('')
+                                setAssignError(null)
+                                const existingIds = templateVendorAssignments[template.id]
+                                const validVendorIds = new Set(vendors.map((v) => v.id))
+                                let baseIds: string[] =
+                                  existingIds && existingIds.length > 0
+                                    ? existingIds
+                                    : template.vendor_id
+                                      ? [template.vendor_id]
+                                      : []
+
+                                baseIds = baseIds.filter((id) => validVendorIds.has(id))
+                                setAssignSelectedVendorIds(baseIds)
+                              } else if (assignTemplateId === template.id && !assignSaving) {
+                                setAssignTemplateId(null)
+                                setAssignSelectedVendorIds([])
+                                setAssignSearch('')
+                                setAssignError(null)
+                              }
+                            }}
+                          >
+                            <DropdownMenu.Trigger asChild>
+                              <button
+                                type="button"
+                                className="inline-flex items-center gap-2 px-2.5 py-1.5 rounded-md border border-gray-200 bg-white text-xs text-gray-700 hover:bg-gray-50"
+                              >
+                                {assignedVendors.length > 0 ? (
+                                  <span className="font-medium text-gray-800">
+                                    {assignedVendors.length} assigned
+                                  </span>
+                                ) : (
+                                  <span className="text-xs text-gray-600">Assign</span>
+                                )}
+                              </button>
+                            </DropdownMenu.Trigger>
+
+                            <DropdownMenu.Portal>
+                              <DropdownMenu.Content className="min-w-[260px] rounded-md border border-gray-200 bg-white shadow-lg p-2 mr-1 mt-1 z-50 space-y-2">
+                                {vendors.length === 0 ? (
+                                  <div className="px-2 py-1 text-xs text-gray-500">No shops available</div>
+                                ) : (
+                                  <>
+                                    <div className="px-1">
+                                      <Input
+                                        type="text"
+                                        placeholder="Search shops..."
+                                        value={assignSearch}
+                                        onChange={(e) => setAssignSearch(e.target.value)}
+                                        className="h-8 text-xs border-gray-300"
+                                      />
+                                    </div>
+                                    <div className="flex items-center justify-between px-1">
+                                      <button
+                                        type="button"
+                                        onClick={(e) => {
+                                          e.preventDefault()
+                                          if (filteredIds.length === 0) return
+
+                                          if (allSelectedForFiltered) {
+                                            setAssignSelectedVendorIds((prev) =>
+                                              prev.filter((id) => !filteredIds.includes(id)),
+                                            )
+                                          } else {
+                                            setAssignSelectedVendorIds((prev) =>
+                                              Array.from(new Set([...prev, ...filteredIds])),
+                                            )
+                                          }
+                                        }}
+                                        className="text-[11px] text-blue-600 hover:text-blue-700 font-medium cursor-pointer"
+                                      >
+                                        {allSelectedForFiltered ? 'Unselect all' : 'Select all'}
+                                      </button>
+                                    </div>
+                                    {assignError && (
+                                      <p className="px-1 text-[11px] text-red-600">{assignError}</p>
+                                    )}
+                                    <div className="max-h-48 overflow-y-auto space-y-1 mt-1">
+                                      {filteredVendors.length === 0 ? (
+                                        <div className="px-2 py-2 text-xs text-gray-500">No shops found</div>
+                                      ) : (
+                                        filteredVendors.map((vendor) => {
+                                          const checked = assignSelectedVendorIds.includes(vendor.id)
+                                          const vendorInitials = vendor.name
+                                            .split(' ')
+                                            .map((part) => part.charAt(0).toUpperCase())
+                                            .slice(0, 2)
+                                            .join('')
+
+                                          return (
+                                            <DropdownMenu.Item
+                                              key={vendor.id}
+                                              className="flex items-center gap-2 px-2 py-1.5 text-xs text-gray-700 rounded cursor-pointer outline-none hover:bg-gray-50"
+                                              onSelect={(event) => {
+                                                event.preventDefault()
+                                                setAssignSelectedVendorIds((prev) =>
+                                                  checked
+                                                    ? prev.filter((id) => id !== vendor.id)
+                                                    : [...prev, vendor.id],
+                                                )
+                                              }}
+                                            >
+                                              <Checkbox
+                                                checked={checked}
+                                                className="h-3.5 w-3.5 rounded-[2px]"
+                                                aria-hidden="true"
+                                              />
+                                              {vendor.image_url ? (
+                                                <img
+                                                  src={vendor.image_url}
+                                                  alt={vendor.name}
+                                                  className="w-6 h-6 rounded-full object-cover"
+                                                />
+                                              ) : (
+                                                <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-blue-50 text-[10px] font-semibold text-blue-700">
+                                                  {vendorInitials}
+                                                </span>
+                                              )}
+                                              <span className="flex-1 truncate">{vendor.name}</span>
+                                            </DropdownMenu.Item>
+                                          )
+                                        })
+                                      )}
+                                    </div>
+                                    <div className="flex justify-end gap-2 pt-2 border-t border-gray-100 px-1">
+                                      <Button
+                                        type="button"
+                                        variant="outline"
+                                        size="sm"
+                                        className="h-7 px-2 text-[11px]"
+                                        onClick={() => {
+                                          setAssignTemplateId(null)
+                                          setAssignSelectedVendorIds([])
+                                          setAssignSearch('')
+                                          setAssignError(null)
+                                        }}
+                                      >
+                                        Cancel
+                                      </Button>
+                                      <Button
+                                        type="button"
+                                        size="sm"
+                                        className="h-7 px-3 text-[11px]"
+                                        disabled={assignSaving}
+                                        onClick={() => {
+                                          void handleSaveVendorAssignments(template)
+                                        }}
+                                      >
+                                        {assignSaving ? 'Saving...' : 'Save'}
+                                      </Button>
+                                    </div>
+                                  </>
+                                )}
+                              </DropdownMenu.Content>
+                            </DropdownMenu.Portal>
+                          </DropdownMenu.Root>
+                        )
+                      })() : assignedVendors.length > 0 ? (
+                        <div className="inline-flex items-center gap-2">
+                          <div className="flex -space-x-1">
+                            {assignedVendors.slice(0, 3).map((v) => (
+                              <span
+                                key={v.id}
+                                className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-blue-50 text-xs font-semibold text-blue-700"
+                              >
+                                {buildInitials(v.name)}
+                              </span>
+                            ))}
+                            {assignedVendors.length > 3 && (
+                              <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-gray-100 text-[10px] font-semibold text-gray-700">
+                                +{assignedVendors.length - 3}
+                              </span>
+                            )}
+                          </div>
+                          <span className="text-xs text-gray-700 truncate max-w-[140px]">
+                            {assignedVendors.length === 1
+                              ? assignedVendors[0].name
+                              : `${assignedVendors[0].name} +${assignedVendors.length - 1}`}
+                          </span>
+                        </div>
+                      ) : (
+                        <span className="text-xs text-gray-400">Unassigned</span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+
+          {/* Desktop table */}
+          <div className="hidden md:block overflow-x-auto">
             <table className="w-full">
               <thead className="bg-gray-50 border-b border-gray-200">
                 <tr>
@@ -977,15 +1216,6 @@ export default function TemplateList({ onNavigateToBuilder }: TemplateListProps)
                           <Button
                             variant="ghost"
                             size="sm"
-                            onClick={() => handleOpenPreview(template)}
-                            title="Preview template"
-                            className="h-8 w-8 p-0 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-full"
-                          >
-                            <Eye size={16} />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
                             onClick={() => onNavigateToBuilder?.(template.id)}
                             title="Edit"
                             className="h-8 w-8 p-0 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-full"
@@ -1011,12 +1241,12 @@ export default function TemplateList({ onNavigateToBuilder }: TemplateListProps)
           </div>
 
           {/* Pagination */}
-          <div className="px-4 py-2 border-t border-gray-200 flex items-center justify-between text-xs text-gray-600">
+          <div className="px-4 py-3 border-t border-gray-200 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 text-xs text-gray-600">
             <div>
               Showing {totalTemplates === 0 ? 0 : startIndex + 1}–
               {Math.min(startIndex + rowsPerPage, totalTemplates)} of {totalTemplates}
             </div>
-            <div className="flex items-center gap-3">
+            <div className="flex flex-col sm:flex-row sm:items-center gap-3">
               <div className="flex items-center gap-1">
                 <span className="text-gray-500">Rows per page</span>
                 <select
@@ -1033,7 +1263,7 @@ export default function TemplateList({ onNavigateToBuilder }: TemplateListProps)
                   <option value={50}>50</option>
                 </select>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 justify-between sm:justify-start">
                 <button
                   type="button"
                   onClick={() => setPage((prev) => Math.max(1, prev - 1))}
@@ -1059,44 +1289,6 @@ export default function TemplateList({ onNavigateToBuilder }: TemplateListProps)
         </div>
       )}
 
-      {/* Template preview modal */}
-      {previewTemplate && (
-        <Dialog
-          open={!!previewTemplate}
-          onOpenChange={(open) => {
-            if (!open) {
-              setPreviewTemplate(null)
-            }
-          }}
-        >
-          <DialogContent className="max-w-4xl w-full h-[90vh] p-0 flex flex-col">
-            <DialogHeader className="px-6 pt-6 pb-4 border-b border-gray-200 bg-white">
-              <DialogTitle className="text-base font-semibold text-gray-900 flex items-center gap-2">
-                <Eye size={18} />
-                <span>Template Preview - {previewTemplate.name}</span>
-              </DialogTitle>
-            </DialogHeader>
-            <div className="flex-1 overflow-auto bg-white">
-              <iframe
-                title="Template preview"
-                className="w-full h-full border-0 bg-white"
-                srcDoc={buildTemplatePreviewHtml(previewTemplate)}
-              />
-            </div>
-            <DialogFooter className="px-6 py-3 border-t border-gray-200 bg-white flex justify-end">
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => setPreviewTemplate(null)}
-              >
-                Close
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-      )}
-
       {/* Delete confirmation modal */}
       {showDeleteConfirm && templateToDelete && (
         <Dialog
@@ -1108,7 +1300,7 @@ export default function TemplateList({ onNavigateToBuilder }: TemplateListProps)
             }
           }}
         >
-          <DialogContent className="max-w-sm w-full p-0 flex flex-col">
+          <DialogContent className="max-w-sm p-0 flex flex-col">
             <DialogHeader className="px-6 pt-6 pb-3 border-b border-gray-200 bg-white">
               <DialogTitle className="text-lg">Delete Template</DialogTitle>
             </DialogHeader>

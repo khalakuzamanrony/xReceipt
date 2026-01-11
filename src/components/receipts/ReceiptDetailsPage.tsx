@@ -461,7 +461,7 @@ export default function ReceiptDetailsPage({ receiptId, onBack }: ReceiptDetails
 
       {/* Send Email Modal */}
       <Dialog open={emailModalOpen} onOpenChange={setEmailModalOpen}>
-        <DialogContent className="max-w-sm w-full p-0 flex flex-col">
+        <DialogContent className="max-w-sm p-0 flex flex-col">
           <DialogHeader className="px-6 pt-6 pb-3 border-b border-gray-200 bg-white">
             <DialogTitle className="text-lg">Send Receipt via Email</DialogTitle>
           </DialogHeader>
