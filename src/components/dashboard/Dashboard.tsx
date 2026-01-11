@@ -413,52 +413,94 @@ export default function Dashboard() {
             ) : recentReceipts.length === 0 ? (
               <p className="text-sm text-gray-500">No receipts to show for this range.</p>
             ) : (
-              <div className="overflow-x-auto">
-                <table className="min-w-full text-sm">
-                  <thead>
-                    <tr className="text-left text-xs uppercase tracking-wide text-gray-500 border-b border-gray-200">
-                      <th className="py-2 pr-4">Receipt</th>
-                      <th className="py-2 pr-4">Customer</th>
-                      <th className="py-2 pr-4">Status</th>
-                      <th className="py-2 pr-4 text-right">Total</th>
-                      <th className="py-2 pr-0 text-right">Date</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {recentReceipts.map((r: any) => {
-                      const st = (r.status || 'draft') as ReceiptStatus
-                      const badge =
-                        st === 'paid'
-                          ? 'bg-green-50 text-green-700 border-green-200'
-                          : st === 'sent'
-                            ? 'bg-blue-50 text-blue-700 border-blue-200'
-                            : 'bg-gray-50 text-gray-700 border-gray-200'
+              <>
+                {/* Mobile list */}
+                <div className="md:hidden divide-y divide-gray-100">
+                  {recentReceipts.map((r: any) => {
+                    const st = (r.status || 'draft') as ReceiptStatus
+                    const badge =
+                      st === 'paid'
+                        ? 'bg-green-50 text-green-700 border-green-200'
+                        : st === 'sent'
+                          ? 'bg-blue-50 text-blue-700 border-blue-200'
+                          : 'bg-gray-50 text-gray-700 border-gray-200'
 
-                      return (
-                        <tr key={r.id} className="border-b border-gray-100 last:border-0">
-                          <td className="py-2 pr-4 font-medium text-gray-900 whitespace-nowrap">
-                            {r.receipt_number || r.id?.slice(0, 8)}
-                          </td>
-                          <td className="py-2 pr-4 text-gray-700">
-                            {r.customer_name || '—'}
-                          </td>
-                          <td className="py-2 pr-4">
-                            <span className={cn('inline-flex items-center px-2 py-0.5 rounded-full border text-xs font-semibold', badge)}>
-                              {st.charAt(0).toUpperCase() + st.slice(1)}
-                            </span>
-                          </td>
-                          <td className="py-2 pr-4 text-right font-semibold text-gray-900 whitespace-nowrap">
-                            {formatCurrency(Number(r.total || 0))}
-                          </td>
-                          <td className="py-2 pr-0 text-right text-gray-600 whitespace-nowrap">
-                            {r.created_at ? new Date(r.created_at).toLocaleDateString() : '—'}
-                          </td>
-                        </tr>
-                      )
-                    })}
-                  </tbody>
-                </table>
-              </div>
+                    return (
+                      <div key={r.id} className="py-3 space-y-2">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <p className="text-sm font-semibold text-gray-900 truncate">
+                              {r.receipt_number || r.id?.slice(0, 8)}
+                            </p>
+                            <p className="text-xs text-gray-600 truncate">{r.customer_name || '—'}</p>
+                          </div>
+                          <div className="text-right flex-shrink-0">
+                            <p className="text-sm font-semibold text-gray-900 whitespace-nowrap">
+                              {formatCurrency(Number(r.total || 0))}
+                            </p>
+                            <p className="text-[11px] text-gray-500 whitespace-nowrap">
+                              {r.created_at ? new Date(r.created_at).toLocaleDateString() : '—'}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span className={cn('inline-flex items-center px-2 py-0.5 rounded-full border text-xs font-semibold', badge)}>
+                            {st.charAt(0).toUpperCase() + st.slice(1)}
+                          </span>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+
+                {/* Desktop table */}
+                <div className="hidden md:block overflow-x-auto">
+                  <table className="min-w-full text-sm">
+                    <thead>
+                      <tr className="text-left text-xs uppercase tracking-wide text-gray-500 border-b border-gray-200">
+                        <th className="py-2 pr-4">Receipt</th>
+                        <th className="py-2 pr-4">Customer</th>
+                        <th className="py-2 pr-4">Status</th>
+                        <th className="py-2 pr-4 text-right">Total</th>
+                        <th className="py-2 pr-0 text-right">Date</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {recentReceipts.map((r: any) => {
+                        const st = (r.status || 'draft') as ReceiptStatus
+                        const badge =
+                          st === 'paid'
+                            ? 'bg-green-50 text-green-700 border-green-200'
+                            : st === 'sent'
+                              ? 'bg-blue-50 text-blue-700 border-blue-200'
+                              : 'bg-gray-50 text-gray-700 border-gray-200'
+
+                        return (
+                          <tr key={r.id} className="border-b border-gray-100 last:border-0">
+                            <td className="py-2 pr-4 font-medium text-gray-900 whitespace-nowrap">
+                              {r.receipt_number || r.id?.slice(0, 8)}
+                            </td>
+                            <td className="py-2 pr-4 text-gray-700">
+                              {r.customer_name || '—'}
+                            </td>
+                            <td className="py-2 pr-4">
+                              <span className={cn('inline-flex items-center px-2 py-0.5 rounded-full border text-xs font-semibold', badge)}>
+                                {st.charAt(0).toUpperCase() + st.slice(1)}
+                              </span>
+                            </td>
+                            <td className="py-2 pr-4 text-right font-semibold text-gray-900 whitespace-nowrap">
+                              {formatCurrency(Number(r.total || 0))}
+                            </td>
+                            <td className="py-2 pr-0 text-right text-gray-600 whitespace-nowrap">
+                              {r.created_at ? new Date(r.created_at).toLocaleDateString() : '—'}
+                            </td>
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </>
             )}
           </CardContent>
         </Card>

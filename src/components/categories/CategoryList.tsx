@@ -16,6 +16,8 @@ export default function CategoryList() {
   const { role } = useAuth()
   const { memberships, activeVendorId, permissions, loading: vendorLoading } = useVendor()
 
+  const isGrandUserAllShops = role === 'grand_user' && !activeVendorId
+
   const isVendorSuperAdminForActiveVendor =
     role === 'admin' &&
     !!activeVendorId &&
@@ -52,13 +54,13 @@ export default function CategoryList() {
   useEffect(() => {
     if (vendorLoading) return
 
-    if (!activeVendorId) {
+    if (!activeVendorId && !isGrandUserAllShops) {
       setCategories([])
       setLoading(false)
       return
     }
 
-    void loadCategories(activeVendorId)
+    void loadCategories(activeVendorId ?? null)
   }, [vendorLoading, activeVendorId, role])
 
   const loadCategories = async (vendorId?: string | null) => {
@@ -200,6 +202,12 @@ export default function CategoryList() {
     return categories.find(c => c.id === parentId)?.name || 'Unknown'
   }
 
+  const categoriesForModal = (() => {
+    const vendorId = activeVendorId || selectedCategory?.vendor_id || null
+    if (!vendorId) return categories
+    return categories.filter((cat) => cat.vendor_id === vendorId)
+  })()
+
   const totalCategories = filteredCategories.length
   const totalPages = Math.max(1, Math.ceil(totalCategories / rowsPerPage))
   const currentPage = Math.min(page, totalPages)
@@ -321,10 +329,15 @@ export default function CategoryList() {
               </DropdownMenu.Root>
 
               {canCreateCategories && (
-                <Button onClick={handleAddNew} size="sm">
-                  <Plus size={16} />
-                  Add Category
-                </Button>
+                <span
+                  title={isGrandUserAllShops ? 'Select a shop first' : undefined}
+                  className="inline-flex"
+                >
+                  <Button onClick={handleAddNew} size="sm" disabled={isGrandUserAllShops}>
+                    <Plus size={16} />
+                    Add Category
+                  </Button>
+                </span>
               )}
             </div>
           </div>
@@ -374,7 +387,7 @@ export default function CategoryList() {
                   className="w-full h-10 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm text-gray-900"
                 >
                   <option value="">No parent (Root category)</option>
-                  {categories
+                  {categoriesForModal
                     .filter(c => c.id !== selectedCategory?.id)
                     .map((cat) => (
                       <option key={cat.id} value={cat.id}>
@@ -420,7 +433,92 @@ export default function CategoryList() {
         </div>
       ) : (
         <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
-          <div className="overflow-x-auto">
+          {/* Mobile cards */}
+          <div className="md:hidden divide-y divide-gray-200">
+            {pagedCategories.map((category) => {
+              const children = getChildCategories(category.id)
+              const assignedVendor = getAssignedVendorForCategory(category)
+              const initials = assignedVendor ? buildVendorInitials(assignedVendor.name) : ''
+
+              return (
+                <div key={category.id} className="p-4 space-y-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-gray-900 truncate">{category.name}</p>
+                      <div className="mt-2 grid grid-cols-1 gap-1 text-xs text-gray-600">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-gray-500">Parent</span>
+                          <span className="truncate max-w-[70%]">
+                            {category.parent_id ? getParentCategoryName(category.parent_id) : '—'}
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-gray-500">Subcategories</span>
+                          <span className="font-medium text-gray-800">
+                            {children.length > 0 ? `${children.length} item${children.length !== 1 ? 's' : ''}` : '—'}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-1.5">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleEdit(category)}
+                        title="Edit"
+                        className="h-9 w-9 p-0 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-full"
+                      >
+                        <Edit size={16} />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleDelete(category.id)}
+                        className="h-9 w-9 p-0 text-red-500 hover:text-red-600 hover:bg-red-50 rounded-full"
+                        title="Delete"
+                      >
+                        <Trash2 size={16} />
+                      </Button>
+                    </div>
+                  </div>
+
+                  <div
+                    className="flex items-center justify-between gap-3"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                    }}
+                  >
+                    <div className="flex items-center gap-2 min-w-0">
+                      {assignedVendor ? (
+                        assignedVendor.image_url ? (
+                          <img
+                            src={assignedVendor.image_url}
+                            alt={assignedVendor.name}
+                            className="w-7 h-7 rounded-full object-cover"
+                          />
+                        ) : (
+                          <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-blue-50 text-[10px] font-semibold text-blue-700">
+                            {initials}
+                          </span>
+                        )
+                      ) : (
+                        <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-gray-100 text-[10px] font-semibold text-gray-500">
+                          —
+                        </span>
+                      )}
+                      <span className="truncate text-xs text-gray-700">
+                        {assignedVendor ? assignedVendor.name : 'Unassigned'}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+
+          {/* Desktop table */}
+          <div className="hidden md:block overflow-x-auto">
             <table className="w-full">
               <thead className="bg-gray-50 border-b border-gray-200">
                 <tr>
@@ -512,12 +610,12 @@ export default function CategoryList() {
           </div>
 
           {/* Pagination */}
-          <div className="px-4 py-2 border-t border-gray-200 flex items-center justify-between text-xs text-gray-600">
+          <div className="px-4 py-3 border-t border-gray-200 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 text-xs text-gray-600">
             <div>
               Showing {totalCategories === 0 ? 0 : startIndex + 1}–
               {Math.min(startIndex + rowsPerPage, totalCategories)} of {totalCategories}
             </div>
-            <div className="flex items-center gap-3">
+            <div className="flex flex-col sm:flex-row sm:items-center gap-3">
               <div className="flex items-center gap-1">
                 <span className="text-gray-500">Rows per page</span>
                 <select
@@ -534,7 +632,7 @@ export default function CategoryList() {
                   <option value={50}>50</option>
                 </select>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 justify-between sm:justify-start">
                 <button
                   type="button"
                   onClick={() => setPage((prev) => Math.max(1, prev - 1))}

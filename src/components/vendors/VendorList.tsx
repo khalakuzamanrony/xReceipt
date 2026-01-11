@@ -36,6 +36,7 @@ export default function VendorList() {
   const [assignVendorId, setAssignVendorId] = useState<string | null>(null)
   const [assignSearch, setAssignSearch] = useState('')
   const [assignSaving, setAssignSaving] = useState(false)
+  const [isDesktop, setIsDesktop] = useState(false)
   const [formData, setFormData] = useState({
     vendor_id: '',
     name: '',
@@ -46,11 +47,37 @@ export default function VendorList() {
     admin_id: '',
     image_url: '',
   })
+  const [imageFile, setImageFile] = useState<File | null>(null)
+  const [imagePreviewUrl, setImagePreviewUrl] = useState<string>('')
+  const [imageWorking, setImageWorking] = useState(false)
   const [superAdminPassword, setSuperAdminPassword] = useState('')
   const [showSuperAdminPassword, setShowSuperAdminPassword] = useState(false)
 
   useEffect(() => {
+    return () => {
+      if (imagePreviewUrl && imagePreviewUrl.startsWith('blob:')) {
+        URL.revokeObjectURL(imagePreviewUrl)
+      }
+    }
+  }, [imagePreviewUrl])
+
+  useEffect(() => {
     loadData()
+  }, [])
+
+  useEffect(() => {
+    const mql = window.matchMedia('(min-width: 768px)')
+    const handleChange = () => {
+      setIsDesktop(mql.matches)
+      setAssignVendorId(null)
+      setAssignSearch('')
+    }
+
+    handleChange()
+    mql.addEventListener('change', handleChange)
+    return () => {
+      mql.removeEventListener('change', handleChange)
+    }
   }, [])
 
   const loadData = async () => {
@@ -206,6 +233,8 @@ export default function VendorList() {
       admin_id: '',
       image_url: '',
     })
+    setImageFile(null)
+    setImagePreviewUrl('')
     setSuperAdminPassword('')
     setShowForm(true)
   }
@@ -222,18 +251,78 @@ export default function VendorList() {
       admin_id: vendor.admin_id || '',
       image_url: vendor.image_url || '',
     })
+    setImageFile(null)
+    setImagePreviewUrl(vendor.image_url || '')
     setSuperAdminPassword('')
     setShowForm(true)
   }
 
-  const handleDelete = async (id: string) => {
+  const handleDelete = async (vendor: Vendor) => {
     if (!confirm('Are you sure you want to delete this shop?')) return
 
     try {
-      await vendorService.deleteVendor(id)
-      setVendors(vendors.filter(v => v.id !== id))
+      const result = await vendorService.deleteVendorWithImage(vendor.id, vendor.image_url)
+      setVendors(vendors.filter(v => v.id !== vendor.id))
+
+      if (!result.storageDeleted) {
+        setError(
+          result.storageError
+            ? `Shop deleted, but the image could not be deleted from storage: ${result.storageError}`
+            : 'Shop deleted, but the image could not be deleted from storage.',
+        )
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to delete shop')
+    }
+  }
+
+  const handleImageChange = (file: File | null) => {
+    setImageFile(file)
+
+    if (imagePreviewUrl && imagePreviewUrl.startsWith('blob:')) {
+      URL.revokeObjectURL(imagePreviewUrl)
+    }
+
+    if (!file) {
+      setImagePreviewUrl(selectedVendor?.image_url || formData.image_url || '')
+      return
+    }
+
+    setImagePreviewUrl(URL.createObjectURL(file))
+  }
+
+  const handleRemoveImage = async () => {
+    if (!selectedVendor?.id) return
+    if (!selectedVendor.image_url) {
+      setFormData((prev) => ({ ...prev, image_url: '' }))
+      setImageFile(null)
+      setImagePreviewUrl('')
+      return
+    }
+
+    try {
+      setImageWorking(true)
+      setError(null)
+      const result = await vendorService.deleteVendorImage(selectedVendor.image_url)
+      if (!result.deleted) {
+        setError(
+          result.error
+            ? `Failed to delete shop image from storage: ${result.error}`
+            : 'Failed to delete shop image from storage.',
+        )
+        return
+      }
+
+      const updated = await vendorService.updateVendor(selectedVendor.id, { image_url: null })
+      setSelectedVendor(updated)
+      setFormData((prev) => ({ ...prev, image_url: '' }))
+      setImageFile(null)
+      setImagePreviewUrl('')
+      await loadData()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to remove shop image')
+    } finally {
+      setImageWorking(false)
     }
   }
 
@@ -263,9 +352,44 @@ export default function VendorList() {
       }
 
       if (selectedVendor) {
-        await vendorService.updateVendor(selectedVendor.id, payload)
+        let nextImageUrl = payload.image_url
+        const oldImageUrl = selectedVendor.image_url || null
+
+        if (imageFile) {
+          setImageWorking(true)
+          const upload = await vendorService.uploadVendorImage(selectedVendor.id, imageFile)
+          nextImageUrl = upload.publicUrl
+        }
+
+        const updatedVendor = await vendorService.updateVendor(selectedVendor.id, {
+          ...payload,
+          image_url: nextImageUrl,
+        })
+
+        if (imageFile && oldImageUrl && nextImageUrl && oldImageUrl !== nextImageUrl) {
+          try {
+            await vendorService.deleteVendorImage(oldImageUrl)
+          } catch {
+            // ignore
+          }
+        }
+
+        setSelectedVendor(updatedVendor)
       } else {
-        const createdVendor = await vendorService.createVendor(payload as any)
+        const createdVendor = await vendorService.createVendor({
+          ...(payload as any),
+          image_url: null,
+        })
+
+        if (imageFile) {
+          setImageWorking(true)
+          try {
+            const upload = await vendorService.uploadVendorImage(createdVendor.id, imageFile)
+            await vendorService.updateVendor(createdVendor.id, { image_url: upload.publicUrl })
+          } finally {
+            setImageWorking(false)
+          }
+        }
 
         try {
           const superAdmin = await adminService.createVendorSuperAdminForVendor(
@@ -288,6 +412,8 @@ export default function VendorList() {
       await loadData()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to save shop')
+    } finally {
+      setImageWorking(false)
     }
   }
 
@@ -405,7 +531,100 @@ export default function VendorList() {
           </div>
         ) : (
           <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
-            <div className="overflow-x-auto">
+            {/* Mobile cards */}
+            <div className="md:hidden divide-y divide-gray-200">
+              {pagedVendors.map((vendor) => {
+                const assignedAdmins = getAssignedAdminsForVendor(vendor.id)
+
+                return (
+                  <div key={vendor.id} className="p-4 space-y-3">
+                    <div className="flex items-start gap-3">
+                      {vendor.image_url ? (
+                        <img
+                          src={vendor.image_url}
+                          alt={vendor.name}
+                          className="w-12 h-12 rounded-full object-cover ring-2 ring-gray-200 flex-shrink-0"
+                        />
+                      ) : (
+                        <div className="w-12 h-12 rounded-full bg-gradient-to-br from-indigo-400 to-indigo-600 flex items-center justify-center ring-2 ring-gray-200 flex-shrink-0">
+                          <span className="text-white font-bold text-sm">
+                            {vendor.name.charAt(0).toUpperCase()}
+                          </span>
+                        </div>
+                      )}
+
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0">
+                            <p className="text-sm font-semibold text-gray-900 truncate">{vendor.name}</p>
+                            <p className="text-xs text-gray-500 truncate">{vendor.email}</p>
+                          </div>
+                          <span
+                            className={cn(
+                              'inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-medium border',
+                              vendor.status === 'active'
+                                ? 'bg-green-50 text-green-700 border-green-200'
+                                : 'bg-gray-50 text-gray-700 border-gray-200',
+                            )}
+                          >
+                            {vendor.status === 'active' ? 'Active' : 'Inactive'}
+                          </span>
+                        </div>
+
+                        <div className="mt-2 grid grid-cols-1 gap-1 text-xs text-gray-600">
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="text-gray-500">Shop ID</span>
+                            <span className="font-medium text-gray-800">{vendor.vendor_id}</span>
+                          </div>
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="text-gray-500">URL</span>
+                            {vendor.url ? (
+                              <a
+                                href={vendor.url}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="text-blue-600 hover:underline truncate max-w-[60%]"
+                              >
+                                {vendor.url}
+                              </a>
+                            ) : (
+                              <span className="text-gray-400">—</span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="text-xs text-gray-500">Assigned admins</span>
+                      {assignedAdmins.length === 0 ? (
+                        <span className="text-xs text-gray-600">Unassigned</span>
+                      ) : (
+                        <div className="flex items-center -space-x-1">
+                          {assignedAdmins.slice(0, 3).map((admin) => (
+                            <div
+                              key={admin.id}
+                              className="h-7 w-7 rounded-full bg-blue-50 ring-2 ring-white flex items-center justify-center text-[10px] font-semibold text-blue-700"
+                              title={admin.name}
+                            >
+                              {buildInitials(admin.name || admin.email || 'A')}
+                            </div>
+                          ))}
+                          {assignedAdmins.length > 3 && (
+                            <div className="h-7 w-7 rounded-full bg-gray-100 ring-2 ring-white flex items-center justify-center text-[10px] font-semibold text-gray-700">
+                              +{assignedAdmins.length - 3}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+
+            {/* Desktop table */}
+            <div className="hidden md:block overflow-x-auto">
               <table className="w-full">
                 <thead className="bg-gray-50 border-b border-gray-200">
                   <tr>
@@ -413,98 +632,99 @@ export default function VendorList() {
                     <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Shop ID</th>
                     <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">URL</th>
                     <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Status</th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Assign Admin</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Assigned admins</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200">
                   {pagedVendors.map((vendor) => {
                     const assignedAdmins = getAssignedAdminsForVendor(vendor.id)
                     return (
-                    <tr key={vendor.id} className="hover:bg-gray-50 transition-colors">
-                      <td className="px-4 py-3">
-                        <div className="flex items-center gap-3">
-                          {vendor.image_url ? (
-                            <img
-                              src={vendor.image_url}
-                              alt={vendor.name}
-                              className="w-10 h-10 rounded-full object-cover ring-2 ring-gray-200"
-                            />
-                          ) : (
-                            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-indigo-400 to-indigo-600 flex items-center justify-center ring-2 ring-gray-200">
-                              <span className="text-white font-bold text-sm">
-                                {vendor.name.charAt(0).toUpperCase()}
-                              </span>
-                            </div>
-                          )}
-                          <div className="min-w-0">
-                            <p className="text-sm font-medium text-gray-900 truncate">{vendor.name}</p>
-                            <p className="text-xs text-gray-500 truncate">{vendor.email}</p>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="px-4 py-3">
-                        <p className="text-sm text-gray-600">{vendor.vendor_id}</p>
-                      </td>
-                      <td className="px-4 py-3">
-                        {vendor.url ? (
-                          <a
-                            href={vendor.url}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="text-sm text-blue-600 hover:underline"
-                          >
-                            {vendor.url}
-                          </a>
-                        ) : (
-                          <p className="text-sm text-gray-400">—</p>
-                        )}
-                      </td>
-                      <td className="px-4 py-3">
-                        <span
-                          className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                            vendor.status === 'active'
-                              ? 'bg-green-50 text-green-700 border border-green-200'
-                              : 'bg-gray-50 text-gray-700 border border-gray-200'
-                          }`}
-                        >
-                          {vendor.status === 'active' ? 'Active' : 'Inactive'}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3">
-                        {assignedAdmins.length === 0 ? (
-                          <p className="text-sm text-gray-600">Unassigned</p>
-                        ) : (
-                          <div className="flex items-center -space-x-1">
-                            {assignedAdmins.slice(0, 3).map((admin) => (
-                              <div
-                                key={admin.id}
-                                className="h-7 w-7 rounded-full bg-blue-50 ring-2 ring-white flex items-center justify-center text-[10px] font-semibold text-blue-700"
-                                title={admin.name}
-                              >
-                                {buildInitials(admin.name || admin.email || 'A')}
-                              </div>
-                            ))}
-                            {assignedAdmins.length > 3 && (
-                              <div className="h-7 w-7 rounded-full bg-gray-100 ring-2 ring-white flex items-center justify-center text-[10px] font-semibold text-gray-700">
-                                +{assignedAdmins.length - 3}
+                      <tr key={vendor.id} className="hover:bg-gray-50 transition-colors">
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-3">
+                            {vendor.image_url ? (
+                              <img
+                                src={vendor.image_url}
+                                alt={vendor.name}
+                                className="w-10 h-10 rounded-full object-cover ring-2 ring-gray-200"
+                              />
+                            ) : (
+                              <div className="w-10 h-10 rounded-full bg-gradient-to-br from-indigo-400 to-indigo-600 flex items-center justify-center ring-2 ring-gray-200">
+                                <span className="text-white font-bold text-sm">
+                                  {vendor.name.charAt(0).toUpperCase()}
+                                </span>
                               </div>
                             )}
+                            <div className="min-w-0">
+                              <p className="text-sm font-medium text-gray-900 truncate">{vendor.name}</p>
+                              <p className="text-xs text-gray-500 truncate">{vendor.email}</p>
+                            </div>
                           </div>
-                        )}
-                      </td>
-                    </tr>
-                  )})}
+                        </td>
+                        <td className="px-4 py-3">
+                          <p className="text-sm text-gray-600">{vendor.vendor_id}</p>
+                        </td>
+                        <td className="px-4 py-3">
+                          {vendor.url ? (
+                            <a
+                              href={vendor.url}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="text-sm text-blue-600 hover:underline"
+                            >
+                              {vendor.url}
+                            </a>
+                          ) : (
+                            <p className="text-sm text-gray-400">—</p>
+                          )}
+                        </td>
+                        <td className="px-4 py-3">
+                          <span
+                            className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                              vendor.status === 'active'
+                                ? 'bg-green-50 text-green-700 border border-green-200'
+                                : 'bg-gray-50 text-gray-700 border border-gray-200'
+                            }`}
+                          >
+                            {vendor.status === 'active' ? 'Active' : 'Inactive'}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3">
+                          {assignedAdmins.length === 0 ? (
+                            <p className="text-sm text-gray-600">Unassigned</p>
+                          ) : (
+                            <div className="flex items-center -space-x-1">
+                              {assignedAdmins.slice(0, 3).map((admin) => (
+                                <div
+                                  key={admin.id}
+                                  className="h-7 w-7 rounded-full bg-blue-50 ring-2 ring-white flex items-center justify-center text-[10px] font-semibold text-blue-700"
+                                  title={admin.name}
+                                >
+                                  {buildInitials(admin.name || admin.email || 'A')}
+                                </div>
+                              ))}
+                              {assignedAdmins.length > 3 && (
+                                <div className="h-7 w-7 rounded-full bg-gray-100 ring-2 ring-white flex items-center justify-center text-[10px] font-semibold text-gray-700">
+                                  +{assignedAdmins.length - 3}
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </td>
+                      </tr>
+                    )
+                  })}
                 </tbody>
               </table>
             </div>
 
             {/* Pagination */}
-            <div className="px-4 py-2 border-t border-gray-200 flex items-center justify-between text-xs text-gray-600">
+            <div className="px-4 py-3 border-t border-gray-200 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 text-xs text-gray-600">
               <div>
                 Showing {totalVendors === 0 ? 0 : startIndex + 1}–
                 {Math.min(startIndex + rowsPerPage, totalVendors)} of {totalVendors}
               </div>
-              <div className="flex items-center gap-3">
+              <div className="flex flex-col sm:flex-row sm:items-center gap-3">
                 <div className="flex items-center gap-1">
                   <span className="text-gray-500">Rows per page</span>
                   <select
@@ -521,7 +741,7 @@ export default function VendorList() {
                     <option value={50}>50</option>
                   </select>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 justify-between sm:justify-start">
                   <button
                     type="button"
                     onClick={() => setPage((prev) => Math.max(1, prev - 1))}
@@ -723,14 +943,56 @@ export default function VendorList() {
                 </div>
 
                 <div className="space-y-2 md:col-span-2">
-                  <Label htmlFor="image_url" className="text-sm font-semibold text-gray-900">Shop Image URL</Label>
-                  <Input
-                    id="image_url"
-                    type="url"
-                    value={formData.image_url}
-                    onChange={(e) => setFormData({ ...formData, image_url: e.target.value })}
-                    placeholder="Optional logo/image URL"
-                  />
+                  <Label htmlFor="vendor_image" className="text-sm font-semibold text-gray-900">Shop Image</Label>
+                  <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+                    <div className="w-16 h-16 rounded-full overflow-hidden ring-2 ring-gray-200 bg-gray-50 flex items-center justify-center">
+                      {imagePreviewUrl ? (
+                        <img
+                          src={imagePreviewUrl}
+                          alt="Shop"
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <span className="text-xs font-semibold text-gray-500">No image</span>
+                      )}
+                    </div>
+
+                    <div className="flex-1 space-y-2">
+                      <Input
+                        id="vendor_image"
+                        type="file"
+                        accept="image/*"
+                        disabled={imageWorking}
+                        onChange={(e) => handleImageChange(e.target.files?.[0] || null)}
+                      />
+
+                      <div className="flex flex-wrap items-center gap-2">
+                        {imageFile && (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            disabled={imageWorking}
+                            onClick={() => handleImageChange(null)}
+                          >
+                            Clear selection
+                          </Button>
+                        )}
+
+                        {selectedVendor?.id && (selectedVendor.image_url || formData.image_url) && (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            disabled={imageWorking}
+                            onClick={handleRemoveImage}
+                          >
+                            {imageWorking ? 'Removing...' : 'Remove image'}
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
 
@@ -846,7 +1108,195 @@ export default function VendorList() {
         </div>
       ) : (
         <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
-          <div className="overflow-x-auto">
+          {/* Mobile cards */}
+          <div className="md:hidden divide-y divide-gray-200">
+            {pagedVendors.map((vendor) => {
+              const assignedAdmins = getAssignedAdminsForVendor(vendor.id)
+              const isOpen = assignVendorId === vendor.id
+              const filteredAdmins = admins.filter((a) => {
+                const term = assignSearch.toLowerCase()
+                const name = (a.name || '').toLowerCase()
+                const email = (a.email || '').toLowerCase()
+                return !term || name.includes(term) || email.includes(term)
+              })
+
+              return (
+                <div key={vendor.id} className="p-4 space-y-3">
+                  <div className="flex items-start gap-3">
+                    {vendor.image_url ? (
+                      <img
+                        src={vendor.image_url}
+                        alt={vendor.name}
+                        className="w-12 h-12 rounded-full object-cover ring-2 ring-gray-200 flex-shrink-0"
+                      />
+                    ) : (
+                      <div className="w-12 h-12 rounded-full bg-gradient-to-br from-indigo-400 to-indigo-600 flex items-center justify-center ring-2 ring-gray-200 flex-shrink-0">
+                        <span className="text-white font-bold text-sm">
+                          {vendor.name.charAt(0).toUpperCase()}
+                        </span>
+                      </div>
+                    )}
+
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <p className="text-sm font-semibold text-gray-900 truncate">{vendor.name}</p>
+                          <p className="text-xs text-gray-500 truncate">{vendor.email}</p>
+                        </div>
+                        <span
+                          className={cn(
+                            'inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-medium border',
+                            vendor.status === 'active'
+                              ? 'bg-green-50 text-green-700 border-green-200'
+                              : 'bg-gray-50 text-gray-700 border-gray-200',
+                          )}
+                        >
+                          {vendor.status === 'active' ? 'Active' : 'Inactive'}
+                        </span>
+                      </div>
+
+                      <div className="mt-2 grid grid-cols-1 gap-1 text-xs text-gray-600">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-gray-500">Shop ID</span>
+                          <span className="font-medium text-gray-800">{vendor.vendor_id}</span>
+                        </div>
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-gray-500">URL</span>
+                          {vendor.url ? (
+                            <a
+                              href={vendor.url}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="text-blue-600 hover:underline truncate max-w-[60%]"
+                            >
+                              {vendor.url}
+                            </a>
+                          ) : (
+                            <span className="text-gray-400">—</span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between gap-3">
+                    <DropdownMenu.Root
+                      open={!isDesktop && isOpen}
+                      onOpenChange={(open) => {
+                        if (isDesktop) return
+                        if (open) {
+                          setAssignVendorId(vendor.id)
+                          setAssignSearch('')
+                        } else if (!assignSaving) {
+                          setAssignVendorId(null)
+                          setAssignSearch('')
+                        }
+                      }}
+                    >
+                      <DropdownMenu.Trigger asChild>
+                        <button
+                          type="button"
+                          className="inline-flex items-center gap-2 px-2.5 py-1.5 rounded-md border border-gray-200 bg-white text-xs text-gray-700 hover:bg-gray-50 cursor-pointer"
+                          disabled={assignSaving}
+                        >
+                          <span className="text-gray-500">Assign Admin</span>
+                          {assignedAdmins.length === 0 ? (
+                            <span className="text-xs text-gray-600">Unassigned</span>
+                          ) : (
+                            <span className="text-xs font-medium text-gray-800">
+                              {assignedAdmins.length} assigned
+                            </span>
+                          )}
+                        </button>
+                      </DropdownMenu.Trigger>
+                      <DropdownMenu.Portal>
+                        <DropdownMenu.Content className="min-w-[260px] rounded-xl border border-gray-200 bg-white shadow-lg p-2 mr-1 mt-2 z-50 space-y-2">
+                          <div className="px-1">
+                            <Input
+                              type="text"
+                              placeholder="Search admins..."
+                              value={assignSearch}
+                              onChange={(e) => setAssignSearch(e.target.value)}
+                              className="h-8 text-xs border-gray-300"
+                            />
+                          </div>
+                          <div className="max-h-56 overflow-y-auto space-y-1">
+                            {filteredAdmins.map((admin) => {
+                              const current = vendorAdminAssignments[vendor.id]?.adminIds || []
+                              const checked = current.includes(admin.id)
+
+                              return (
+                                <DropdownMenu.CheckboxItem
+                                  key={admin.id}
+                                  className={cn(
+                                    'flex items-center gap-2 px-2 py-1.5 text-xs text-gray-700 rounded cursor-pointer outline-none hover:bg-gray-50',
+                                    assignSaving && 'opacity-60 pointer-events-none',
+                                  )}
+                                  checked={checked}
+                                  onCheckedChange={() => {
+                                    void handleToggleVendorAdminAssignment(vendor, admin.id)
+                                  }}
+                                >
+                                  <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-blue-50 text-[10px] font-semibold text-blue-700">
+                                    {buildInitials(admin.name || admin.email || 'A')}
+                                  </span>
+                                  <span className="flex-1 truncate">{admin.name}</span>
+                                </DropdownMenu.CheckboxItem>
+                              )
+                            })}
+                            {filteredAdmins.length === 0 && (
+                              <div className="px-2 py-2 text-xs text-gray-500">No admins found</div>
+                            )}
+                          </div>
+                          <div className="pt-2 border-t border-gray-100">
+                            <DropdownMenu.Item
+                              className="px-2 py-1.5 text-xs text-gray-700 rounded cursor-pointer outline-none hover:bg-gray-50"
+                              onSelect={(e) => {
+                                e.preventDefault()
+                                setAssignVendorId(null)
+                                setAssignSearch('')
+                                setTimeout(() => {
+                                  void handleManageAdmins(vendor)
+                                }, 0)
+                              }}
+                            >
+                              Advanced (shop super admin)
+                            </DropdownMenu.Item>
+                          </div>
+                        </DropdownMenu.Content>
+                      </DropdownMenu.Portal>
+                    </DropdownMenu.Root>
+
+                    {isGrandUser && (
+                      <div className="flex items-center gap-2">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleEdit(vendor)}
+                          title="Edit"
+                          className="h-9 w-9 p-0 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-full"
+                        >
+                          <Edit size={14} />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleDelete(vendor)}
+                          className="h-9 w-9 p-0 text-red-500 hover:text-red-600 hover:bg-red-50 rounded-full"
+                          title="Delete"
+                        >
+                          <Trash2 size={14} />
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+
+          {/* Desktop table */}
+          <div className="hidden md:block overflow-x-auto">
             <table className="w-full">
               <thead className="bg-gray-50 border-b border-gray-200">
                 <tr>
@@ -924,8 +1374,9 @@ export default function VendorList() {
                     </td>
                     <td className="px-4 py-3">
                       <DropdownMenu.Root
-                        open={isOpen}
+                        open={isDesktop && isOpen}
                         onOpenChange={(open) => {
+                          if (!isDesktop) return
                           if (open) {
                             setAssignVendorId(vendor.id)
                             setAssignSearch('')
@@ -1009,7 +1460,9 @@ export default function VendorList() {
                                   e.preventDefault()
                                   setAssignVendorId(null)
                                   setAssignSearch('')
-                                  void handleManageAdmins(vendor)
+                                  setTimeout(() => {
+                                    void handleManageAdmins(vendor)
+                                  }, 0)
                                 }}
                               >
                                 Advanced (shop super admin)
@@ -1034,7 +1487,7 @@ export default function VendorList() {
                           <Button
                             variant="ghost"
                             size="sm"
-                            onClick={() => handleDelete(vendor.id)}
+                            onClick={() => handleDelete(vendor)}
                             className="h-8 w-8 p-0 text-red-500 hover:text-red-600 hover:bg-red-50 rounded-full"
                             title="Delete"
                           >
@@ -1050,12 +1503,12 @@ export default function VendorList() {
           </div>
 
           {/* Pagination */}
-          <div className="px-4 py-2 border-t border-gray-200 flex items-center justify-between text-xs text-gray-600">
+          <div className="px-4 py-3 border-t border-gray-200 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 text-xs text-gray-600">
             <div>
               Showing {totalVendors === 0 ? 0 : startIndex + 1}–
               {Math.min(startIndex + rowsPerPage, totalVendors)} of {totalVendors}
             </div>
-            <div className="flex items-center gap-3">
+            <div className="flex flex-col sm:flex-row sm:items-center gap-3">
               <div className="flex items-center gap-1">
                 <span className="text-gray-500">Rows per page</span>
                 <select
@@ -1072,7 +1525,7 @@ export default function VendorList() {
                   <option value={50}>50</option>
                 </select>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 justify-between sm:justify-start">
                 <button
                   type="button"
                   onClick={() => setPage((prev) => Math.max(1, prev - 1))}

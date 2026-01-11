@@ -16,7 +16,7 @@ interface SidebarProps {
 export default function Sidebar({ currentPage, onPageChange }: SidebarProps) {
   const [isOpen, setIsOpen] = useState(false)
   const { user, role, signOut } = useAuth()
-  const { memberships, activeVendorId, setActiveVendorId, permissions } = useVendor()
+  const { memberships, activeVendorId, setActiveVendorId, permissions, permissionsLoading } = useVendor()
   const [vendorSearch, setVendorSearch] = useState('')
   const [userAvatarUrl, setUserAvatarUrl] = useState<string>('')
 
@@ -32,6 +32,10 @@ export default function Sidebar({ currentPage, onPageChange }: SidebarProps) {
 
   const hasAnyVendorMembership = memberships.length > 0
   const isVendorSuperAdmin = memberships.some((m) => m.isVendorSuperAdmin)
+  const isVendorSuperAdminForActiveVendor =
+    role === 'admin' &&
+    !!activeVendorId &&
+    memberships.some((m) => m.vendor.id === activeVendorId && m.isVendorSuperAdmin)
 
   const vendors = memberships.map((m) => m.vendor)
   const hasVendors = vendors.length > 0
@@ -112,6 +116,20 @@ export default function Sidebar({ currentPage, onPageChange }: SidebarProps) {
 
     // Global Grand User can see everything
     if (role === 'grand_user') return true
+
+    // While loading shop-scoped permissions, avoid rendering an empty sidebar for admins.
+    // Feature pages still enforce permissions.
+    if (role === 'admin' && permissionsLoading) {
+      if (item.id === 'vendors') return hasAnyVendorMembership
+      return true
+    }
+
+    // Vendor super admins should see the full vendor-scoped menu for the active shop.
+    if (isVendorSuperAdminForActiveVendor) {
+      if (item.id === 'admin') return true
+      if (item.id === 'vendors') return hasAnyVendorMembership
+      return true
+    }
 
     switch (item.id) {
       case 'receipts':

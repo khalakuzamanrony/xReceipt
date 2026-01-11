@@ -2175,7 +2175,10 @@ export default function CustomTemplateBuilder({ open, onClose, onSave, isFullPag
     // Render as modal dialog
     return (
         <Dialog open={open} onOpenChange={onClose}>
-            <DialogContent className="template-builder-dialog max-w-[95vw] w-[1400px] bg-white h-[90vh]" style={{ display: 'flex', flexDirection: 'column', padding: 0 }}>
+            <DialogContent
+                className="template-builder-dialog max-w-[95vw] w-[1400px] bg-white max-h-[calc(100dvh-2rem)] overflow-hidden"
+                style={{ display: 'flex', flexDirection: 'column', padding: 0 }}
+            >
                 {content}
             </DialogContent>
         </Dialog>

@@ -484,7 +484,7 @@ export default function VisualReceiptBuilder({ open, onClose, onSave }: VisualRe
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="max-w-7xl max-h-[95vh] overflow-hidden flex flex-col p-0">
+      <DialogContent className="max-w-7xl max-h-[calc(100dvh-2rem)] overflow-hidden flex flex-col p-0">
         <DialogHeader className="px-6 py-4 border-b bg-gradient-to-r from-slate-900 via-purple-900 to-slate-900">
           <DialogTitle className="flex items-center gap-3 text-white">
             <Zap size={24} className="text-purple-400" />

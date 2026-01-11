@@ -404,7 +404,7 @@ export default function PocketFilmsTemplate({ open, onClose, onSave }: PocketFil
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="max-w-7xl bg-white h-[90vh] flex flex-col p-0">
+      <DialogContent className="max-w-7xl bg-white max-h-[calc(100dvh-2rem)] flex flex-col p-0 overflow-hidden">
         {/* Header */}
         <DialogHeader className="border-b border-gray-200 px-8 py-6">
           <div className="flex flex-col gap-1">

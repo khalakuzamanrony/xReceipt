@@ -357,7 +357,7 @@ export default function AdminForm({ admin, onClose, canEditEmail = false }: Admi
 
   return (
     <Dialog open={true} onOpenChange={onClose}>
-      <DialogContent className="max-w-2xl w-full h-[90vh] p-0 flex flex-col">
+      <DialogContent className="max-w-2xl max-h-[calc(100dvh-2rem)] p-0 flex flex-col overflow-hidden">
         <form onSubmit={handleSubmit} className="flex flex-col h-full">
           <DialogHeader className="px-6 pt-6 pb-4 border-b bg-white">
             <DialogTitle className="text-2xl">
