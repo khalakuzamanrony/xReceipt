@@ -59,3 +59,156 @@
 
 34. still double dropdown issue on receipt template page
 35. on shop page, the assign admin dropdown should be multi selectable and shows exact behavior of user page assigned admin drpdown
+36. on admin page, it taking a longer time to load, why
+content.js:398 Uncaught TypeError: Failed to execute 'observe' on 'MutationObserver': parameter 1 is not of type 'Node'.
+    at content.js:398:12
+    at content.js:402:3
+(anonymous) @ content.js:398
+(anonymous) @ content.js:402
+client:733 [vite] connecting...
+client:827 [vite] connected.
+react-dom_client.js?v=647ce03d:20103 Download the React DevTools for a better development experience: https://react.dev/link/react-devtools
+xpath-extractor.js:20 FillBot: XPath Extractor initialized
+screenshot-handler.js:22 FillBot Screenshot Handler initialized
+content.js:75 Content script loaded
+chext_driver.js:539 Initialized driver at: Tue Jan 13 2026 01:44:02 GMT+0600 (Bangladesh Standard Time)
+content.js:108 FillBot: Comparing domains - Current: "", Excluded: "portal.iccbd.com"
+content.js:121 FillBot: Exact match result: false
+content.js:125 FillBot: Subdomain match result: false
+content.js:128 FillBot: Final exclusion result: false
+content.js:108 FillBot: Comparing domains - Current: "", Excluded: "chat.z.ai"
+content.js:121 FillBot: Exact match result: false
+content.js:125 FillBot: Subdomain match result: false
+content.js:128 FillBot: Final exclusion result: false
+content.js:108 FillBot: Comparing domains - Current: "", Excluded: "chat.deepseek.com"
+content.js:121 FillBot: Exact match result: false
+content.js:125 FillBot: Subdomain match result: false
+content.js:128 FillBot: Final exclusion result: false
+content.js:108 FillBot: Comparing domains - Current: "", Excluded: "alljobs.teletalk.com.bd"
+content.js:121 FillBot: Exact match result: false
+content.js:125 FillBot: Subdomain match result: false
+content.js:128 FillBot: Final exclusion result: false
+chext_loader.js:73 Initialized chextloader at: 1768247042743
+content.js:163 FillBot: Custom data loaded: {firstNames: 70, lastNames: 0, emails: 0, passwords: 0, loremKeywords: 0}
+content.js:191 FillBot: Initialized successfully
+[Violation] 'message' handler took <N>ms
+[Violation] 'message' handler took <N>ms
+[Violation] 'message' handler took <N>ms
+[Violation] 'message' handler took <N>ms
+[Violation] 'message' handler took <N>ms
+[Violation] 'message' handler took <N>ms
+[Violation] 'message' handler took <N>ms
+[Violation] 'message' handler took <N>ms
+[Violation] 'message' handler took <N>ms
+[Violation] 'message' handler took <N>ms
+[Violation] 'message' handler took <N>ms
+[Violation] 'message' handler took <N>ms
+[Violation] 'message' handler took <N>ms
+[Violation] 'message' handler took <N>ms
+[Violation] 'message' handler took <N>ms
+react-dom_client.js?v=647ce03d:13527 [Violation] 'pointerdown' handler took 774ms
+chunk-XOH6CIUE.js?v=647ce03d:176 [Violation] 'pointerdown' handler took 904ms
+client:810 [vite] hot updated: /src/components/admin/AdminList.tsx
+client:810 [vite] hot updated: /src/index.css
+client:810 [vite] hot updated: /src/components/layout/Sidebar.tsx
+client:810 [vite] hot updated: /src/index.css
+@react-refresh:602 [Violation] 'setTimeout' handler took 99ms
+client:810 [vite] hot updated: /src/components/vendors/VendorList.tsx
+client:810 [vite] hot updated: /src/index.css
+@react-refresh:602 [Violation] 'setTimeout' handler took 606ms
+chext_driver.js:253 [Violation] 'setInterval' handler took 4683ms
+client:810 [vite] hot updated: /src/components/admin/AdminList.tsx
+client:810 [vite] hot updated: /src/index.css
+client:810 [vite] hot updated: /src/components/vendors/VendorList.tsx
+client:810 [vite] hot updated: /src/index.css
+client:810 [vite] hot updated: /src/components/admin/AdminList.tsx
+client:810 [vite] hot updated: /src/index.css
+client:810 [vite] hot updated: /src/components/vendors/VendorList.tsx
+client:810 [vite] hot updated: /src/index.css
+client:810 [vite] hot updated: /src/index.css
+@react-refresh:602 [Violation] 'setTimeout' handler took 870ms
+react-dom_client.js?v=647ce03d:13527 [Violation] 'click' handler took 806ms
+[Violation] 'change' handler took 833ms
+react-dom_client.js?v=647ce03d:13527 [Violation] 'submit' handler took 896ms
+vendorService.ts:90  POST https://ennacgmobaeukhtvkxgi.supabase.co/storage/v1/object/vendor-images/9a23b401-1511-48d6-b7e9-debd63280067/1768247462564-yoqj07uigbf.jpg 400 (Bad Request)
+(anonymous) @ @supabase_supabase-js.js?v=647ce03d:7177
+(anonymous) @ @supabase_supabase-js.js?v=647ce03d:7195
+await in (anonymous)
+(anonymous) @ @supabase_supabase-js.js?v=647ce03d:3699
+(anonymous) @ @supabase_supabase-js.js?v=647ce03d:3699
+(anonymous) @ @supabase_supabase-js.js?v=647ce03d:3781
+(anonymous) @ @supabase_supabase-js.js?v=647ce03d:3780
+(anonymous) @ chunk-V6VHMQ7B.js?v=647ce03d:147
+__awaiter @ chunk-V6VHMQ7B.js?v=647ce03d:129
+_handleRequest @ @supabase_supabase-js.js?v=647ce03d:3779
+(anonymous) @ @supabase_supabase-js.js?v=647ce03d:3798
+(anonymous) @ chunk-V6VHMQ7B.js?v=647ce03d:147
+__awaiter @ chunk-V6VHMQ7B.js?v=647ce03d:129
+post @ @supabase_supabase-js.js?v=647ce03d:3797
+(anonymous) @ @supabase_supabase-js.js?v=647ce03d:3978
+(anonymous) @ chunk-V6VHMQ7B.js?v=647ce03d:147
+__awaiter @ chunk-V6VHMQ7B.js?v=647ce03d:129
+uploadOrUpdate @ @supabase_supabase-js.js?v=647ce03d:3940
+(anonymous) @ @supabase_supabase-js.js?v=647ce03d:4040
+(anonymous) @ chunk-V6VHMQ7B.js?v=647ce03d:147
+__awaiter @ chunk-V6VHMQ7B.js?v=647ce03d:129
+upload @ @supabase_supabase-js.js?v=647ce03d:4039
+uploadVendorImage @ vendorService.ts:90
+handleSubmit @ VendorList.tsx?t=1768247409568:369
+executeDispatch @ react-dom_client.js?v=647ce03d:13622
+runWithFiberInDEV @ react-dom_client.js?v=647ce03d:997
+processDispatchQueue @ react-dom_client.js?v=647ce03d:13658
+(anonymous) @ react-dom_client.js?v=647ce03d:14071
+batchedUpdates$1 @ react-dom_client.js?v=647ce03d:2626
+dispatchEventForPluginEventSystem @ react-dom_client.js?v=647ce03d:13763
+dispatchEvent @ react-dom_client.js?v=647ce03d:16784
+dispatchDiscreteEvent @ react-dom_client.js?v=647ce03d:16765
+react-dom_client.js?v=647ce03d:13527 [Violation] 'click' handler took 580ms
+client:810 [vite] hot updated: /src/components/admin/AdminList.tsx
+client:810 [vite] hot updated: /src/index.css
+client:810 [vite] hot updated: /src/components/vendors/VendorList.tsx
+client:810 [vite] hot updated: /src/index.css
+react-dom_client.js?v=647ce03d:13527 [Violation] 'click' handler took 801ms
+[Violation] Forced reflow while executing JavaScript took 41ms
+[Violation] 'change' handler took 819ms
+react-dom_client.js?v=647ce03d:13527 [Violation] 'submit' handler took 1028ms
+vendorService.ts:90  POST https://ennacgmobaeukhtvkxgi.supabase.co/storage/v1/object/vendor-images/9a23b401-1511-48d6-b7e9-debd63280067/1768247699987-vgvlx60kez.jpg 400 (Bad Request)
+(anonymous) @ @supabase_supabase-js.js?v=647ce03d:7177
+(anonymous) @ @supabase_supabase-js.js?v=647ce03d:7195
+await in (anonymous)
+(anonymous) @ @supabase_supabase-js.js?v=647ce03d:3699
+(anonymous) @ @supabase_supabase-js.js?v=647ce03d:3699
+(anonymous) @ @supabase_supabase-js.js?v=647ce03d:3781
+(anonymous) @ @supabase_supabase-js.js?v=647ce03d:3780
+(anonymous) @ chunk-V6VHMQ7B.js?v=647ce03d:147
+__awaiter @ chunk-V6VHMQ7B.js?v=647ce03d:129
+_handleRequest @ @supabase_supabase-js.js?v=647ce03d:3779
+(anonymous) @ @supabase_supabase-js.js?v=647ce03d:3798
+(anonymous) @ chunk-V6VHMQ7B.js?v=647ce03d:147
+__awaiter @ chunk-V6VHMQ7B.js?v=647ce03d:129
+post @ @supabase_supabase-js.js?v=647ce03d:3797
+(anonymous) @ @supabase_supabase-js.js?v=647ce03d:3978
+(anonymous) @ chunk-V6VHMQ7B.js?v=647ce03d:147
+__awaiter @ chunk-V6VHMQ7B.js?v=647ce03d:129
+uploadOrUpdate @ @supabase_supabase-js.js?v=647ce03d:3940
+(anonymous) @ @supabase_supabase-js.js?v=647ce03d:4040
+(anonymous) @ chunk-V6VHMQ7B.js?v=647ce03d:147
+__awaiter @ chunk-V6VHMQ7B.js?v=647ce03d:129
+upload @ @supabase_supabase-js.js?v=647ce03d:4039
+uploadVendorImage @ vendorService.ts:90
+handleSubmit @ VendorList.tsx:425
+executeDispatch @ react-dom_client.js?v=647ce03d:13622
+runWithFiberInDEV @ react-dom_client.js?v=647ce03d:997
+processDispatchQueue @ react-dom_client.js?v=647ce03d:13658
+(anonymous) @ react-dom_client.js?v=647ce03d:14071
+batchedUpdates$1 @ react-dom_client.js?v=647ce03d:2626
+dispatchEventForPluginEventSystem @ react-dom_client.js?v=647ce03d:13763
+dispatchEvent @ react-dom_client.js?v=647ce03d:16784
+dispatchDiscreteEvent @ react-dom_client.js?v=647ce03d:16765
+react-dom_client.js?v=647ce03d:13527 [Violation] 'click' handler took 927ms
+
+
+
+
+
+

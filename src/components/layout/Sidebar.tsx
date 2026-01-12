@@ -65,6 +65,7 @@ export default function Sidebar({ currentPage, onPageChange }: SidebarProps) {
       if (!value) return ''
       if (value.startsWith('data:')) return ''
       const markers = [
+        '/storage/v1/object/sign/admin-profiles/',
         '/storage/v1/object/public/admin-profiles/',
         '/storage/v1/object/admin-profiles/',
         'admin-profiles/',
@@ -73,11 +74,12 @@ export default function Sidebar({ currentPage, onPageChange }: SidebarProps) {
       for (const marker of markers) {
         const idx = value.indexOf(marker)
         if (idx >= 0) {
-          return value.slice(idx + marker.length)
+          const extracted = value.slice(idx + marker.length)
+          return extracted.split('?')[0].split('#')[0]
         }
       }
 
-      if (!value.startsWith('http') && value.includes('/')) return value
+      if (!value.startsWith('http') && value.includes('/')) return value.split('?')[0].split('#')[0]
       return ''
     }
 
@@ -88,6 +90,9 @@ export default function Sidebar({ currentPage, onPageChange }: SidebarProps) {
         return
       }
 
+      const hasSafeRawAvatar =
+        raw.startsWith('http') && !raw.includes('/storage/v1/object/sign/admin-profiles/')
+
       const path = resolveStoragePath(raw)
       if (!path) {
         setUserAvatarUrl(raw)
@@ -95,16 +100,14 @@ export default function Sidebar({ currentPage, onPageChange }: SidebarProps) {
       }
 
       try {
-        const { data, error } = await supabase.storage
-          .from('admin-profiles')
-          .createSignedUrl(path, 60 * 60)
+        const { data, error } = await supabase.storage.from('admin-profiles').createSignedUrl(path, 60 * 60)
         if (error || !data?.signedUrl) {
-          setUserAvatarUrl(raw.startsWith('http') ? raw : '')
+          setUserAvatarUrl(hasSafeRawAvatar ? raw : '')
           return
         }
         setUserAvatarUrl(data.signedUrl)
       } catch {
-        setUserAvatarUrl(raw.startsWith('http') ? raw : '')
+        setUserAvatarUrl(hasSafeRawAvatar ? raw : '')
       }
     }
 

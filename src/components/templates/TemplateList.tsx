@@ -55,6 +55,7 @@ export default function TemplateList({ onNavigateToBuilder }: TemplateListProps)
   const [assignSelectedVendorIds, setAssignSelectedVendorIds] = useState<string[]>([])
   const [assignSaving, setAssignSaving] = useState(false)
   const [assignError, setAssignError] = useState<string | null>(null)
+  const [isDesktop, setIsDesktop] = useState(false)
   const [templateVendorAssignments, setTemplateVendorAssignments] = useState<Record<string, string[]>>({})
   const [templateUsageCounts, setTemplateUsageCounts] = useState<Record<string, number>>({})
   const [vendorFilter, setVendorFilter] = useState<string>('all')
@@ -72,6 +73,23 @@ export default function TemplateList({ onNavigateToBuilder }: TemplateListProps)
 
     void loadTemplates(activeVendorId ?? null)
   }, [vendorLoading, activeVendorId, role])
+
+  useEffect(() => {
+    const mql = window.matchMedia('(min-width: 768px)')
+    const handleChange = () => {
+      setIsDesktop(mql.matches)
+      setAssignTemplateId(null)
+      setAssignSelectedVendorIds([])
+      setAssignSearch('')
+      setAssignError(null)
+    }
+
+    handleChange()
+    mql.addEventListener('change', handleChange)
+    return () => {
+      mql.removeEventListener('change', handleChange)
+    }
+  }, [])
 
   const loadTemplates = async (vendorId?: string | null) => {
     try {
@@ -752,8 +770,9 @@ export default function TemplateList({ onNavigateToBuilder }: TemplateListProps)
 
                         return (
                           <DropdownMenu.Root
-                            open={assignTemplateId === template.id}
+                            open={!isDesktop && assignTemplateId === template.id}
                             onOpenChange={(open) => {
+                              if (isDesktop) return
                               if (open) {
                                 setAssignTemplateId(template.id)
                                 setAssignSearch('')
@@ -992,8 +1011,9 @@ export default function TemplateList({ onNavigateToBuilder }: TemplateListProps)
 
                           return (
                             <DropdownMenu.Root
-                              open={assignTemplateId === template.id}
+                              open={isDesktop && assignTemplateId === template.id}
                               onOpenChange={(open) => {
+                                if (!isDesktop) return
                                 if (open) {
                                   setAssignTemplateId(template.id)
                                   setAssignSearch('')
