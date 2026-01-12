@@ -45,6 +45,7 @@ export default function AdminList() {
   const [adminToDelete, setAdminToDelete] = useState<User | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
   const [adminAvatarUrls, setAdminAvatarUrls] = useState<Record<string, string>>({})
+  const [brokenAvatarAdminIds, setBrokenAvatarAdminIds] = useState<Record<string, boolean>>({})
 
   const isGrandUserView = role === 'grand_user'
 
@@ -85,6 +86,7 @@ export default function AdminList() {
         if (!value) return ''
         if (value.startsWith('data:')) return ''
         const markers = [
+          '/storage/v1/object/sign/admin-profiles/',
           '/storage/v1/object/public/admin-profiles/',
           '/storage/v1/object/admin-profiles/',
           'admin-profiles/',
@@ -93,37 +95,47 @@ export default function AdminList() {
         for (const marker of markers) {
           const idx = value.indexOf(marker)
           if (idx >= 0) {
-            return value.slice(idx + marker.length)
+            const extracted = value.slice(idx + marker.length)
+            return extracted.split('?')[0].split('#')[0]
           }
         }
 
         // If it's already a plain path like "<uuid>/<file>.png" return it
-        if (!value.startsWith('http') && value.includes('/')) return value
+        if (!value.startsWith('http') && value.includes('/')) {
+          return value.split('?')[0].split('#')[0]
+        }
         return ''
       }
 
       try {
-        const entries = await Promise.all(
-          data.map(async (admin) => {
-            const raw = admin.profile_image_url || ''
-            const path = resolveStoragePath(raw)
-            if (!path) return [admin.id, raw] as const
+        const entries = data.map((admin) => {
+          const raw = admin.profile_image_url || ''
+          const path = resolveStoragePath(raw)
+          if (!path) return [admin.id, raw] as const
 
-            const { data: signed, error: signedErr } = await supabase.storage
-              .from('admin-profiles')
-              .createSignedUrl(path, 60 * 60)
-            if (signedErr || !signed?.signedUrl) {
-              // If raw is already a fully qualified URL (e.g. CDN/external), keep it.
-              // If it's a storage path and signing failed, don't use it as <img src>.
-              return [admin.id, raw.startsWith('http') ? raw : ''] as const
+          return [admin.id, path] as const
+        })
+
+        const signedEntries = await Promise.all(
+          entries.map(async ([adminId, pathOrUrl]) => {
+            if (!pathOrUrl) return [adminId, ''] as const
+            if ((pathOrUrl || '').startsWith('http')) return [adminId, pathOrUrl] as const
+
+            try {
+              const { data: signed, error: signedErr } = await supabase.storage
+                .from('admin-profiles')
+                .createSignedUrl(pathOrUrl, 60 * 60)
+              if (signedErr || !signed?.signedUrl) return [adminId, ''] as const
+              return [adminId, signed.signedUrl] as const
+            } catch {
+              return [adminId, ''] as const
             }
-            return [admin.id, signed.signedUrl] as const
           }),
         )
 
         setAdminAvatarUrls((prev) => ({
           ...prev,
-          ...Object.fromEntries(entries.filter(([, url]) => !!url)),
+          ...Object.fromEntries(signedEntries.filter(([, url]) => !!url)),
         }))
       } catch (avatarErr) {
         console.warn('Failed to resolve admin avatar URLs:', avatarErr)
@@ -138,27 +150,18 @@ export default function AdminList() {
 
       // Load vendor memberships for each admin for richer UI
       try {
+        const membershipsByAdminId = await vendorAdminService.getVendorsForAdmins(data.map((a) => a.id))
         const entries: [
           string,
           { vendorId: string; vendorName: string; isVendorSuperAdmin: boolean }[],
-        ][] = await Promise.all(
-          data.map(async (admin) => {
-            try {
-              const memberships = await vendorAdminService.getVendorsForAdmin(admin.id)
-              const mapped = memberships.map((m) => ({
-                vendorId: m.vendor.id,
-                vendorName: m.vendor.name,
-                isVendorSuperAdmin: m.isVendorSuperAdmin,
-              }))
-              return [admin.id, mapped]
-            } catch {
-              return [
-                admin.id,
-                [] as { vendorId: string; vendorName: string; isVendorSuperAdmin: boolean }[],
-              ]
-            }
-          }),
-        )
+        ][] = Object.entries(membershipsByAdminId).map(([adminId, memberships]) => {
+          const mapped = memberships.map((m) => ({
+            vendorId: m.vendor.id,
+            vendorName: m.vendor.name,
+            isVendorSuperAdmin: m.isVendorSuperAdmin,
+          }))
+          return [adminId, mapped]
+        })
         const infoMap: Record<
           string,
           { vendorId: string; vendorName: string; isVendorSuperAdmin: boolean }[]
@@ -553,16 +556,26 @@ export default function AdminList() {
           <div className="md:hidden divide-y divide-gray-200">
             {pagedAdmins.map((admin) => {
               const isNonDeletable = nonDeletableAdminIds.includes(admin.id)
+              const rawAvatar = admin.profile_image_url || ''
+              const hasSafeRawAvatar =
+                rawAvatar.startsWith('http') && !rawAvatar.includes('/storage/v1/object/sign/admin-profiles/')
+              const avatarUrl =
+                brokenAvatarAdminIds[admin.id]
+                  ? ''
+                  : adminAvatarUrls[admin.id] || (hasSafeRawAvatar ? rawAvatar : '')
 
               return (
                 <div key={admin.id} className="p-4 space-y-3">
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex items-start gap-3 min-w-0">
-                      {adminAvatarUrls[admin.id] || admin.profile_image_url ? (
+                      {avatarUrl ? (
                         <img
-                          src={adminAvatarUrls[admin.id] || admin.profile_image_url}
+                          src={avatarUrl}
                           alt={admin.name}
                           className="w-12 h-12 rounded-full object-cover ring-2 ring-gray-200 flex-shrink-0"
+                          onError={() => {
+                            setBrokenAvatarAdminIds((prev) => ({ ...prev, [admin.id]: true }))
+                          }}
                         />
                       ) : (
                         <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center ring-2 ring-gray-200 flex-shrink-0">
@@ -887,16 +900,26 @@ export default function AdminList() {
               <tbody className="divide-y divide-gray-200">
                 {pagedAdmins.map((admin) => {
                   const isNonDeletable = nonDeletableAdminIds.includes(admin.id)
+                  const rawAvatar = admin.profile_image_url || ''
+                  const hasSafeRawAvatar =
+                    rawAvatar.startsWith('http') && !rawAvatar.includes('/storage/v1/object/sign/admin-profiles/')
+                  const avatarUrl =
+                    brokenAvatarAdminIds[admin.id]
+                      ? ''
+                      : adminAvatarUrls[admin.id] || (hasSafeRawAvatar ? rawAvatar : '')
                   return (
                     <tr key={admin.id} className="hover:bg-gray-50 transition-colors">
                       <td className="px-4 py-3">
                         <div className="flex flex-col gap-1">
                           <div className="flex items-center gap-3">
-                            {adminAvatarUrls[admin.id] || admin.profile_image_url ? (
+                            {avatarUrl ? (
                               <img
-                                src={adminAvatarUrls[admin.id] || admin.profile_image_url}
+                                src={avatarUrl}
                                 alt={admin.name}
                                 className="w-10 h-10 rounded-full object-cover ring-2 ring-gray-200"
+                                onError={() => {
+                                  setBrokenAvatarAdminIds((prev) => ({ ...prev, [admin.id]: true }))
+                                }}
                               />
                             ) : (
                               <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center ring-2 ring-gray-200">

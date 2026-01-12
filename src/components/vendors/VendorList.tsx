@@ -7,11 +7,13 @@ import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Label } from '@/components/ui/Label'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/Dialog'
+import { Checkbox } from '@/components/ui/Checkbox'
 import { Plus, Edit, Trash2, AlertCircle, Store, Search, Eye, EyeOff } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { useVendor } from '@/contexts/VendorContext'
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
 import { cn } from '@/lib/utils'
+import { supabase } from '@/lib/supabase'
 
 export default function VendorList() {
   const { role } = useAuth()
@@ -35,8 +37,12 @@ export default function VendorList() {
   >({})
   const [assignVendorId, setAssignVendorId] = useState<string | null>(null)
   const [assignSearch, setAssignSearch] = useState('')
+  const [assignSelectedAdminIds, setAssignSelectedAdminIds] = useState<string[]>([])
   const [assignSaving, setAssignSaving] = useState(false)
+  const [assignError, setAssignError] = useState<string | null>(null)
   const [isDesktop, setIsDesktop] = useState(false)
+  const [adminAvatarUrls, setAdminAvatarUrls] = useState<Record<string, string>>({})
+  const [brokenAvatarAdminIds, setBrokenAvatarAdminIds] = useState<Record<string, boolean>>({})
   const [formData, setFormData] = useState({
     vendor_id: '',
     name: '',
@@ -71,6 +77,8 @@ export default function VendorList() {
       setIsDesktop(mql.matches)
       setAssignVendorId(null)
       setAssignSearch('')
+      setAssignSelectedAdminIds([])
+      setAssignError(null)
     }
 
     handleChange()
@@ -90,6 +98,63 @@ export default function VendorList() {
       ])
       setVendors(vendorsData)
       setAdmins(adminsData)
+
+      try {
+        const resolveStoragePath = (value: string) => {
+          if (!value) return ''
+          if (value.startsWith('data:')) return ''
+          const markers = [
+            '/storage/v1/object/sign/admin-profiles/',
+            '/storage/v1/object/public/admin-profiles/',
+            '/storage/v1/object/admin-profiles/',
+            'admin-profiles/',
+          ]
+
+          for (const marker of markers) {
+            const idx = value.indexOf(marker)
+            if (idx >= 0) {
+              const extracted = value.slice(idx + marker.length)
+              return extracted.split('?')[0].split('#')[0]
+            }
+          }
+
+          if (!value.startsWith('http') && value.includes('/')) {
+            return value.split('?')[0].split('#')[0]
+          }
+          return ''
+        }
+
+        const entries = adminsData.map((admin) => {
+          const raw = admin.profile_image_url || ''
+          const path = resolveStoragePath(raw)
+          if (!path) return [admin.id, raw] as const
+          return [admin.id, path] as const
+        })
+
+        const signedEntries = await Promise.all(
+          entries.map(async ([adminId, pathOrUrl]) => {
+            if (!pathOrUrl) return [adminId, ''] as const
+            if ((pathOrUrl || '').startsWith('http')) return [adminId, pathOrUrl] as const
+
+            try {
+              const { data, error } = await supabase.storage
+                .from('admin-profiles')
+                .createSignedUrl(pathOrUrl, 60 * 60)
+              if (error || !data?.signedUrl) return [adminId, ''] as const
+              return [adminId, data.signedUrl] as const
+            } catch {
+              return [adminId, ''] as const
+            }
+          }),
+        )
+
+        setAdminAvatarUrls((prev) => ({
+          ...prev,
+          ...Object.fromEntries(signedEntries.filter(([, url]) => !!url)),
+        }))
+      } catch (avatarErr) {
+        console.warn('Failed to resolve admin avatar URLs:', avatarErr)
+      }
 
       try {
         const vendorIds = vendorsData.map((v) => v.id)
@@ -430,18 +495,15 @@ export default function VendorList() {
       .slice(0, 2)
       .join('')
 
-  const handleToggleVendorAdminAssignment = async (vendor: Vendor, adminId: string) => {
+  const handleSaveVendorAdminAssignments = async (vendor: Vendor) => {
+    if (assignVendorId !== vendor.id) return
+
     const current = vendorAdminAssignments[vendor.id] || { adminIds: [], superAdminIds: [] }
-    const isAssigned = current.adminIds.includes(adminId)
-    const nextAdminIds = isAssigned
-      ? current.adminIds.filter((id) => id !== adminId)
-      : [...current.adminIds, adminId]
-    const nextSuperAdminIds = isAssigned
-      ? current.superAdminIds.filter((id) => id !== adminId)
-      : current.superAdminIds
+    const nextAdminIds = assignSelectedAdminIds
+    const nextSuperAdminIds = current.superAdminIds.filter((id) => nextAdminIds.includes(id))
 
     setAssignSaving(true)
-    setError(null)
+    setAssignError(null)
     try {
       const payload = nextAdminIds.map((id) => ({
         admin_id: id,
@@ -450,10 +512,9 @@ export default function VendorList() {
       await vendorAdminService.saveAdminsForVendor(vendor.id, payload)
 
       // Keep legacy vendors.admin_id column in sync with first assigned admin
-      await vendorService.updateVendor(vendor.id, { admin_id: nextAdminIds[0] ?? null })
-      setVendors((prev) =>
-        prev.map((v) => (v.id === vendor.id ? { ...v, admin_id: nextAdminIds[0] ?? null } : v)),
-      )
+      const primaryAdminId = nextAdminIds[0] ?? null
+      await vendorService.updateVendor(vendor.id, { admin_id: primaryAdminId })
+      setVendors((prev) => prev.map((v) => (v.id === vendor.id ? { ...v, admin_id: primaryAdminId } : v)))
 
       setVendorAdminAssignments((prev) => ({
         ...prev,
@@ -462,8 +523,13 @@ export default function VendorList() {
           superAdminIds: nextSuperAdminIds,
         },
       }))
+
+      setAssignVendorId(null)
+      setAssignSelectedAdminIds([])
+      setAssignSearch('')
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to update assigned admins')
+      const message = err instanceof Error ? err.message : 'Failed to update assigned admins'
+      setAssignError(message)
     } finally {
       setAssignSaving(false)
     }
@@ -601,15 +667,36 @@ export default function VendorList() {
                         <span className="text-xs text-gray-600">Unassigned</span>
                       ) : (
                         <div className="flex items-center -space-x-1">
-                          {assignedAdmins.slice(0, 3).map((admin) => (
-                            <div
-                              key={admin.id}
-                              className="h-7 w-7 rounded-full bg-blue-50 ring-2 ring-white flex items-center justify-center text-[10px] font-semibold text-blue-700"
-                              title={admin.name}
-                            >
-                              {buildInitials(admin.name || admin.email || 'A')}
-                            </div>
-                          ))}
+                          {assignedAdmins.slice(0, 3).map((admin) => {
+                            const rawAvatar = admin.profile_image_url || ''
+                            const hasSafeRawAvatar =
+                              rawAvatar.startsWith('http') &&
+                              !rawAvatar.includes('/storage/v1/object/sign/admin-profiles/')
+                            const avatarUrl = brokenAvatarAdminIds[admin.id]
+                              ? ''
+                              : adminAvatarUrls[admin.id] || (hasSafeRawAvatar ? rawAvatar : '')
+
+                            return avatarUrl ? (
+                              <img
+                                key={admin.id}
+                                src={avatarUrl}
+                                alt={admin.name}
+                                title={admin.name}
+                                className="h-7 w-7 rounded-full object-cover ring-2 ring-white bg-white"
+                                onError={() => {
+                                  setBrokenAvatarAdminIds((prev) => ({ ...prev, [admin.id]: true }))
+                                }}
+                              />
+                            ) : (
+                              <div
+                                key={admin.id}
+                                className="h-7 w-7 rounded-full bg-blue-50 ring-2 ring-white flex items-center justify-center text-[10px] font-semibold text-blue-700"
+                                title={admin.name}
+                              >
+                                {buildInitials(admin.name || admin.email || 'A')}
+                              </div>
+                            )
+                          })}
                           {assignedAdmins.length > 3 && (
                             <div className="h-7 w-7 rounded-full bg-gray-100 ring-2 ring-white flex items-center justify-center text-[10px] font-semibold text-gray-700">
                               +{assignedAdmins.length - 3}
@@ -694,15 +781,36 @@ export default function VendorList() {
                             <p className="text-sm text-gray-600">Unassigned</p>
                           ) : (
                             <div className="flex items-center -space-x-1">
-                              {assignedAdmins.slice(0, 3).map((admin) => (
-                                <div
-                                  key={admin.id}
-                                  className="h-7 w-7 rounded-full bg-blue-50 ring-2 ring-white flex items-center justify-center text-[10px] font-semibold text-blue-700"
-                                  title={admin.name}
-                                >
-                                  {buildInitials(admin.name || admin.email || 'A')}
-                                </div>
-                              ))}
+                              {assignedAdmins.slice(0, 3).map((admin) => {
+                                const rawAvatar = admin.profile_image_url || ''
+                                const hasSafeRawAvatar =
+                                  rawAvatar.startsWith('http') &&
+                                  !rawAvatar.includes('/storage/v1/object/sign/admin-profiles/')
+                                const avatarUrl = brokenAvatarAdminIds[admin.id]
+                                  ? ''
+                                  : adminAvatarUrls[admin.id] || (hasSafeRawAvatar ? rawAvatar : '')
+
+                                return avatarUrl ? (
+                                  <img
+                                    key={admin.id}
+                                    src={avatarUrl}
+                                    alt={admin.name}
+                                    title={admin.name}
+                                    className="h-7 w-7 rounded-full object-cover ring-2 ring-white bg-white"
+                                    onError={() => {
+                                      setBrokenAvatarAdminIds((prev) => ({ ...prev, [admin.id]: true }))
+                                    }}
+                                  />
+                                ) : (
+                                  <div
+                                    key={admin.id}
+                                    className="h-7 w-7 rounded-full bg-blue-50 ring-2 ring-white flex items-center justify-center text-[10px] font-semibold text-blue-700"
+                                    title={admin.name}
+                                  >
+                                    {buildInitials(admin.name || admin.email || 'A')}
+                                  </div>
+                                )
+                              })}
                               {assignedAdmins.length > 3 && (
                                 <div className="h-7 w-7 rounded-full bg-gray-100 ring-2 ring-white flex items-center justify-center text-[10px] font-semibold text-gray-700">
                                   +{assignedAdmins.length - 3}
@@ -1187,9 +1295,17 @@ export default function VendorList() {
                         if (open) {
                           setAssignVendorId(vendor.id)
                           setAssignSearch('')
+                          setAssignError(null)
+                          const validAdminIds = new Set(admins.map((a) => a.id))
+                          const baseIds = (vendorAdminAssignments[vendor.id]?.adminIds || []).filter((id) =>
+                            validAdminIds.has(id),
+                          )
+                          setAssignSelectedAdminIds(baseIds)
                         } else if (!assignSaving) {
                           setAssignVendorId(null)
                           setAssignSearch('')
+                          setAssignSelectedAdminIds([])
+                          setAssignError(null)
                         }
                       }}
                     >
@@ -1220,33 +1336,107 @@ export default function VendorList() {
                               className="h-8 text-xs border-gray-300"
                             />
                           </div>
-                          <div className="max-h-56 overflow-y-auto space-y-1">
-                            {filteredAdmins.map((admin) => {
-                              const current = vendorAdminAssignments[vendor.id]?.adminIds || []
-                              const checked = current.includes(admin.id)
+                          <div className="flex items-center justify-between px-1">
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.preventDefault()
+                                const filteredIds = filteredAdmins.map((a) => a.id)
+                                if (filteredIds.length === 0) return
+                                const allSelected = filteredIds.every((id) => assignSelectedAdminIds.includes(id))
 
-                              return (
-                                <DropdownMenu.CheckboxItem
-                                  key={admin.id}
-                                  className={cn(
-                                    'flex items-center gap-2 px-2 py-1.5 text-xs text-gray-700 rounded cursor-pointer outline-none hover:bg-gray-50',
-                                    assignSaving && 'opacity-60 pointer-events-none',
-                                  )}
-                                  checked={checked}
-                                  onCheckedChange={() => {
-                                    void handleToggleVendorAdminAssignment(vendor, admin.id)
-                                  }}
-                                >
-                                  <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-blue-50 text-[10px] font-semibold text-blue-700">
-                                    {buildInitials(admin.name || admin.email || 'A')}
-                                  </span>
-                                  <span className="flex-1 truncate">{admin.name}</span>
-                                </DropdownMenu.CheckboxItem>
-                              )
-                            })}
-                            {filteredAdmins.length === 0 && (
+                                if (allSelected) {
+                                  setAssignSelectedAdminIds((prev) => prev.filter((id) => !filteredIds.includes(id)))
+                                } else {
+                                  setAssignSelectedAdminIds((prev) => Array.from(new Set([...prev, ...filteredIds])))
+                                }
+                              }}
+                              className="text-[11px] text-blue-600 hover:text-blue-700 font-medium cursor-pointer"
+                            >
+                              {(() => {
+                                const filteredIds = filteredAdmins.map((a) => a.id)
+                                const allSelected =
+                                  filteredIds.length > 0 && filteredIds.every((id) => assignSelectedAdminIds.includes(id))
+                                return allSelected ? 'Unselect all' : 'Select all'
+                              })()}
+                            </button>
+                          </div>
+                          {assignError && <p className="px-1 text-[11px] text-red-600">{assignError}</p>}
+                          <div className="max-h-56 overflow-y-auto space-y-1">
+                            {filteredAdmins.length === 0 ? (
                               <div className="px-2 py-2 text-xs text-gray-500">No admins found</div>
+                            ) : (
+                              filteredAdmins.map((admin) => {
+                                const checked = assignSelectedAdminIds.includes(admin.id)
+                                const rawAvatar = admin.profile_image_url || ''
+                                const hasSafeRawAvatar =
+                                  rawAvatar.startsWith('http') &&
+                                  !rawAvatar.includes('/storage/v1/object/sign/admin-profiles/')
+                                const avatarUrl = brokenAvatarAdminIds[admin.id]
+                                  ? ''
+                                  : adminAvatarUrls[admin.id] || (hasSafeRawAvatar ? rawAvatar : '')
+                                return (
+                                  <DropdownMenu.Item
+                                    key={admin.id}
+                                    className={cn(
+                                      'flex items-center gap-2 px-2 py-1.5 text-xs text-gray-700 rounded cursor-pointer outline-none hover:bg-gray-50',
+                                      checked && 'bg-blue-50',
+                                      assignSaving && 'opacity-60 pointer-events-none',
+                                    )}
+                                    onSelect={(event) => {
+                                      event.preventDefault()
+                                      setAssignSelectedAdminIds((prev) =>
+                                        checked ? prev.filter((id) => id !== admin.id) : [...prev, admin.id],
+                                      )
+                                    }}
+                                  >
+                                    <Checkbox checked={checked} className="h-3.5 w-3.5 rounded-[2px]" aria-hidden="true" />
+                                    {avatarUrl ? (
+                                      <img
+                                        src={avatarUrl}
+                                        alt={admin.name}
+                                        className="w-6 h-6 rounded-full object-cover"
+                                        onError={() => {
+                                          setBrokenAvatarAdminIds((prev) => ({ ...prev, [admin.id]: true }))
+                                        }}
+                                      />
+                                    ) : (
+                                      <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-blue-50 text-[10px] font-semibold text-blue-700">
+                                        {buildInitials(admin.name || admin.email || 'A')}
+                                      </span>
+                                    )}
+                                    <span className="flex-1 truncate">{admin.name}</span>
+                                  </DropdownMenu.Item>
+                                )
+                              })
                             )}
+                          </div>
+                          <div className="flex justify-end gap-2 pt-2 border-t border-gray-100 px-1">
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              className="h-7 px-2 text-[11px]"
+                              onClick={() => {
+                                setAssignVendorId(null)
+                                setAssignSelectedAdminIds([])
+                                setAssignSearch('')
+                                setAssignError(null)
+                              }}
+                            >
+                              Cancel
+                            </Button>
+                            <Button
+                              type="button"
+                              size="sm"
+                              className="h-7 px-3 text-[11px]"
+                              disabled={assignSaving}
+                              onClick={() => {
+                                void handleSaveVendorAdminAssignments(vendor)
+                              }}
+                            >
+                              {assignSaving ? 'Saving...' : 'Save'}
+                            </Button>
                           </div>
                           <div className="pt-2 border-t border-gray-100">
                             <DropdownMenu.Item
@@ -1255,6 +1445,8 @@ export default function VendorList() {
                                 e.preventDefault()
                                 setAssignVendorId(null)
                                 setAssignSearch('')
+                                setAssignSelectedAdminIds([])
+                                setAssignError(null)
                                 setTimeout(() => {
                                   void handleManageAdmins(vendor)
                                 }, 0)
@@ -1380,9 +1572,17 @@ export default function VendorList() {
                           if (open) {
                             setAssignVendorId(vendor.id)
                             setAssignSearch('')
+                            setAssignError(null)
+                            const validAdminIds = new Set(admins.map((a) => a.id))
+                            const baseIds = (vendorAdminAssignments[vendor.id]?.adminIds || []).filter((id) =>
+                              validAdminIds.has(id),
+                            )
+                            setAssignSelectedAdminIds(baseIds)
                           } else if (!assignSaving) {
                             setAssignVendorId(null)
                             setAssignSearch('')
+                            setAssignSelectedAdminIds([])
+                            setAssignError(null)
                           }
                         }}
                       >
@@ -1425,33 +1625,98 @@ export default function VendorList() {
                                 className="h-8 text-xs border-gray-300"
                               />
                             </div>
-                            <div className="max-h-56 overflow-y-auto space-y-1">
-                              {filteredAdmins.map((admin) => {
-                                const current = vendorAdminAssignments[vendor.id]?.adminIds || []
-                                const checked = current.includes(admin.id)
+                            <div className="flex items-center justify-between px-1">
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.preventDefault()
+                                  const filteredIds = filteredAdmins.map((a) => a.id)
+                                  if (filteredIds.length === 0) return
+                                  const allSelected = filteredIds.every((id) => assignSelectedAdminIds.includes(id))
 
-                                return (
-                                  <DropdownMenu.CheckboxItem
-                                    key={admin.id}
-                                    className={cn(
-                                      'flex items-center gap-2 px-2 py-1.5 text-xs text-gray-700 rounded cursor-pointer outline-none hover:bg-gray-50',
-                                      assignSaving && 'opacity-60 pointer-events-none',
-                                    )}
-                                    checked={checked}
-                                    onCheckedChange={() => {
-                                      void handleToggleVendorAdminAssignment(vendor, admin.id)
-                                    }}
-                                  >
-                                    <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-blue-50 text-[10px] font-semibold text-blue-700">
-                                      {buildInitials(admin.name || admin.email || 'A')}
-                                    </span>
-                                    <span className="flex-1 truncate">{admin.name}</span>
-                                  </DropdownMenu.CheckboxItem>
-                                )
-                              })}
-                              {filteredAdmins.length === 0 && (
+                                  if (allSelected) {
+                                    setAssignSelectedAdminIds((prev) =>
+                                      prev.filter((id) => !filteredIds.includes(id)),
+                                    )
+                                  } else {
+                                    setAssignSelectedAdminIds((prev) =>
+                                      Array.from(new Set([...prev, ...filteredIds])),
+                                    )
+                                  }
+                                }}
+                                className="text-[11px] text-blue-600 hover:text-blue-700 font-medium cursor-pointer"
+                              >
+                                {(() => {
+                                  const filteredIds = filteredAdmins.map((a) => a.id)
+                                  const allSelected =
+                                    filteredIds.length > 0 &&
+                                    filteredIds.every((id) => assignSelectedAdminIds.includes(id))
+                                  return allSelected ? 'Unselect all' : 'Select all'
+                                })()}
+                              </button>
+                            </div>
+                            {assignError && <p className="px-1 text-[11px] text-red-600">{assignError}</p>}
+                            <div className="max-h-56 overflow-y-auto space-y-1">
+                              {filteredAdmins.length === 0 ? (
                                 <div className="px-2 py-2 text-xs text-gray-500">No admins found</div>
+                              ) : (
+                                filteredAdmins.map((admin) => {
+                                  const checked = assignSelectedAdminIds.includes(admin.id)
+                                  return (
+                                    <DropdownMenu.Item
+                                      key={admin.id}
+                                      className={cn(
+                                        'flex items-center gap-2 px-2 py-1.5 text-xs text-gray-700 rounded cursor-pointer outline-none hover:bg-gray-50',
+                                        checked && 'bg-blue-50',
+                                        assignSaving && 'opacity-60 pointer-events-none',
+                                      )}
+                                      onSelect={(event) => {
+                                        event.preventDefault()
+                                        setAssignSelectedAdminIds((prev) =>
+                                          checked ? prev.filter((id) => id !== admin.id) : [...prev, admin.id],
+                                        )
+                                      }}
+                                    >
+                                      <Checkbox
+                                        checked={checked}
+                                        className="h-3.5 w-3.5 rounded-[2px]"
+                                        aria-hidden="true"
+                                      />
+                                      <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-blue-50 text-[10px] font-semibold text-blue-700">
+                                        {buildInitials(admin.name || admin.email || 'A')}
+                                      </span>
+                                      <span className="flex-1 truncate">{admin.name}</span>
+                                    </DropdownMenu.Item>
+                                  )
+                                })
                               )}
+                            </div>
+                            <div className="flex justify-end gap-2 pt-2 border-t border-gray-100 px-1">
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                className="h-7 px-2 text-[11px]"
+                                onClick={() => {
+                                  setAssignVendorId(null)
+                                  setAssignSelectedAdminIds([])
+                                  setAssignSearch('')
+                                  setAssignError(null)
+                                }}
+                              >
+                                Cancel
+                              </Button>
+                              <Button
+                                type="button"
+                                size="sm"
+                                className="h-7 px-3 text-[11px]"
+                                disabled={assignSaving}
+                                onClick={() => {
+                                  void handleSaveVendorAdminAssignments(vendor)
+                                }}
+                              >
+                                {assignSaving ? 'Saving...' : 'Save'}
+                              </Button>
                             </div>
                             <div className="pt-2 border-t border-gray-100">
                               <DropdownMenu.Item
@@ -1460,6 +1725,8 @@ export default function VendorList() {
                                   e.preventDefault()
                                   setAssignVendorId(null)
                                   setAssignSearch('')
+                                  setAssignSelectedAdminIds([])
+                                  setAssignError(null)
                                   setTimeout(() => {
                                     void handleManageAdmins(vendor)
                                   }, 0)

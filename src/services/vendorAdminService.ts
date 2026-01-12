@@ -97,4 +97,53 @@ export const vendorAdminService = {
 			})
 			.filter(Boolean) as { vendor: Vendor; isVendorSuperAdmin: boolean }[]
 	},
+
+  async getVendorsForAdmins(
+    adminIds: string[],
+  ): Promise<Record<string, { vendor: Vendor; isVendorSuperAdmin: boolean }[]>> {
+    if (!adminIds.length) return {}
+
+    const { data, error } = await supabase
+      .from('vendor_admins')
+      .select('admin_id, vendor_id, is_vendor_super_admin')
+      .in('admin_id', adminIds)
+
+    if (error) throw error
+
+    const rows = (data || []) as {
+      admin_id: string
+      vendor_id: string
+      is_vendor_super_admin: boolean
+    }[]
+
+    if (!rows.length) {
+      return Object.fromEntries(adminIds.map((id) => [id, []]))
+    }
+
+    const vendorIds = Array.from(new Set(rows.map((row) => row.vendor_id)))
+
+    const { data: vendors, error: vendorsError } = await supabase
+      .from('vendors')
+      .select('*')
+      .in('id', vendorIds)
+
+    if (vendorsError) throw vendorsError
+    const vendorsById = new Map((vendors || []).map((v: any) => [v.id, v as Vendor]))
+
+    const result: Record<string, { vendor: Vendor; isVendorSuperAdmin: boolean }[]> = Object.fromEntries(
+      adminIds.map((id) => [id, []]),
+    )
+
+    for (const row of rows) {
+      const vendor = vendorsById.get(row.vendor_id)
+      if (!vendor) continue
+      if (!result[row.admin_id]) result[row.admin_id] = []
+      result[row.admin_id].push({
+        vendor,
+        isVendorSuperAdmin: !!row.is_vendor_super_admin,
+      })
+    }
+
+    return result
+  },
 }

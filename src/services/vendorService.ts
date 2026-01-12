@@ -1,7 +1,7 @@
 import { supabase } from '@/lib/supabase'
 import type { Vendor } from '@/types'
 
-const VENDOR_IMAGES_BUCKET = 'vendor-images'
+const VENDOR_IMAGES_BUCKET = import.meta.env.VITE_VENDOR_IMAGES_BUCKET || 'vendor-images'
 
 const resolveVendorImageStoragePath = (value: string): string => {
   if (!value) return ''
@@ -92,7 +92,14 @@ export const vendorService = {
         contentType: file.type || undefined,
       })
 
-    if (uploadError) throw uploadError
+    if (uploadError) {
+      const message = (uploadError as any)?.message || String(uploadError)
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || ''
+      const enriched = message.includes('Bucket not found')
+        ? `Bucket not found: "${VENDOR_IMAGES_BUCKET}". Supabase URL: "${supabaseUrl}". Confirm this app is pointing to the Supabase project where the bucket exists, and that the bucket name matches exactly. If needed, set VITE_VENDOR_IMAGES_BUCKET to the correct bucket name.`
+        : message
+      throw new Error(enriched)
+    }
 
     const { data } = supabase.storage.from(VENDOR_IMAGES_BUCKET).getPublicUrl(path)
     return { publicUrl: data.publicUrl, path }
