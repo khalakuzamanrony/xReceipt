@@ -20,12 +20,25 @@ export default function App() {
     return stored || 'dashboard'
   })
 
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
+    if (typeof window === 'undefined') return false
+    const stored = window.localStorage.getItem('xreceipt.sidebarCollapsed')
+    if (stored === 'true') return true
+    if (stored === 'false') return false
+    return window.innerWidth < 1024
+  })
+
   const [templateBuilderTemplateId, setTemplateBuilderTemplateId] = useState<string | null>(null)
 
   useEffect(() => {
     if (typeof window === 'undefined') return
     window.localStorage.setItem('xreceipt.currentPage', currentPage)
   }, [currentPage])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    window.localStorage.setItem('xreceipt.sidebarCollapsed', String(sidebarCollapsed))
+  }, [sidebarCollapsed])
 
   if (loading) {
     return (
@@ -82,10 +95,15 @@ export default function App() {
   return (
     <div className="h-screen flex flex-col bg-gray-50">
       {/* Sidebar Navigation */}
-      <Sidebar currentPage={currentPage} onPageChange={setCurrentPage} />
+      <Sidebar
+        currentPage={currentPage}
+        onPageChange={setCurrentPage}
+        collapsed={sidebarCollapsed}
+        onCollapsedChange={setSidebarCollapsed}
+      />
 
       {/* Main Content */}
-      <div className="md:ml-64 flex flex-col flex-1 overflow-hidden">
+      <div className={`${sidebarCollapsed ? 'md:ml-20' : 'md:ml-64'} flex flex-col flex-1 overflow-hidden`}>
         {/* Header */}
         <Header />
 

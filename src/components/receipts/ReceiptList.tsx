@@ -1,13 +1,14 @@
-import { useEffect, useState } from 'react'
-import type { Receipt, ReceiptItem, Vendor } from '@/types'
+import { useEffect, useMemo, useState } from 'react'
+import type { Product, Receipt, ReceiptItem, Vendor } from '@/types'
 import { receiptService } from '@/services/receiptService'
 import { templateService } from '@/services/templateService'
 import { productService } from '@/services/productService'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Label } from '@/components/ui/Label'
+import { Checkbox } from '@/components/ui/Checkbox'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/Dialog'
-import { Plus, AlertCircle, FileText, Search, Edit, Trash2, Eye, X, Download, ArrowUpDown, Funnel } from 'lucide-react'
+import { Plus, AlertCircle, FileText, Search, Edit, Trash2, Eye, Download, ArrowUpDown, Funnel, ChevronDown, Check } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { useVendor } from '@/contexts/VendorContext'
 import ReceiptPreviewModal from './ReceiptPreviewModal'
@@ -16,6 +17,7 @@ import html2canvas from 'html2canvas'
 import jsPDF from 'jspdf'
 import * as ToastPrimitive from '@radix-ui/react-toast'
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
+import * as Select from '@radix-ui/react-select'
 import { cn } from '@/lib/utils'
 
 export default function ReceiptList() {
@@ -44,7 +46,7 @@ export default function ReceiptList() {
     !!permissions?.can_create_products
   const [receipts, setReceipts] = useState<Receipt[]>([])
   const [templates, setTemplates] = useState<any[]>([])
-  const [products, setProducts] = useState<any[]>([])
+  const [products, setProducts] = useState<Product[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [searchTerm, setSearchTerm] = useState('')
@@ -67,10 +69,16 @@ export default function ReceiptList() {
   const [receiptToDelete, setReceiptToDelete] = useState<Receipt | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
   const [items, setItems] = useState<ReceiptItem[]>([])
+  const [editingItemId, setEditingItemId] = useState<string | null>(null)
   const [selectedProductId, setSelectedProductId] = useState('')
   const [itemQuantity, setItemQuantity] = useState('1')
   const [itemImeiOrModel, setItemImeiOrModel] = useState('')
   const [itemColor, setItemColor] = useState('')
+  const [itemTaxEnabled, setItemTaxEnabled] = useState(true)
+  const [itemTaxPercentage, setItemTaxPercentage] = useState('0')
+  const [itemDiscountEnabled, setItemDiscountEnabled] = useState(false)
+  const [itemDiscountType, setItemDiscountType] = useState<'none' | 'percentage' | 'flat'>('none')
+  const [itemDiscountValue, setItemDiscountValue] = useState('0')
   const [formData, setFormData] = useState({
     company_name: '',
     customer_name: '',
@@ -79,6 +87,9 @@ export default function ReceiptList() {
     customer_phone: '',
     customer_address: '',
     template_id: '',
+    tax_percent: '0',
+    discount_type: 'none' as 'none' | 'percentage' | 'flat',
+    discount_value: '0',
   })
   const [toastOpen, setToastOpen] = useState(false)
   const [toastTitle, setToastTitle] = useState('')
@@ -87,6 +98,13 @@ export default function ReceiptList() {
   const [quickProductName, setQuickProductName] = useState('')
   const [quickProductPrice, setQuickProductPrice] = useState('')
   const [quickProductDescription, setQuickProductDescription] = useState('')
+  const [quickProductImeiOrModel, setQuickProductImeiOrModel] = useState('')
+  const [quickProductColor, setQuickProductColor] = useState('')
+  const [quickProductTaxEnabled, setQuickProductTaxEnabled] = useState(true)
+  const [quickProductTaxPercentage, setQuickProductTaxPercentage] = useState('0')
+  const [quickProductDiscountEnabled, setQuickProductDiscountEnabled] = useState(false)
+  const [quickProductDiscountType, setQuickProductDiscountType] = useState<'none' | 'percentage' | 'flat'>('none')
+  const [quickProductDiscountValue, setQuickProductDiscountValue] = useState('0')
   const [quickProductSaving, setQuickProductSaving] = useState(false)
   const [quickProductError, setQuickProductError] = useState<string | null>(null)
   const [showQuickProductForm, setShowQuickProductForm] = useState(false)
@@ -100,6 +118,105 @@ export default function ReceiptList() {
   const activeVendorName = activeVendorId ? vendors.find((v) => v.id === activeVendorId)?.name || '' : ''
 
   const vendorIdForReceiptModal = activeVendorId || selectedReceipt?.vendor_id || null
+
+  const safeNumber = (value: unknown) => {
+    const n = typeof value === 'number' ? value : Number(value)
+    return Number.isFinite(n) ? n : 0
+  }
+
+  const clampPercent = (value: unknown) => {
+    const n = safeNumber(value)
+    return Math.min(100, Math.max(0, n))
+  }
+
+  const getItemBreakdown = (item: ReceiptItem) => {
+    const quantity = Math.max(1, Math.trunc(safeNumber(item.quantity)))
+    const unitPrice = Math.max(0, safeNumber(item.unit_price))
+    const lineSubtotal = unitPrice * quantity
+
+    const discountEnabled = item.discount_enabled === true
+    const discountType = discountEnabled
+      ? item.discount_type && item.discount_type !== 'none'
+        ? item.discount_type
+        : 'percentage'
+      : 'none'
+    const discountValueRaw = Math.max(0, safeNumber(item.discount_value))
+    const discountValue =
+      discountType === 'percentage'
+        ? clampPercent(discountValueRaw)
+        : discountType === 'flat'
+          ? Math.min(unitPrice, Math.max(0, Math.floor(discountValueRaw)))
+          : 0
+    const discountAmountRaw =
+      discountType === 'percentage'
+        ? lineSubtotal * (discountValue / 100)
+        : discountType === 'flat'
+          ? discountValue * quantity
+          : 0
+    const lineDiscount = Math.min(Math.max(0, discountAmountRaw), lineSubtotal)
+
+    const taxEnabled = item.tax_enabled !== false
+    const taxPercentage = clampPercent(item.tax_percentage)
+    const taxableBase = Math.max(0, lineSubtotal - lineDiscount)
+    const lineTax = taxEnabled ? taxableBase * (taxPercentage / 100) : 0
+
+    const lineTotal = taxableBase + lineTax
+
+    return { lineSubtotal, lineDiscount, lineTax, lineTotal }
+  }
+
+  const recalculateItemTotal = (item: ReceiptItem) => {
+    const { lineTotal } = getItemBreakdown(item)
+    return { ...item, total: lineTotal }
+  }
+
+  const receiptItemTotals = useMemo(() => {
+    let subtotal = 0
+    let itemDiscount = 0
+    let itemTax = 0
+    for (const item of items) {
+      const { lineSubtotal, lineDiscount, lineTax } = getItemBreakdown(item)
+      subtotal += lineSubtotal
+      itemDiscount += lineDiscount
+      itemTax += lineTax
+    }
+    const netAfterItemDiscount = Math.max(0, subtotal - itemDiscount)
+
+    const receiptDiscountType = formData.discount_type
+    const receiptDiscountValueRaw = Math.max(0, safeNumber(formData.discount_value))
+    const receiptDiscountValue =
+      receiptDiscountType === 'percentage'
+        ? clampPercent(receiptDiscountValueRaw)
+        : receiptDiscountType === 'flat'
+          ? Math.max(0, Math.floor(receiptDiscountValueRaw))
+          : 0
+    const receiptDiscountAmountRaw =
+      receiptDiscountType === 'percentage'
+        ? netAfterItemDiscount * (receiptDiscountValue / 100)
+        : receiptDiscountType === 'flat'
+          ? receiptDiscountValue
+          : 0
+    const receiptDiscount = Math.min(Math.max(0, receiptDiscountAmountRaw), netAfterItemDiscount)
+
+    const netAfterAllDiscounts = Math.max(0, netAfterItemDiscount - receiptDiscount)
+    const receiptTaxPercent = clampPercent(formData.tax_percent)
+    const receiptTax = netAfterAllDiscounts * (receiptTaxPercent / 100)
+
+    const totalDiscount = itemDiscount + receiptDiscount
+    const totalTax = itemTax + receiptTax
+    const total = netAfterAllDiscounts + totalTax
+
+    return {
+      itemsSubtotal: subtotal,
+      itemsDiscount: itemDiscount,
+      itemsTax: itemTax,
+      receiptDiscount,
+      receiptTax,
+      totalDiscount,
+      totalTax,
+      total,
+    }
+  }, [items, formData.discount_type, formData.discount_value, formData.tax_percent])
 
   useEffect(() => {
     if (vendorLoading) return
@@ -223,6 +340,9 @@ export default function ReceiptList() {
       customer_phone: '',
       customer_address: '',
       template_id: '',
+      tax_percent: '0',
+      discount_type: 'none',
+      discount_value: '0',
     })
     setItems([])
     setSelectedProductId('')
@@ -251,6 +371,24 @@ export default function ReceiptList() {
         customer_phone: fullReceipt.customer_phone || '',
         customer_address: fullReceipt.customer_address || '',
         template_id: fullReceipt.template_id,
+        tax_percent:
+          typeof (fullReceipt as any).tax_percent === 'number'
+            ? String((fullReceipt as any).tax_percent)
+            : fullReceipt.subtotal && fullReceipt.subtotal > 0 && fullReceipt.tax
+              ? ((fullReceipt.tax / fullReceipt.subtotal) * 100).toFixed(2)
+              : '0',
+        discount_type:
+          (fullReceipt as any).discount_type
+            ? ((fullReceipt as any).discount_type as 'none' | 'percentage' | 'flat')
+            : fullReceipt.discount && fullReceipt.discount > 0
+              ? 'flat'
+              : 'none',
+        discount_value:
+          typeof (fullReceipt as any).discount_value === 'number'
+            ? String((fullReceipt as any).discount_value)
+            : fullReceipt.discount && fullReceipt.discount > 0
+              ? String(fullReceipt.discount)
+              : '0',
       })
       // Load existing items if available
       setItems(fullReceipt.items || [])
@@ -271,6 +409,38 @@ export default function ReceiptList() {
     if (!vendorIdForReceiptModal) return products
     return products.filter((p: any) => p.vendor_id === vendorIdForReceiptModal)
   })()
+
+  const permissionFilteredProductsForReceiptModal = useMemo(() => {
+    return role === 'admin' && !isVendorSuperAdminForActiveVendor && permissions?.can_view_products && assignedProductIds.length > 0
+      ? productsForReceiptModal.filter((p) => assignedProductIds.includes(p.id))
+      : productsForReceiptModal
+  }, [role, isVendorSuperAdminForActiveVendor, permissions, assignedProductIds, productsForReceiptModal])
+
+  useEffect(() => {
+    if (!selectedProductId) return
+    const product = permissionFilteredProductsForReceiptModal.find((p) => p.id === selectedProductId)
+    if (!product) return
+    const productImeiOrModel = typeof product.imei_or_model === 'string' ? product.imei_or_model : ''
+    const productColor = typeof product.color === 'string' ? product.color : ''
+    setItemImeiOrModel(productImeiOrModel)
+    setItemColor(productColor)
+
+    const taxEnabled = product.tax_enabled ?? true
+    const taxPercentage = String(product.tax_percentage ?? 0)
+    const discountEnabled = product.discount_enabled ?? false
+    const discountType = discountEnabled
+      ? product.discount_type && product.discount_type !== 'none'
+        ? product.discount_type
+        : 'percentage'
+      : 'none'
+    const discountValue = String(product.discount_value ?? 0)
+
+    setItemTaxEnabled(taxEnabled)
+    setItemTaxPercentage(taxPercentage)
+    setItemDiscountEnabled(discountEnabled)
+    setItemDiscountType(discountType as 'none' | 'percentage' | 'flat')
+    setItemDiscountValue(discountValue)
+  }, [selectedProductId, permissionFilteredProductsForReceiptModal])
 
   useEffect(() => {
     if (!showForm) {
@@ -300,19 +470,10 @@ export default function ReceiptList() {
   const addItem = () => {
     if (!selectedProductId || !itemQuantity) return
 
-    const permissionFilteredProducts =
-      role === 'admin' &&
-      !isVendorSuperAdminForActiveVendor &&
-      permissions?.can_view_products &&
-      assignedProductIds.length > 0
-        ? productsForReceiptModal.filter((p) => assignedProductIds.includes(p.id))
-        : productsForReceiptModal
-
-    const product = permissionFilteredProducts.find(p => p.id === selectedProductId)
+    const product = permissionFilteredProductsForReceiptModal.find(p => p.id === selectedProductId)
     if (!product) return
 
-    const quantity = parseInt(itemQuantity)
-    const total = product.price * quantity
+    const quantity = Math.max(1, Math.trunc(safeNumber(itemQuantity)))
 
     const newItem: ReceiptItem = {
       id: Math.random().toString(36).substring(7),
@@ -322,14 +483,31 @@ export default function ReceiptList() {
       color: itemColor.trim() ? itemColor.trim() : null,
       quantity,
       unit_price: product.price,
-      total,
+      tax_enabled: itemTaxEnabled,
+      tax_percentage: clampPercent(itemTaxPercentage),
+      discount_enabled: itemDiscountEnabled,
+      discount_type: itemDiscountEnabled ? (itemDiscountType === 'none' ? 'percentage' : itemDiscountType) : 'none',
+      discount_value:
+        itemDiscountEnabled
+          ? (itemDiscountType === 'none' ? 'percentage' : itemDiscountType) === 'percentage'
+            ? clampPercent(itemDiscountValue)
+            : (itemDiscountType === 'none' ? 'percentage' : itemDiscountType) === 'flat'
+              ? Math.min(product.price, Math.max(0, Math.floor(safeNumber(itemDiscountValue))))
+              : 0
+          : 0,
+      total: 0,
     }
 
-    setItems([...items, newItem])
+    setItems([...items, recalculateItemTotal(newItem)])
     setSelectedProductId('')
     setItemQuantity('1')
     setItemImeiOrModel('')
     setItemColor('')
+    setItemTaxEnabled(true)
+    setItemTaxPercentage('0')
+    setItemDiscountEnabled(false)
+    setItemDiscountType('none')
+    setItemDiscountValue('0')
   }
 
   const handleQuickCreateProduct = async () => {
@@ -354,12 +532,29 @@ export default function ReceiptList() {
       setQuickProductSaving(true)
       setQuickProductError(null)
 
+      const safeTaxPercentage = clampPercent(quickProductTaxPercentage)
+
+      const discountValueRaw = safeNumber(quickProductDiscountValue)
+      const safeDiscountValue =
+        quickProductDiscountType === 'percentage'
+          ? clampPercent(discountValueRaw)
+          : quickProductDiscountType === 'flat'
+            ? Math.min(price, Math.max(0, Math.floor(discountValueRaw)))
+            : 0
+
       const productData: any = {
         name: quickProductName.trim(),
         description: quickProductDescription.trim() || null,
+        imei_or_model: quickProductImeiOrModel.trim() ? quickProductImeiOrModel.trim() : null,
+        color: quickProductColor.trim() ? quickProductColor.trim() : null,
         price,
         category_id: null,
         vendor_id: vendorId,
+        tax_enabled: !!quickProductTaxEnabled,
+        tax_percentage: safeTaxPercentage,
+        discount_enabled: !!quickProductDiscountEnabled,
+        discount_type: quickProductDiscountEnabled ? quickProductDiscountType : 'none',
+        discount_value: quickProductDiscountEnabled ? safeDiscountValue : 0,
       }
 
       const newProduct = await productService.createProduct(productData)
@@ -369,6 +564,13 @@ export default function ReceiptList() {
       setQuickProductName('')
       setQuickProductPrice('')
       setQuickProductDescription('')
+      setQuickProductImeiOrModel('')
+      setQuickProductColor('')
+      setQuickProductTaxEnabled(true)
+      setQuickProductTaxPercentage('0')
+      setQuickProductDiscountEnabled(false)
+      setQuickProductDiscountType('none')
+      setQuickProductDiscountValue('0')
       showToast('Product created', 'New product added to your catalog.', 'success')
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to create product'
@@ -381,10 +583,6 @@ export default function ReceiptList() {
 
   const removeItem = (itemId: string) => {
     setItems(items.filter(item => item.id !== itemId))
-  }
-
-  const calculateTotal = () => {
-    return items.reduce((sum, item) => sum + item.total, 0)
   }
 
   const showToast = (title: string, description = '', variant: 'success' | 'error' = 'success') => {
@@ -447,8 +645,29 @@ export default function ReceiptList() {
 
   const buildReceiptHtml = (receipt: Receipt, templateHtml: string) => {
     const subtotal = receipt.subtotal || 0
+    const discount = receipt.discount || 0
     const tax = receipt.tax || 0
     const total = receipt.total || 0
+
+    const taxPercent =
+      typeof (receipt as any).tax_percent === 'number'
+        ? ((receipt as any).tax_percent as number)
+        : Math.max(0, subtotal - discount) > 0
+          ? (tax / Math.max(0, subtotal - discount)) * 100
+          : 0
+    const safeTaxPercent = Number.isFinite(taxPercent) ? Math.max(0, taxPercent) : 0
+
+    const discountType = ((receipt as any).discount_type as string | undefined) || 'none'
+    const discountValue =
+      typeof (receipt as any).discount_value === 'number' ? ((receipt as any).discount_value as number) : 0
+
+    const taxMeta = safeTaxPercent > 0 ? `(${safeTaxPercent.toFixed(2)}%)` : ''
+    const discountMeta =
+      discountType === 'percentage' && discountValue > 0
+        ? `(${discountValue.toFixed(2)}%)`
+        : discountType === 'flat' && discountValue > 0
+          ? `($${discountValue.toFixed(2)})`
+          : ''
 
     let itemsColumns: Array<'description' | 'imei_or_model' | 'color' | 'quantity' | 'price' | 'total'> = ['description', 'quantity', 'price', 'total']
     const itemsColumnsMatch = templateHtml.match(/data-items-columns="([a-z_,]+)"/)
@@ -541,6 +760,7 @@ export default function ReceiptList() {
     let html = templateHtml
       .replace(/{{RECEIPT_ID}}/g, receipt.id)
       .replace(/{{DATE}}/g, new Date(receipt.created_at).toLocaleDateString())
+      .replace(/{{DUE_DATE}}/g, '')
       .replace(/{{CUSTOMER_NAME}}/g, receipt.customer_name || '')
       .replace(/{{CUSTOMER_EMAIL}}/g, receipt.customer_email || '')
       .replace(/{{CUSTOMER_COMPANY}}/g, receipt.customer_company || '')
@@ -550,6 +770,12 @@ export default function ReceiptList() {
       .replace(/{{TOTAL}}/g, total.toFixed(2))
       .replace(/{{SUBTOTAL}}/g, subtotal.toFixed(2))
       .replace(/{{TAX}}/g, hasTaxableItems ? tax.toFixed(2) : '0.00')
+      .replace(/{{TAX_PERCENT}}/g, safeTaxPercent.toFixed(2))
+      .replace(/{{TAX_META}}/g, taxMeta)
+      .replace(/{{DISCOUNT}}/g, discount.toFixed(2))
+      .replace(/{{DISCOUNT_TYPE}}/g, discountType)
+      .replace(/{{DISCOUNT_VALUE}}/g, Number.isFinite(discountValue) ? discountValue.toFixed(2) : '0.00')
+      .replace(/{{DISCOUNT_META}}/g, discountMeta)
       .replace(/{{STATUS}}/g, receipt.status)
       .replace(/{{COMPANY_NAME}}/g, companyName)
       .replace(/{{COMPANY_EMAIL}}/g, 'info@xreceipt.com')
@@ -644,9 +870,16 @@ export default function ReceiptList() {
     }
 
     try {
-      const totalAmount = calculateTotal()
-      const tax = totalAmount * 0.1
-      const subtotal = totalAmount - tax
+      const subtotal = receiptItemTotals.itemsSubtotal
+      const discountValue = safeNumber(formData.discount_value)
+      const safeDiscountValue = Math.max(0, discountValue)
+      const taxPercent = safeNumber(formData.tax_percent)
+      const safeTaxPercent = Math.max(0, taxPercent)
+
+      const totalDiscount = receiptItemTotals.totalDiscount
+      const totalTax = receiptItemTotals.totalTax
+      const totalAmount = receiptItemTotals.total
+
       const receiptData: any = {
         company_name: formData.company_name || activeVendorName || undefined,
         customer_name: formData.customer_name,
@@ -656,9 +889,13 @@ export default function ReceiptList() {
         customer_address: formData.customer_address || undefined,
         template_id: formData.template_id,
         subtotal,
-        tax,
+        discount: totalDiscount,
+        discount_type: formData.discount_type,
+        discount_value: safeDiscountValue,
+        tax_percent: safeTaxPercent,
+        tax: totalTax,
         total: totalAmount,
-        items, // Include items in the receipt data
+        items: items.map((it) => recalculateItemTotal(it)), // Include items in the receipt data
       }
 
       if (isNew && activeVendorId) {
@@ -950,15 +1187,15 @@ export default function ReceiptList() {
       {/* Receipt Form Modal */}
       {showForm && (
         <Dialog open={true} onOpenChange={setShowForm}>
-          <DialogContent className="max-w-2xl max-h-[calc(100dvh-2rem)] p-0 flex flex-col overflow-hidden">
-            <form onSubmit={handleSubmit} className="flex flex-col h-full">
+          <DialogContent className="max-w-2xl max-h-[calc(100dvh-2rem)] p-0 flex flex-col overflow-hidden min-h-0">
+            <form onSubmit={handleSubmit} className="flex flex-col h-full min-h-0">
               <DialogHeader className="px-6 pt-6 pb-4 border-b border-gray-200 bg-white">
                 <DialogTitle className="text-2xl">
                   {selectedReceipt ? 'Edit Receipt' : 'New Receipt'}
                 </DialogTitle>
               </DialogHeader>
 
-              <div className="flex-1 overflow-y-auto px-6 py-4 bg-gray-50/40 space-y-6">
+              <div className="flex-1 overflow-y-auto px-6 py-4 bg-gray-50/40 space-y-6 min-h-0">
               <div>
                 <Label htmlFor="company_name" className="text-sm font-medium text-gray-700">Company Name</Label>
                 <Input
@@ -1054,20 +1291,41 @@ export default function ReceiptList() {
                       : baseTemplates
 
                   return (
-                    <select
-                      id="template"
+                    <Select.Root
                       value={formData.template_id}
-                      onChange={(e) => setFormData({ ...formData, template_id: e.target.value })}
-                      className="w-full mt-1 px-3 py-2 border-0 bg-gray-50 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm text-gray-900"
-                      required
+                      onValueChange={(value) => setFormData({ ...formData, template_id: value })}
                     >
-                      <option value="">Select a template</option>
-                      {permissionFilteredTemplates.map((template) => (
-                        <option key={template.id} value={template.id}>
-                          {template.name}
-                        </option>
-                      ))}
-                    </select>
+                      <Select.Trigger
+                        id="template"
+                        className="w-full mt-1 px-3 py-2 border-0 bg-gray-50 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm text-gray-900 flex items-center justify-between"
+                        aria-required
+                      >
+                        <Select.Value placeholder="Select a template" />
+                        <Select.Icon>
+                          <ChevronDown className="h-4 w-4 text-gray-500" />
+                        </Select.Icon>
+                      </Select.Trigger>
+                      <Select.Portal>
+                        <Select.Content
+                          position="popper"
+                          sideOffset={6}
+                          className="z-50 rounded-xl border border-gray-200 bg-white shadow-lg overflow-hidden"
+                          style={{ minWidth: 'var(--radix-select-trigger-width)' }}
+                        >
+                          <Select.Viewport className="py-1 max-h-60 overflow-y-auto">
+                            {permissionFilteredTemplates.map((template: any) => (
+                              <Select.Item
+                                key={template.id}
+                                value={template.id}
+                                className="px-3 py-2 text-sm text-gray-800 rounded-md cursor-pointer flex items-center gap-2 data-[highlighted]:bg-blue-50 data-[highlighted]:text-blue-700 outline-none"
+                              >
+                                <Select.ItemText>{template.name}</Select.ItemText>
+                              </Select.Item>
+                            ))}
+                          </Select.Viewport>
+                        </Select.Content>
+                      </Select.Portal>
+                    </Select.Root>
                   )
                 })()}
               </div>
@@ -1086,70 +1344,345 @@ export default function ReceiptList() {
                 {/* Items Table Header */}
                 {items.length > 0 && (
                   <div className="grid grid-cols-12 gap-3 px-3 py-2 bg-gray-50 rounded-md">
-                    <div className="col-span-5 text-xs font-semibold text-gray-600 uppercase">Product</div>
-                    <div className="col-span-2 text-xs font-semibold text-gray-600 uppercase">Qty</div>
-                    <div className="col-span-3 text-xs font-semibold text-gray-600 uppercase text-right">Amount</div>
+                    <div className="col-span-3 text-xs font-semibold text-gray-600 uppercase">Product</div>
+                    <div className="col-span-1 text-xs font-semibold text-gray-600 uppercase">Qty</div>
+                    <div className="col-span-2 text-xs font-semibold text-gray-600 uppercase text-right">Discount</div>
+                    <div className="col-span-2 text-xs font-semibold text-gray-600 uppercase text-right">Tax</div>
+                    <div className="col-span-2 text-xs font-semibold text-gray-600 uppercase text-right">Amount</div>
                     <div className="col-span-2 text-xs font-semibold text-gray-600 uppercase text-right">Action</div>
                   </div>
                 )}
 
                 {/* Items List */}
                 {items.length > 0 && (
-                  <div className="space-y-2 max-h-56 overflow-y-auto">
-                    {items.map((item) => (
-                      <div key={item.id} className="grid grid-cols-12 gap-3 items-center px-3 py-2.5 bg-gray-50 rounded-md hover:bg-gray-100 transition-colors">
-                        <div className="col-span-5">
-                          <p className="text-sm font-medium text-gray-900">{item.name}</p>
-                          <p className="text-xs text-gray-600">${item.unit_price.toFixed(2)} each</p>
-                          <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-2">
-                            <Input
-                              type="text"
-                              value={item.imei_or_model || ''}
-                              onChange={(e) => {
-                                const value = e.target.value
-                                setItems((prev) =>
-                                  prev.map((it) =>
-                                    it.id === item.id ? { ...it, imei_or_model: value || null } : it,
-                                  ),
-                                )
-                              }}
-                              placeholder="IMEI / Model"
-                              className="h-8 bg-white text-xs"
-                            />
-                            <Input
-                              type="text"
-                              value={item.color || ''}
-                              onChange={(e) => {
-                                const value = e.target.value
-                                setItems((prev) =>
-                                  prev.map((it) =>
-                                    it.id === item.id ? { ...it, color: value || null } : it,
-                                  ),
-                                )
-                              }}
-                              placeholder="Color"
-                              className="h-8 bg-white text-xs"
-                            />
+                  <div className="space-y-2">
+                    {items.map((item) => {
+                      const { lineSubtotal, lineDiscount, lineTax, lineTotal } = getItemBreakdown(item)
+                      const discountEnabled = item.discount_enabled === true
+                      const discountType = discountEnabled
+                        ? item.discount_type && item.discount_type !== 'none'
+                          ? item.discount_type
+                          : 'percentage'
+                        : 'none'
+                      const unitPrice = Math.max(0, safeNumber(item.unit_price))
+                      const discountValueRaw = Math.max(0, safeNumber(item.discount_value))
+                      const discountValue =
+                        discountType === 'percentage'
+                          ? clampPercent(discountValueRaw)
+                          : discountType === 'flat'
+                            ? Math.min(unitPrice, Math.max(0, Math.floor(discountValueRaw)))
+                            : 0
+                      const discountLabel =
+                        discountType === 'percentage'
+                          ? `${clampPercent(discountValue).toFixed(2)}%`
+                          : discountType === 'flat'
+                            ? `$${Math.max(0, Math.floor(discountValue)).toFixed(0)}/unit`
+                            : ''
+
+                      const taxEnabled = item.tax_enabled !== false
+                      const taxPercent = clampPercent(item.tax_percentage)
+
+                      const isEditing = editingItemId === item.id
+
+                      return (
+                        <div
+                          key={item.id}
+                          className="grid grid-cols-12 gap-3 items-start px-3 py-2.5 bg-gray-50 rounded-md hover:bg-gray-100 transition-colors"
+                        >
+                          <div className="col-span-3">
+                            <div className="min-w-0">
+                              <p className="text-sm font-medium text-gray-900 truncate">{item.name}</p>
+                              <p className="text-xs text-gray-600">${item.unit_price.toFixed(2)} each</p>
+                            </div>
+                          </div>
+
+                          <div className="col-span-1">
+                            <p className="text-sm font-medium text-gray-900">{item.quantity}</p>
+                          </div>
+
+                          <div className="col-span-2 text-right">
+                            <p className="text-sm font-medium text-gray-900">
+                              {discountEnabled ? `-$${lineDiscount.toFixed(2)}` : '-'}
+                            </p>
+                            {discountEnabled && discountLabel ? (
+                              <p className="text-xs text-gray-600">{discountLabel}</p>
+                            ) : null}
+                          </div>
+
+                          <div className="col-span-2 text-right">
+                            {taxEnabled ? (
+                              <>
+                                <p className="text-sm font-medium text-gray-900">+${lineTax.toFixed(2)}</p>
+                                <p className="text-xs text-gray-600">{taxPercent.toFixed(2)}%</p>
+                              </>
+                            ) : (
+                              <p className="text-sm font-medium text-gray-500">-</p>
+                            )}
+                          </div>
+
+                          <div className="col-span-2 text-right">
+                            <p className="text-xs text-gray-600">${lineSubtotal.toFixed(2)}</p>
+                            <p className="text-sm font-semibold text-gray-900">${lineTotal.toFixed(2)}</p>
+                          </div>
+                          <div className="col-span-2 flex justify-end">
+                            <div className="flex items-center justify-end gap-1.5">
+                              <button
+                                type="button"
+                                onClick={() => setEditingItemId((prev) => (prev === item.id ? null : item.id))}
+                                className="p-1.5 text-gray-600 hover:bg-gray-200 hover:text-gray-900 rounded-md transition-colors cursor-pointer"
+                                title={isEditing ? 'Done' : 'Edit item'}
+                              >
+                                {isEditing ? <Check size={16} /> : <Edit size={16} />}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => removeItem(item.id)}
+                                className="p-1.5 text-gray-600 hover:bg-red-50 hover:text-red-600 rounded-md transition-colors cursor-pointer"
+                                title="Remove item"
+                              >
+                                <Trash2 size={16} />
+                              </button>
+                            </div>
+                          </div>
+
+                          <div className="col-span-12">
+                            {(item.imei_or_model || item.color) && (
+                              <div className="flex flex-wrap gap-2">
+                                {item.imei_or_model && (
+                                  <span className="inline-flex items-center rounded-full bg-white px-2 py-0.5 text-[11px] text-gray-700 border border-gray-200">
+                                    IMEI/Model: {item.imei_or_model}
+                                  </span>
+                                )}
+                                {item.color && (
+                                  <span className="inline-flex items-center rounded-full bg-white px-2 py-0.5 text-[11px] text-gray-700 border border-gray-200">
+                                    Color: {item.color}
+                                  </span>
+                                )}
+                              </div>
+                            )}
+
+                            {isEditing && (
+                              <div className="mt-2 space-y-2">
+                                <div className="grid grid-cols-12 gap-2">
+                                  <Input
+                                    type="text"
+                                    value={item.imei_or_model || ''}
+                                    onChange={(e) => {
+                                      const value = e.target.value
+                                      setItems((prev) =>
+                                        prev.map((it) =>
+                                          it.id === item.id ? { ...it, imei_or_model: value || null } : it,
+                                        ),
+                                      )
+                                    }}
+                                    placeholder="IMEI / Model"
+                                    className="col-span-12 sm:col-span-6 h-8 bg-white text-xs"
+                                  />
+                                  <Input
+                                    type="text"
+                                    value={item.color || ''}
+                                    onChange={(e) => {
+                                      const value = e.target.value
+                                      setItems((prev) =>
+                                        prev.map((it) => (it.id === item.id ? { ...it, color: value || null } : it)),
+                                      )
+                                    }}
+                                    placeholder="Color"
+                                    className="col-span-12 sm:col-span-6 h-8 bg-white text-xs"
+                                  />
+                                </div>
+
+                                <div className="grid grid-cols-12 gap-2 items-center">
+                                  <div className="col-span-12 sm:col-span-4 flex items-center gap-2">
+                                    <Checkbox
+                                      checked={item.tax_enabled !== false}
+                                      onCheckedChange={(checked) => {
+                                        const enabled = checked === true
+                                        setItems((prev) =>
+                                          prev.map((it) =>
+                                            it.id === item.id
+                                              ? recalculateItemTotal({
+                                                  ...it,
+                                                  tax_enabled: enabled,
+                                                  tax_percentage: enabled ? (it.tax_percentage ?? 0) : 0,
+                                                })
+                                              : it,
+                                          ),
+                                        )
+                                      }}
+                                      id={`item_tax_enabled_${item.id}`}
+                                    />
+                                    <Label htmlFor={`item_tax_enabled_${item.id}`} className="text-xs font-medium text-gray-700">
+                                      Tax
+                                    </Label>
+                                  </div>
+                                  <div className="col-span-12 sm:col-span-8">
+                                    <div className="relative inline-block">
+                                      <span className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-[10px] text-gray-500">
+                                        %
+                                      </span>
+                                      <Input
+                                        type="number"
+                                        min="0"
+                                        max="100"
+                                        step="0.01"
+                                        value={String(item.tax_percentage ?? 0)}
+                                        onChange={(e) => {
+                                          const value = e.target.value
+                                          setItems((prev) =>
+                                            prev.map((it) =>
+                                              it.id === item.id
+                                                ? recalculateItemTotal({
+                                                    ...it,
+                                                    tax_percentage: clampPercent(value),
+                                                  })
+                                                : it,
+                                            ),
+                                          )
+                                        }}
+                                        disabled={item.tax_enabled === false}
+                                        className="h-8 w-24 bg-white text-xs pl-5"
+                                      />
+                                    </div>
+                                  </div>
+                                </div>
+
+                                <div className="grid grid-cols-12 gap-2 items-center">
+                                  <div className="col-span-12 sm:col-span-4 flex items-center gap-2">
+                                    <Checkbox
+                                      checked={item.discount_enabled === true}
+                                      onCheckedChange={(checked) => {
+                                        const enabled = checked === true
+                                        setItems((prev) =>
+                                          prev.map((it) =>
+                                            it.id === item.id
+                                              ? recalculateItemTotal({
+                                                  ...it,
+                                                  discount_enabled: enabled,
+                                                  discount_type: enabled
+                                                    ? it.discount_type && it.discount_type !== 'none'
+                                                      ? it.discount_type
+                                                      : 'percentage'
+                                                    : 'none',
+                                                  discount_value: enabled ? (it.discount_value ?? 0) : 0,
+                                                })
+                                              : it,
+                                          ),
+                                        )
+                                      }}
+                                      id={`item_discount_enabled_${item.id}`}
+                                    />
+                                    <Label
+                                      htmlFor={`item_discount_enabled_${item.id}`}
+                                      className="text-xs font-medium text-gray-700"
+                                    >
+                                      Discount
+                                    </Label>
+                                  </div>
+                                  <div className="col-span-12 sm:col-span-8">
+                                    <div className="grid grid-cols-12 gap-2">
+                                      <div className="col-span-7">
+                                        <Select.Root
+                                          value={
+                                            item.discount_enabled
+                                              ? item.discount_type && item.discount_type !== 'none'
+                                                ? item.discount_type
+                                                : 'percentage'
+                                              : 'percentage'
+                                          }
+                                          onValueChange={(value) => {
+                                            const unitPrice = Math.max(0, safeNumber(item.unit_price))
+                                            const currentValueRaw = safeNumber(item.discount_value)
+                                            const nextType = value as 'percentage' | 'flat'
+                                            const nextValue =
+                                              nextType === 'percentage'
+                                                ? clampPercent(currentValueRaw)
+                                                : Math.min(unitPrice, Math.max(0, Math.floor(currentValueRaw)))
+
+                                            setItems((prev) =>
+                                              prev.map((it) =>
+                                                it.id === item.id
+                                                  ? recalculateItemTotal({
+                                                      ...it,
+                                                      discount_type: nextType,
+                                                      discount_value: nextValue,
+                                                    })
+                                                  : it,
+                                              ),
+                                            )
+                                          }}
+                                          disabled={!item.discount_enabled}
+                                        >
+                                          <Select.Trigger className="w-full h-8 px-2 border border-gray-200 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 text-xs text-gray-900 flex items-center justify-between disabled:bg-gray-50 disabled:opacity-50">
+                                            <Select.Value placeholder="Type" />
+                                            <Select.Icon>
+                                              <ChevronDown className="h-3 w-3 text-gray-500" />
+                                            </Select.Icon>
+                                          </Select.Trigger>
+                                          <Select.Portal>
+                                            <Select.Content
+                                              position="popper"
+                                              sideOffset={6}
+                                              className="z-50 rounded-xl border border-gray-200 bg-white shadow-lg overflow-hidden"
+                                              style={{ minWidth: 'var(--radix-select-trigger-width)' }}
+                                            >
+                                              <Select.Viewport className="py-1">
+                                                <Select.Item
+                                                  value="percentage"
+                                                  className="px-3 py-2 text-xs text-gray-800 rounded-md cursor-pointer flex items-center gap-2 data-[highlighted]:bg-blue-50 data-[highlighted]:text-blue-700 outline-none"
+                                                >
+                                                  <Select.ItemText>%</Select.ItemText>
+                                                </Select.Item>
+                                                <Select.Item
+                                                  value="flat"
+                                                  className="px-3 py-2 text-xs text-gray-800 rounded-md cursor-pointer flex items-center gap-2 data-[highlighted]:bg-blue-50 data-[highlighted]:text-blue-700 outline-none"
+                                                >
+                                                  <Select.ItemText>Flat</Select.ItemText>
+                                                </Select.Item>
+                                              </Select.Viewport>
+                                            </Select.Content>
+                                          </Select.Portal>
+                                        </Select.Root>
+                                      </div>
+                                      <Input
+                                        type="number"
+                                        min="0"
+                                        max={discountType === 'percentage' ? 100 : Math.max(0, item.unit_price)}
+                                        step={discountType === 'flat' ? 1 : 0.01}
+                                        value={String(item.discount_value ?? 0)}
+                                        onChange={(e) => {
+                                          const value = e.target.value
+                                          const unitPrice = Math.max(0, safeNumber(item.unit_price))
+                                          const nextValueRaw = safeNumber(value)
+                                          const nextValue =
+                                            discountType === 'percentage'
+                                              ? clampPercent(nextValueRaw)
+                                              : discountType === 'flat'
+                                                ? Math.min(unitPrice, Math.max(0, Math.floor(nextValueRaw)))
+                                                : 0
+                                          setItems((prev) =>
+                                            prev.map((it) =>
+                                              it.id === item.id
+                                                ? recalculateItemTotal({
+                                                    ...it,
+                                                    discount_value: nextValue,
+                                                  })
+                                                : it,
+                                            ),
+                                          )
+                                        }}
+                                        disabled={!item.discount_enabled}
+                                        className="col-span-5 h-8 bg-white text-xs"
+                                      />
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            )}
                           </div>
                         </div>
-                        <div className="col-span-2">
-                          <p className="text-sm font-medium text-gray-900">{item.quantity}</p>
-                        </div>
-                        <div className="col-span-3 text-right">
-                          <p className="text-sm font-semibold text-gray-900">${item.total.toFixed(2)}</p>
-                        </div>
-                        <div className="col-span-2 flex justify-end">
-                          <button
-                            type="button"
-                            onClick={() => removeItem(item.id)}
-                            className="p-1.5 text-gray-600 hover:bg-red-50 hover:text-red-600 rounded-md transition-colors cursor-pointer"
-                            title="Remove item"
-                          >
-                            <X size={16} />
-                          </button>
-                        </div>
-                      </div>
-                    ))}
+                      )
+                    })}
                   </div>
                 )}
 
@@ -1157,29 +1690,36 @@ export default function ReceiptList() {
                 <div className="bg-gray-50 rounded-md p-3 space-y-2">
                   <div className="grid grid-cols-12 gap-2">
                     <div className="col-span-6">
-                      {(() => {
-                        const permissionFilteredProducts =
-                          role === 'admin' &&
-                          permissions?.can_view_products &&
-                          assignedProductIds.length > 0
-                            ? productsForReceiptModal.filter((product) => assignedProductIds.includes(product.id))
-                            : productsForReceiptModal
-
-                        return (
-                          <select
-                            value={selectedProductId}
-                            onChange={(e) => setSelectedProductId(e.target.value)}
-                            className="w-full px-3 py-2 border-0 bg-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm text-gray-900"
+                      <Select.Root value={selectedProductId} onValueChange={(value) => setSelectedProductId(value)}>
+                        <Select.Trigger className="w-full h-9 px-3 border-0 bg-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm text-gray-900 flex items-center justify-between">
+                          <Select.Value placeholder="Select product" />
+                          <Select.Icon>
+                            <ChevronDown className="h-4 w-4 text-gray-500" />
+                          </Select.Icon>
+                        </Select.Trigger>
+                        <Select.Portal>
+                          <Select.Content
+                            position="popper"
+                            sideOffset={6}
+                            className="z-50 rounded-xl border border-gray-200 bg-white shadow-lg overflow-hidden"
+                            style={{ minWidth: 'var(--radix-select-trigger-width)' }}
                           >
-                            <option value="">Select product</option>
-                            {permissionFilteredProducts.map((product) => (
-                              <option key={product.id} value={product.id}>
-                                {product.name} - ${product.price.toFixed(2)}
-                              </option>
-                            ))}
-                          </select>
-                        )
-                      })()}
+                            <Select.Viewport className="py-1 max-h-60 overflow-y-auto">
+                              {permissionFilteredProductsForReceiptModal.map((product) => (
+                                <Select.Item
+                                  key={product.id}
+                                  value={product.id}
+                                  className="px-3 py-2 text-sm text-gray-800 rounded-md cursor-pointer flex items-center gap-2 data-[highlighted]:bg-blue-50 data-[highlighted]:text-blue-700 outline-none"
+                                >
+                                  <Select.ItemText>
+                                    {product.name} - ${product.price.toFixed(2)}
+                                  </Select.ItemText>
+                                </Select.Item>
+                              ))}
+                            </Select.Viewport>
+                          </Select.Content>
+                        </Select.Portal>
+                      </Select.Root>
                     </div>
                     <div className="col-span-3">
                       <Input
@@ -1205,7 +1745,131 @@ export default function ReceiptList() {
                   </div>
 
                   <div className="grid grid-cols-12 gap-2">
-                    <div className="col-span-8">
+                    <div className="col-span-12 sm:col-span-6 bg-white rounded-md px-3 py-2">
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2">
+                          <Checkbox
+                            checked={itemTaxEnabled}
+                            onCheckedChange={(checked) => {
+                              const enabled = checked === true
+                              setItemTaxEnabled(enabled)
+                              if (!enabled) setItemTaxPercentage('0')
+                            }}
+                            id="add_item_tax_enabled"
+                          />
+                          <Label htmlFor="add_item_tax_enabled" className="text-xs font-medium text-gray-700">
+                            Tax
+                          </Label>
+                        </div>
+                        <div className="relative">
+                          <span className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-[10px] text-gray-500">
+                            %
+                          </span>
+                          <Input
+                            type="number"
+                            min="0"
+                            max="100"
+                            step="0.01"
+                            value={itemTaxPercentage}
+                            onChange={(e) => setItemTaxPercentage(String(clampPercent(e.target.value)))}
+                            disabled={!itemTaxEnabled}
+                            className="h-8 w-24 text-xs pl-5"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="col-span-12 sm:col-span-6 bg-white rounded-md px-3 py-2">
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2">
+                          <Checkbox
+                            checked={itemDiscountEnabled}
+                            onCheckedChange={(checked) => {
+                              const enabled = checked === true
+                              setItemDiscountEnabled(enabled)
+                              if (!enabled) {
+                                setItemDiscountType('none')
+                                setItemDiscountValue('0')
+                              } else if (itemDiscountType === 'none') {
+                                setItemDiscountType('percentage')
+                              }
+                            }}
+                            id="add_item_discount_enabled"
+                          />
+                          <Label htmlFor="add_item_discount_enabled" className="text-xs font-medium text-gray-700">
+                            Discount
+                          </Label>
+                        </div>
+                        <div className="grid grid-cols-12 gap-2 items-center">
+                          <div className="col-span-7">
+                            <Select.Root
+                              value={itemDiscountType}
+                              onValueChange={(value) => setItemDiscountType(value as 'none' | 'percentage' | 'flat')}
+                              disabled={!itemDiscountEnabled}
+                            >
+                              <Select.Trigger className="w-full h-8 px-2 border border-gray-200 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 text-xs text-gray-900 flex items-center justify-between disabled:bg-gray-50 disabled:opacity-50">
+                                <Select.Value placeholder="Type" />
+                                <Select.Icon>
+                                  <ChevronDown className="h-3 w-3 text-gray-500" />
+                                </Select.Icon>
+                              </Select.Trigger>
+                              <Select.Portal>
+                                <Select.Content
+                                  position="popper"
+                                  sideOffset={6}
+                                  className="z-50 rounded-xl border border-gray-200 bg-white shadow-lg overflow-hidden"
+                                  style={{ minWidth: 'var(--radix-select-trigger-width)' }}
+                                >
+                                  <Select.Viewport className="py-1">
+                                    <Select.Item
+                                      value="percentage"
+                                      className="px-3 py-2 text-xs text-gray-800 rounded-md cursor-pointer flex items-center gap-2 data-[highlighted]:bg-blue-50 data-[highlighted]:text-blue-700 outline-none"
+                                    >
+                                      <Select.ItemText>%</Select.ItemText>
+                                    </Select.Item>
+                                    <Select.Item
+                                      value="flat"
+                                      className="px-3 py-2 text-xs text-gray-800 rounded-md cursor-pointer flex items-center gap-2 data-[highlighted]:bg-blue-50 data-[highlighted]:text-blue-700 outline-none"
+                                    >
+                                      <Select.ItemText>Flat</Select.ItemText>
+                                    </Select.Item>
+                                  </Select.Viewport>
+                                </Select.Content>
+                              </Select.Portal>
+                            </Select.Root>
+                          </div>
+                          <Input
+                            type="number"
+                            min="0"
+                            max={itemDiscountType === 'percentage' ? 100 : undefined}
+                            step={itemDiscountType === 'flat' ? 1 : 0.01}
+                            value={itemDiscountValue}
+                            onChange={(e) => {
+                              const raw = safeNumber(e.target.value)
+                              if (itemDiscountType === 'percentage') {
+                                setItemDiscountValue(String(clampPercent(raw)))
+                                return
+                              }
+
+                              if (itemDiscountType === 'flat') {
+                                const product = permissionFilteredProductsForReceiptModal.find((p) => p.id === selectedProductId)
+                                const unitPrice = product ? Math.max(0, safeNumber(product.price)) : Number.POSITIVE_INFINITY
+                                setItemDiscountValue(String(Math.min(unitPrice, Math.max(0, Math.floor(raw)))))
+                                return
+                              }
+
+                              setItemDiscountValue('0')
+                            }}
+                            disabled={!itemDiscountEnabled}
+                            className="col-span-5 h-8 text-xs"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-12 gap-2">
+                    <div className="col-span-12 sm:col-span-8">
                       <Input
                         type="text"
                         value={itemImeiOrModel}
@@ -1214,7 +1878,7 @@ export default function ReceiptList() {
                         className="border-0 bg-white text-sm"
                       />
                     </div>
-                    <div className="col-span-4">
+                    <div className="col-span-12 sm:col-span-4">
                       <Input
                         type="text"
                         value={itemColor}
@@ -1274,6 +1938,148 @@ export default function ReceiptList() {
                               />
                             </div>
                           </div>
+
+                          <div className="grid grid-cols-12 gap-2">
+                            <div className="col-span-12 sm:col-span-6">
+                              <Input
+                                type="text"
+                                value={quickProductImeiOrModel}
+                                onChange={(e) => setQuickProductImeiOrModel(e.target.value)}
+                                placeholder="IMEI / Model (optional)"
+                                className="bg-white text-sm"
+                              />
+                            </div>
+                            <div className="col-span-12 sm:col-span-6">
+                              <Input
+                                type="text"
+                                value={quickProductColor}
+                                onChange={(e) => setQuickProductColor(e.target.value)}
+                                placeholder="Color (optional)"
+                                className="bg-white text-sm"
+                              />
+                            </div>
+                          </div>
+
+                          <div className="grid grid-cols-12 gap-2">
+                            <div className="col-span-12 sm:col-span-6 bg-white rounded-md px-3 py-2">
+                              <div className="flex items-center justify-between gap-2">
+                                <div className="flex items-center gap-2">
+                                  <Checkbox
+                                    checked={quickProductTaxEnabled}
+                                    onCheckedChange={(checked) => {
+                                      const enabled = checked === true
+                                      setQuickProductTaxEnabled(enabled)
+                                      if (!enabled) setQuickProductTaxPercentage('0')
+                                    }}
+                                    id="quick_product_tax_enabled"
+                                  />
+                                  <Label htmlFor="quick_product_tax_enabled" className="text-xs font-medium text-gray-700">
+                                    Tax
+                                  </Label>
+                                </div>
+                                <Input
+                                  type="number"
+                                  min="0"
+                                  max="100"
+                                  step="0.01"
+                                  value={quickProductTaxPercentage}
+                                  onChange={(e) => setQuickProductTaxPercentage(String(clampPercent(e.target.value)))}
+                                  disabled={!quickProductTaxEnabled}
+                                  className="h-8 w-24 text-xs"
+                                />
+                              </div>
+                            </div>
+
+                            <div className="col-span-12 sm:col-span-6 bg-white rounded-md px-3 py-2">
+                              <div className="flex items-center justify-between gap-2">
+                                <div className="flex items-center gap-2">
+                                  <Checkbox
+                                    checked={quickProductDiscountEnabled}
+                                    onCheckedChange={(checked) => {
+                                      const enabled = checked === true
+                                      setQuickProductDiscountEnabled(enabled)
+                                      if (!enabled) {
+                                        setQuickProductDiscountType('none')
+                                        setQuickProductDiscountValue('0')
+                                      } else if (quickProductDiscountType === 'none') {
+                                        setQuickProductDiscountType('percentage')
+                                      }
+                                    }}
+                                    id="quick_product_discount_enabled"
+                                  />
+                                  <Label htmlFor="quick_product_discount_enabled" className="text-xs font-medium text-gray-700">
+                                    Discount
+                                  </Label>
+                                </div>
+                                <div className="grid grid-cols-12 gap-2 items-center">
+                                  <div className="col-span-7">
+                                    <Select.Root
+                                      value={quickProductDiscountType}
+                                      onValueChange={(value) =>
+                                        setQuickProductDiscountType(value as 'none' | 'percentage' | 'flat')
+                                      }
+                                      disabled={!quickProductDiscountEnabled}
+                                    >
+                                      <Select.Trigger className="w-full h-8 px-2 border border-gray-200 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 text-xs text-gray-900 flex items-center justify-between disabled:bg-gray-50 disabled:opacity-50">
+                                        <Select.Value placeholder="Type" />
+                                        <Select.Icon>
+                                          <ChevronDown className="h-3 w-3 text-gray-500" />
+                                        </Select.Icon>
+                                      </Select.Trigger>
+                                      <Select.Portal>
+                                        <Select.Content
+                                          position="popper"
+                                          sideOffset={6}
+                                          className="z-50 rounded-xl border border-gray-200 bg-white shadow-lg overflow-hidden"
+                                          style={{ minWidth: 'var(--radix-select-trigger-width)' }}
+                                        >
+                                          <Select.Viewport className="py-1">
+                                            <Select.Item
+                                              value="percentage"
+                                              className="px-3 py-2 text-xs text-gray-800 rounded-md cursor-pointer flex items-center gap-2 data-[highlighted]:bg-blue-50 data-[highlighted]:text-blue-700 outline-none"
+                                            >
+                                              <Select.ItemText>%</Select.ItemText>
+                                            </Select.Item>
+                                            <Select.Item
+                                              value="flat"
+                                              className="px-3 py-2 text-xs text-gray-800 rounded-md cursor-pointer flex items-center gap-2 data-[highlighted]:bg-blue-50 data-[highlighted]:text-blue-700 outline-none"
+                                            >
+                                              <Select.ItemText>Flat</Select.ItemText>
+                                            </Select.Item>
+                                          </Select.Viewport>
+                                        </Select.Content>
+                                      </Select.Portal>
+                                    </Select.Root>
+                                  </div>
+                                  <Input
+                                    type="number"
+                                    min="0"
+                                    max={quickProductDiscountType === 'percentage' ? 100 : undefined}
+                                    step={quickProductDiscountType === 'flat' ? 1 : 0.01}
+                                    value={quickProductDiscountValue}
+                                    onChange={(e) => {
+                                      const raw = safeNumber(e.target.value)
+                                      if (quickProductDiscountType === 'percentage') {
+                                        setQuickProductDiscountValue(String(clampPercent(raw)))
+                                        return
+                                      }
+
+                                      if (quickProductDiscountType === 'flat') {
+                                        const unitPrice = Math.max(0, safeNumber(quickProductPrice))
+                                        setQuickProductDiscountValue(String(Math.min(unitPrice, Math.max(0, Math.floor(raw)))))
+                                        return
+                                      }
+
+                                      setQuickProductDiscountValue('0')
+                                    }}
+                                    disabled={!quickProductDiscountEnabled}
+                                    className="col-span-5 h-8 text-xs"
+                                  />
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+
                           <div className="flex justify-end gap-2">
                             <Button
                               type="button"
@@ -1303,9 +2109,174 @@ export default function ReceiptList() {
 
                 {/* Total Summary */}
                 {items.length > 0 && (
-                  <div className="bg-blue-50 rounded-md p-3 flex items-center justify-between">
-                    <p className="text-sm font-medium text-gray-700">Total Amount</p>
-                    <p className="text-lg font-bold text-blue-600">${calculateTotal().toFixed(2)}</p>
+                  <div className="bg-blue-50 rounded-md p-3 space-y-2">
+                    {(() => {
+                      const subtotal = receiptItemTotals.itemsSubtotal
+                      const itemDiscount = receiptItemTotals.itemsDiscount
+                      const receiptDiscount = receiptItemTotals.receiptDiscount
+                      const itemTax = receiptItemTotals.itemsTax
+                      const receiptTax = receiptItemTotals.receiptTax
+                      const totalDiscount = receiptItemTotals.totalDiscount
+                      const totalTax = receiptItemTotals.totalTax
+                      const total = receiptItemTotals.total
+
+                      return (
+                        <>
+                          <div className="flex items-center justify-between">
+                            <p className="text-sm font-medium text-gray-700">Subtotal</p>
+                            <p className="text-sm font-semibold text-gray-900">${subtotal.toFixed(2)}</p>
+                          </div>
+
+                          <div className="flex items-center justify-between">
+                            <p className="text-sm font-medium text-gray-700">Item discount</p>
+                            <p className="text-sm font-semibold text-gray-900">-${itemDiscount.toFixed(2)}</p>
+                          </div>
+
+                          <div className="pt-2">
+                            <div className="grid grid-cols-12 gap-2 px-2 py-1 bg-white/70 rounded-md">
+                              <div className="col-span-5 text-[10px] font-semibold text-gray-600 uppercase">Item</div>
+                              <div className="col-span-2 text-[10px] font-semibold text-gray-600 uppercase text-center">Qty</div>
+                              <div className="col-span-2 text-[10px] font-semibold text-gray-600 uppercase text-right">Disc</div>
+                              <div className="col-span-1 text-[10px] font-semibold text-gray-600 uppercase text-right">Tax</div>
+                              <div className="col-span-2 text-[10px] font-semibold text-gray-600 uppercase text-right">Total</div>
+                            </div>
+                            <div className="mt-1 space-y-1">
+                              {items.map((item) => {
+                                const { lineDiscount, lineTax, lineTotal } = getItemBreakdown(item)
+                                const taxEnabled = item.tax_enabled !== false
+                                const discountEnabled = item.discount_enabled === true
+                                const taxText = taxEnabled ? `$${lineTax.toFixed(2)}` : '—'
+                                const discountText = discountEnabled ? `-$${lineDiscount.toFixed(2)}` : '—'
+
+                                return (
+                                  <div key={item.id} className="grid grid-cols-12 gap-2 px-2 py-1 rounded-md">
+                                    <div className="col-span-5 text-xs text-gray-700 truncate">{item.name}</div>
+                                    <div className="col-span-2 text-xs text-gray-700 text-center">{item.quantity}</div>
+                                    <div className="col-span-2 text-xs text-gray-700 text-right">{discountText}</div>
+                                    <div className="col-span-1 text-xs text-gray-700 text-right">{taxText}</div>
+                                    <div className="col-span-2 text-xs font-semibold text-gray-900 text-right">${lineTotal.toFixed(2)}</div>
+                                  </div>
+                                )
+                              })}
+                            </div>
+                          </div>
+
+                          <div className="grid grid-cols-12 gap-2 items-center">
+                            <div className="col-span-7">
+                              <Label htmlFor="discount_type" className="text-xs font-medium text-gray-700">
+                                Discount
+                              </Label>
+                              <div className="mt-1 grid grid-cols-12 gap-2">
+                                <Select.Root
+                                  value={formData.discount_type}
+                                  onValueChange={(value) =>
+                                    setFormData({
+                                      ...formData,
+                                      discount_type: value as 'none' | 'percentage' | 'flat',
+                                    })
+                                  }
+                                >
+                                  <Select.Trigger className="col-span-7 h-8 px-2 border-0 bg-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-xs text-gray-900 flex items-center justify-between">
+                                    <Select.Value placeholder="None" />
+                                    <Select.Icon>
+                                      <ChevronDown className="h-3 w-3 text-gray-500" />
+                                    </Select.Icon>
+                                  </Select.Trigger>
+                                  <Select.Portal>
+                                    <Select.Content
+                                      position="popper"
+                                      sideOffset={6}
+                                      className="z-50 rounded-xl border border-gray-200 bg-white shadow-lg overflow-hidden"
+                                      style={{ minWidth: 'var(--radix-select-trigger-width)' }}
+                                    >
+                                      <Select.Viewport className="py-1">
+                                        <Select.Item
+                                          value="none"
+                                          className="px-3 py-2 text-xs text-gray-800 rounded-md cursor-pointer flex items-center gap-2 data-[highlighted]:bg-blue-50 data-[highlighted]:text-blue-700 outline-none"
+                                        >
+                                          <Select.ItemText>None</Select.ItemText>
+                                        </Select.Item>
+                                        <Select.Item
+                                          value="percentage"
+                                          className="px-3 py-2 text-xs text-gray-800 rounded-md cursor-pointer flex items-center gap-2 data-[highlighted]:bg-blue-50 data-[highlighted]:text-blue-700 outline-none"
+                                        >
+                                          <Select.ItemText>%</Select.ItemText>
+                                        </Select.Item>
+                                        <Select.Item
+                                          value="flat"
+                                          className="px-3 py-2 text-xs text-gray-800 rounded-md cursor-pointer flex items-center gap-2 data-[highlighted]:bg-blue-50 data-[highlighted]:text-blue-700 outline-none"
+                                        >
+                                          <Select.ItemText>Flat</Select.ItemText>
+                                        </Select.Item>
+                                      </Select.Viewport>
+                                    </Select.Content>
+                                  </Select.Portal>
+                                </Select.Root>
+                                <Input
+                                  type="number"
+                                  min="0"
+                                  step="0.01"
+                                  value={formData.discount_value}
+                                  onChange={(e) => setFormData({ ...formData, discount_value: e.target.value })}
+                                  className="col-span-5 h-8 bg-white text-sm"
+                                  disabled={formData.discount_type === 'none'}
+                                />
+                              </div>
+                            </div>
+                            <div className="col-span-5 text-right">
+                              <p className="text-xs text-gray-600">Discount</p>
+                              <p className="text-sm font-semibold text-gray-900">-${receiptDiscount.toFixed(2)}</p>
+                            </div>
+                          </div>
+
+                          <div className="grid grid-cols-12 gap-2 items-center">
+                            <div className="col-span-7">
+                              <Label htmlFor="tax_percent" className="text-xs font-medium text-gray-700">
+                                Tax
+                              </Label>
+                              <div className="relative mt-1">
+                                <span className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-[10px] text-gray-500">
+                                  %
+                                </span>
+                                <Input
+                                  id="tax_percent"
+                                  type="number"
+                                  min="0"
+                                  step="0.01"
+                                  value={formData.tax_percent}
+                                  onChange={(e) => setFormData({ ...formData, tax_percent: e.target.value })}
+                                  className="h-8 bg-white text-sm pl-5"
+                                />
+                              </div>
+                            </div>
+                            <div className="col-span-5 text-right">
+                              <p className="text-xs text-gray-600">Tax</p>
+                              <p className="text-sm font-semibold text-gray-900">${receiptTax.toFixed(2)}</p>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center justify-between">
+                            <p className="text-sm font-medium text-gray-700">Item tax</p>
+                            <p className="text-sm font-semibold text-gray-900">${itemTax.toFixed(2)}</p>
+                          </div>
+
+                          <div className="flex items-center justify-between">
+                            <p className="text-sm font-medium text-gray-700">Total discount</p>
+                            <p className="text-sm font-semibold text-gray-900">-${totalDiscount.toFixed(2)}</p>
+                          </div>
+
+                          <div className="flex items-center justify-between">
+                            <p className="text-sm font-medium text-gray-700">Total tax</p>
+                            <p className="text-sm font-semibold text-gray-900">${totalTax.toFixed(2)}</p>
+                          </div>
+
+                          <div className="pt-2 border-t border-blue-200 flex items-center justify-between">
+                            <p className="text-sm font-medium text-gray-700">Total</p>
+                            <p className="text-lg font-bold text-blue-600">${total.toFixed(2)}</p>
+                          </div>
+                        </>
+                      )
+                    })()}
                   </div>
                 )}
 

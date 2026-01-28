@@ -78,7 +78,13 @@ CREATE TABLE IF NOT EXISTS products (
   price DECIMAL(10, 2) NOT NULL,
   category_id UUID REFERENCES categories(id) ON DELETE SET NULL,
   image_url VARCHAR(500),
+  imei_or_model VARCHAR(255),
+  color VARCHAR(100),
   tax_enabled BOOLEAN DEFAULT TRUE,
+  tax_percentage DECIMAL(5, 2) DEFAULT 0,
+  discount_enabled BOOLEAN DEFAULT FALSE,
+  discount_type VARCHAR(20) DEFAULT 'none' CHECK (discount_type IN ('none', 'percentage', 'flat')),
+  discount_value DECIMAL(10, 2) DEFAULT 0,
   vendor_id UUID REFERENCES vendors(id) ON DELETE CASCADE,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
@@ -200,6 +206,10 @@ CREATE TABLE IF NOT EXISTS receipts (
   customer_address TEXT,
   notes TEXT,
   subtotal DECIMAL(10, 2) DEFAULT 0,
+  discount DECIMAL(10, 2) DEFAULT 0,
+  discount_type VARCHAR(20) DEFAULT 'none' CHECK (discount_type IN ('none', 'percentage', 'flat')),
+  discount_value DECIMAL(10, 2) DEFAULT 0,
+  tax_percent DECIMAL(5, 2) DEFAULT 0,
   tax DECIMAL(10, 2) DEFAULT 0,
   total DECIMAL(10, 2) DEFAULT 0,
   status VARCHAR(50) DEFAULT 'draft' CHECK (status IN ('draft', 'sent', 'paid')),
@@ -225,6 +235,11 @@ CREATE TABLE IF NOT EXISTS receipt_items (
   color VARCHAR(100),
   quantity INTEGER NOT NULL CHECK (quantity > 0),
   unit_price DECIMAL(10, 2) NOT NULL,
+  tax_enabled BOOLEAN DEFAULT TRUE,
+  tax_percentage DECIMAL(5, 2) DEFAULT 0,
+  discount_enabled BOOLEAN DEFAULT FALSE,
+  discount_type VARCHAR(20) DEFAULT 'none' CHECK (discount_type IN ('none', 'percentage', 'flat')),
+  discount_value DECIMAL(10, 2) DEFAULT 0,
   total DECIMAL(10, 2) NOT NULL,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
@@ -265,6 +280,7 @@ BEGIN
       VALUES
         ('admin-profiles', 'admin-profiles', true),
         ('category-images', 'category-images', true),
+        ('vendor-images', 'vendor-images', true),
         ('receipt-exports', 'receipt-exports', true)
       ON CONFLICT (id) DO NOTHING;
     EXCEPTION
@@ -330,6 +346,28 @@ BEGIN
       CREATE POLICY "Category images delete (auth)" ON storage.objects
         FOR DELETE TO authenticated
         USING (bucket_id = 'category-images');
+
+      -- Vendor images (shop images)
+      DROP POLICY IF EXISTS "Vendor images read (auth)" ON storage.objects;
+      DROP POLICY IF EXISTS "Vendor images insert (auth)" ON storage.objects;
+      DROP POLICY IF EXISTS "Vendor images update (auth)" ON storage.objects;
+      DROP POLICY IF EXISTS "Vendor images delete (auth)" ON storage.objects;
+
+      CREATE POLICY "Vendor images read (auth)" ON storage.objects
+        FOR SELECT TO authenticated
+        USING (bucket_id = 'vendor-images');
+
+      CREATE POLICY "Vendor images insert (auth)" ON storage.objects
+        FOR INSERT TO authenticated
+        WITH CHECK (bucket_id = 'vendor-images');
+
+      CREATE POLICY "Vendor images update (auth)" ON storage.objects
+        FOR UPDATE TO authenticated
+        USING (bucket_id = 'vendor-images');
+
+      CREATE POLICY "Vendor images delete (auth)" ON storage.objects
+        FOR DELETE TO authenticated
+        USING (bucket_id = 'vendor-images');
 
       -- Receipt exports
       DROP POLICY IF EXISTS "Receipt exports read (auth)" ON storage.objects;

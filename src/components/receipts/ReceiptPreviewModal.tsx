@@ -33,8 +33,29 @@ export default function ReceiptPreviewModal({
 
     // Use values from receipt
     const subtotal = receipt.subtotal || 0
+    const discount = receipt.discount || 0
     const tax = receipt.tax || 0
     const total = receipt.total || 0
+
+    const taxPercent =
+      typeof (receipt as any).tax_percent === 'number'
+        ? ((receipt as any).tax_percent as number)
+        : Math.max(0, subtotal - discount) > 0
+          ? (tax / Math.max(0, subtotal - discount)) * 100
+          : 0
+    const safeTaxPercent = Number.isFinite(taxPercent) ? Math.max(0, taxPercent) : 0
+
+    const discountType = ((receipt as any).discount_type as string | undefined) || 'none'
+    const discountValue =
+      typeof (receipt as any).discount_value === 'number' ? ((receipt as any).discount_value as number) : 0
+
+    const taxMeta = safeTaxPercent > 0 ? `(${safeTaxPercent.toFixed(2)}%)` : ''
+    const discountMeta =
+      discountType === 'percentage' && discountValue > 0
+        ? `(${discountValue.toFixed(2)}%)`
+        : discountType === 'flat' && discountValue > 0
+          ? `($${discountValue.toFixed(2)})`
+          : ''
 
     // Determine items column order from template (data-items-columns on tbody)
     let itemsColumns: Array<'description' | 'imei_or_model' | 'color' | 'quantity' | 'price' | 'total'> = ['description', 'quantity', 'price', 'total']
@@ -127,6 +148,7 @@ export default function ReceiptPreviewModal({
     let html = template.template_html
       .replace(/{{RECEIPT_ID}}/g, receipt.id)
       .replace(/{{DATE}}/g, new Date(receipt.created_at).toLocaleDateString())
+      .replace(/{{DUE_DATE}}/g, '')
       .replace(/{{CUSTOMER_NAME}}/g, receipt.customer_name || '')
       .replace(/{{CUSTOMER_EMAIL}}/g, receipt.customer_email || '')
       .replace(/{{CUSTOMER_COMPANY}}/g, receipt.customer_company || '')
@@ -136,6 +158,12 @@ export default function ReceiptPreviewModal({
       .replace(/{{TOTAL}}/g, total.toFixed(2))
       .replace(/{{SUBTOTAL}}/g, subtotal.toFixed(2))
       .replace(/{{TAX}}/g, hasTaxableItems ? tax.toFixed(2) : '0.00')
+      .replace(/{{TAX_PERCENT}}/g, safeTaxPercent.toFixed(2))
+      .replace(/{{TAX_META}}/g, taxMeta)
+      .replace(/{{DISCOUNT}}/g, discount.toFixed(2))
+      .replace(/{{DISCOUNT_TYPE}}/g, discountType)
+      .replace(/{{DISCOUNT_VALUE}}/g, Number.isFinite(discountValue) ? discountValue.toFixed(2) : '0.00')
+      .replace(/{{DISCOUNT_META}}/g, discountMeta)
       .replace(/{{STATUS}}/g, receipt.status)
       .replace(/{{COMPANY_NAME}}/g, companyName)
       .replace(/{{COMPANY_EMAIL}}/g, 'info@xreceipt.com')
@@ -247,7 +275,7 @@ export default function ReceiptPreviewModal({
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="max-w-4xl max-h-[calc(100dvh-2rem)] p-0 flex flex-col bg-white overflow-hidden sm:rounded-2xl">
+      <DialogContent className="max-w-4xl h-[calc(100dvh-2rem)] max-h-[calc(100dvh-2rem)] p-0 flex flex-col bg-white overflow-hidden sm:rounded-2xl min-h-0">
         <DialogHeader className="px-6 py-3 border-b border-gray-200 bg-white">
           <DialogTitle className="flex items-center gap-2 text-base font-semibold text-gray-900">
             <FileText size={18} />
@@ -255,7 +283,7 @@ export default function ReceiptPreviewModal({
           </DialogTitle>
         </DialogHeader>
 
-        <div className="flex-1 overflow-auto bg-white">
+        <div className="flex-1 min-h-0 overflow-auto bg-white">
           <iframe
             ref={iframeRef}
             title="Receipt preview"

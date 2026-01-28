@@ -1,0 +1,20 @@
+1. do following changes
+    1. remove "@@' from add new pproduct
+    2. make the category selection optional
+    3.add % sign in tax box  befor amount value
+    4.. 
+2. On new receipt modal
+    1. chnage thhe showing structure of the added product like email, color, tax and discount. they will be shows as infio texts, can be edited by a edit button, 
+    2. after adding a oproduct discount fields showing noithing, should be shown discount vvalue
+    3. show the final value after calculating tax, discount
+    4. the beloow subtotal sectionshow here the itmes of produts with its info value wwith tablerow  and values will be totals of added products
+    5. show % sign where we ares showing tax  like add product, seleted prodts and added produts ionfo
+    6. do noot make sub scrollbar when multiple produxt are added, show on the main page mail s croll willl increease
+    7. the calculations are showing wrong, its like if a product price is 100 and 10% tax and 10 flat discount is applied calculations will be (100-10)*10% 
+
+3. do following changes on generated receipt
+    1. show discounted amount and applied tax with each products info section with imei and color and separate them properly
+    2. shoow tax and discount columns in the items table 
+    3. i wwanna show the discount and tax something differnetly as we can apply these on individual and overall toal products 
+4. when sidebar is xollapsed, hovering over the menu items cretes a horizontal scriollbar and  the toolotip should be on top of the page so that it visible
+5. need preview the template , add eye icon at actionn buttons on receiprr tempplates page table

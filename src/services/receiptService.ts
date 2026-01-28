@@ -157,6 +157,11 @@ export const receiptService = {
         color: item.color ?? null,
         quantity: item.quantity,
         unit_price: item.unit_price,
+        tax_enabled: item.tax_enabled ?? true,
+        tax_percentage: item.tax_percentage ?? 0,
+        discount_enabled: item.discount_enabled ?? false,
+        discount_type: item.discount_type ?? 'none',
+        discount_value: item.discount_value ?? 0,
         total: item.total,
       }))
 
@@ -206,6 +211,11 @@ export const receiptService = {
           color: item.color ?? null,
           quantity: item.quantity,
           unit_price: item.unit_price,
+          tax_enabled: item.tax_enabled ?? true,
+          tax_percentage: item.tax_percentage ?? 0,
+          discount_enabled: item.discount_enabled ?? false,
+          discount_type: item.discount_type ?? 'none',
+          discount_value: item.discount_value ?? 0,
           total: item.total,
         }))
 

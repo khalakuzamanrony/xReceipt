@@ -9,6 +9,7 @@
 DROP POLICY IF EXISTS "Public upload" ON storage.objects;
 DROP POLICY IF EXISTS "Public read" ON storage.objects;
 DROP POLICY IF EXISTS "Public delete" ON storage.objects;
+DROP POLICY IF EXISTS "Public update" ON storage.objects;
 
 -- ============================================
 -- CREATE PUBLIC POLICIES FOR STORAGE

@@ -15,6 +15,11 @@ INSERT INTO storage.buckets (id, name, public)
 VALUES ('category-images', 'category-images', true)
 ON CONFLICT (id) DO UPDATE SET public = true;
 
+-- Create vendor-images bucket
+INSERT INTO storage.buckets (id, name, public)
+VALUES ('vendor-images', 'vendor-images', true)
+ON CONFLICT (id) DO UPDATE SET public = true;
+
 -- Create receipt-exports bucket
 INSERT INTO storage.buckets (id, name, public)
 VALUES ('receipt-exports', 'receipt-exports', false)

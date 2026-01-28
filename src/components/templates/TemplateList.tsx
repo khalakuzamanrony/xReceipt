@@ -5,13 +5,11 @@ import { templateVendorService } from '@/services/templateVendorService'
 import { receiptService } from '@/services/receiptService'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
-import { Label } from '@/components/ui/Label'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/Dialog'
 import { Checkbox } from '@/components/ui/Checkbox'
-import { Plus, Edit, Trash2, AlertCircle, FileCode, Search, Zap, Funnel } from 'lucide-react'
+import { Plus, Edit, Trash2, AlertCircle, FileCode, Search, Funnel } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { useVendor } from '@/contexts/VendorContext'
-import VisualReceiptBuilder from './VisualReceiptBuilder'
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
 import { cn } from '@/lib/utils'
 
@@ -37,14 +35,6 @@ export default function TemplateList({ onNavigateToBuilder }: TemplateListProps)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [searchTerm, setSearchTerm] = useState('')
-  const [showForm, setShowForm] = useState(false)
-  const [showVisualBuilder, setShowVisualBuilder] = useState(false)
-  const [selectedTemplate, setSelectedTemplate] = useState<ReceiptTemplate | null>(null)
-  const [formData, setFormData] = useState({
-    name: '',
-    description: '',
-    template_html: '',
-  })
   const [page, setPage] = useState(1)
   const [rowsPerPage, setRowsPerPage] = useState(10)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
@@ -266,18 +256,6 @@ export default function TemplateList({ onNavigateToBuilder }: TemplateListProps)
     }
   }
 
-  const handleAddNew = () => {
-    // Require a vendor selection before creating templates
-    if (!activeVendorId) {
-      setError('Please select a shop from the header before creating templates.')
-      return
-    }
-
-    setSelectedTemplate(null)
-    setFormData({ name: '', description: '', template_html: '' })
-    setShowForm(true)
-  }
-
   const handleRequestDelete = (template: ReceiptTemplate) => {
     setTemplateToDelete(template)
     setShowDeleteConfirm(true)
@@ -296,106 +274,6 @@ export default function TemplateList({ onNavigateToBuilder }: TemplateListProps)
       setError(err instanceof Error ? err.message : 'Failed to delete template')
     } finally {
       setIsDeleting(false)
-    }
-  }
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-
-    if (!formData.name || !formData.template_html) {
-      setError('Please fill in all required fields')
-      return
-    }
-
-    const isNew = !selectedTemplate
-
-    // New templates must always be tied to a specific vendor
-    if (isNew && !activeVendorId) {
-      setError('Please select a shop from the header before creating templates.')
-      return
-    }
-
-    try {
-      const templateData: any = {
-        name: formData.name,
-        description: formData.description,
-        template_html: formData.template_html,
-      }
-
-      if (isNew && activeVendorId) {
-        templateData.vendor_id = activeVendorId
-      }
-
-      if (selectedTemplate) {
-        await templateService.updateTemplate(selectedTemplate.id, templateData)
-      } else {
-        await templateService.createTemplate(templateData)
-      }
-
-      setShowForm(false)
-      loadTemplates()
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to save template')
-    }
-  }
-
-  const handleVisualSave = async (data: { name: string; description: string; elements: any[] }) => {
-    try {
-      if (!activeVendorId) {
-        setError('Please select a shop from the header before creating templates.')
-        return
-      }
-
-      // Convert elements to HTML template with absolute positioning
-      let html = `<div style="font-family: Arial, sans-serif; position: relative; width: 400px; height: 600px; margin: 0 auto; padding: 0;">`
-
-      data.elements.forEach((element: any) => {
-        const style = `position: absolute; left: ${element.x}px; top: ${element.y}px; width: ${element.width}px; height: ${element.height}px; font-size: ${element.config.fontSize || 12}px; color: ${element.config.color || '#000'}; text-align: ${element.config.alignment || 'left'}; padding: ${element.config.padding || 8}px; ${element.config.backgroundColor ? `background-color: ${element.config.backgroundColor};` : ''} ${element.config.showBorder ? `border-bottom: 1px solid ${element.config.borderColor || '#ccc'};` : ''}`
-
-        switch (element.type) {
-          case 'header':
-            html += `<div style="${style}"><strong>{{COMPANY_NAME}}</strong></div>`
-            break
-          case 'customer':
-            html += `<div style="${style}">{{CUSTOMER_NAME}}<br/>{{CUSTOMER_EMAIL}}</div>`
-            break
-          case 'items':
-            html += `<table style="${style}; width: 100%;"><thead><tr><th>Description</th><th>Qty</th><th>Price</th><th>Amount</th></tr></thead><tbody>{{ITEMS}}</tbody></table>`
-            break
-          case 'totals':
-            html += `<div style="${style}"><div>Subtotal: {{SUBTOTAL}}</div><div>Tax: {{TAX}}</div><div><strong>Total: {{TOTAL}}</strong></div></div>`
-            break
-          case 'footer':
-            html += `<div style="${style}">{{FOOTER_MESSAGE}}</div>`
-            break
-          case 'divider':
-            html += `<div style="${style}; border-bottom: 1px solid ${element.config.borderColor || '#ccc'};"></div>`
-            break
-          case 'text':
-            html += `<div style="${style}">${element.config.customText || ''}</div>`
-            break
-          case 'logo':
-            html += `<div style="${style}"><img src="logo.png" alt="Logo" style="max-width: 100%; height: auto;" /></div>`
-            break
-        }
-      })
-
-      html += '</div>'
-
-      const payload: any = {
-        name: data.name,
-        description: data.description,
-        template_html: html,
-      }
-
-      payload.vendor_id = activeVendorId
-
-      await templateService.createTemplate(payload)
-
-      setShowVisualBuilder(false)
-      loadTemplates()
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to save template')
     }
   }
 
@@ -581,29 +459,6 @@ export default function TemplateList({ onNavigateToBuilder }: TemplateListProps)
                       Template Builder
                     </Button>
                   </span>
-                  <span
-                    title={isGrandUserAllShops ? 'Select a shop first' : undefined}
-                    className="inline-flex"
-                  >
-                    <Button
-                      onClick={() => setShowVisualBuilder(true)}
-                      size="sm"
-                      variant="secondary"
-                      disabled={isGrandUserAllShops}
-                    >
-                      <Zap size={16} />
-                      Visual Builder
-                    </Button>
-                  </span>
-                  <span
-                    title={isGrandUserAllShops ? 'Select a shop first' : undefined}
-                    className="inline-flex"
-                  >
-                    <Button onClick={handleAddNew} size="sm" disabled={isGrandUserAllShops}>
-                      <Plus size={16} />
-                      Custom
-                    </Button>
-                  </span>
                 </div>
               )}
             </div>
@@ -620,75 +475,6 @@ export default function TemplateList({ onNavigateToBuilder }: TemplateListProps)
             <p className="text-sm mt-1">{error}</p>
           </div>
         </div>
-      )}
-
-      {/* Template Form Modal */}
-      {showForm && (
-        <Dialog open={true} onOpenChange={setShowForm}>
-          <DialogContent className="max-w-2xl bg-white">
-            <DialogHeader className="border-b border-gray-200 pb-4">
-              <DialogTitle className="text-xl font-bold text-gray-900">
-                {selectedTemplate ? 'Edit Template' : 'Add New Template'}
-              </DialogTitle>
-            </DialogHeader>
-
-            <form onSubmit={handleSubmit} className="space-y-4 py-4">
-              <div className="space-y-2">
-                <Label htmlFor="name" className="text-sm font-semibold text-gray-900" required>Template Name</Label>
-                <Input
-                  id="name"
-                  type="text"
-                  value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  placeholder="Enter template name"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  required
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="description" className="text-sm font-semibold text-gray-900">Description</Label>
-                <Input
-                  id="description"
-                  type="text"
-                  value={formData.description}
-                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                  placeholder="Enter template description"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="html" className="text-sm font-semibold text-gray-900" required>Template HTML</Label>
-                <textarea
-                  id="html"
-                  value={formData.template_html}
-                  onChange={(e) => setFormData({ ...formData, template_html: e.target.value })}
-                  placeholder="Enter HTML template"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-sm h-48"
-                  required
-                />
-              </div>
-
-              <DialogFooter className="gap-3 border-t border-gray-200 pt-4 flex justify-end">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => setShowForm(false)}
-                  className="px-4 py-2"
-                >
-                  Cancel
-                </Button>
-                <Button
-                  type="submit"
-                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white"
-                >
-                  {selectedTemplate ? 'Update' : 'Create'}
-                </Button>
-              </DialogFooter>
-            </form>
-          </DialogContent>
-        </Dialog>
       )}
 
       {/* Templates Table */}
@@ -1353,13 +1139,6 @@ export default function TemplateList({ onNavigateToBuilder }: TemplateListProps)
           </DialogContent>
         </Dialog>
       )}
-
-      <VisualReceiptBuilder
-        open={showVisualBuilder}
-        onClose={() => setShowVisualBuilder(false)}
-        onSave={handleVisualSave}
-      />
-
     </div>
   )
 }

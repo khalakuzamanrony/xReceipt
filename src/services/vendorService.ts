@@ -80,6 +80,11 @@ export const vendorService = {
   },
 
   async uploadVendorImage(vendorId: string, file: File): Promise<{ publicUrl: string; path: string }> {
+    const { data: userData, error: userError } = await supabase.auth.getUser()
+    if (userError || !userData?.user) {
+      throw new Error('You must be logged in to upload a shop image.')
+    }
+
     const ext = (file.name.split('.').pop() || 'png').toLowerCase()
     const safeExt = ext.replace(/[^a-z0-9]/g, '') || 'png'
     const fileName = `${Date.now()}-${Math.random().toString(36).slice(2)}.${safeExt}`
@@ -95,8 +100,13 @@ export const vendorService = {
     if (uploadError) {
       const message = (uploadError as any)?.message || String(uploadError)
       const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || ''
+      const isRls =
+        message.toLowerCase().includes('row-level security') ||
+        message.toLowerCase().includes('violates row-level security')
       const enriched = message.includes('Bucket not found')
         ? `Bucket not found: "${VENDOR_IMAGES_BUCKET}". Supabase URL: "${supabaseUrl}". Confirm this app is pointing to the Supabase project where the bucket exists, and that the bucket name matches exactly. If needed, set VITE_VENDOR_IMAGES_BUCKET to the correct bucket name.`
+        : isRls
+          ? `Storage upload blocked by RLS for bucket "${VENDOR_IMAGES_BUCKET}". Supabase URL: "${supabaseUrl}". Ensure you ran the storage policies for vendor-images (see sql/safe_master_with_rls.sql section "Storage object policies") and that you are logged in.`
         : message
       throw new Error(enriched)
     }

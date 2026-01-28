@@ -451,6 +451,22 @@ export default function VendorList() {
           try {
             const upload = await vendorService.uploadVendorImage(createdVendor.id, imageFile)
             await vendorService.updateVendor(createdVendor.id, { image_url: upload.publicUrl })
+          } catch (uploadErr) {
+            const message = uploadErr instanceof Error ? uploadErr.message : String(uploadErr)
+            console.error('Vendor image upload failed after vendor creation', uploadErr)
+            setSelectedVendor(createdVendor)
+            setFormData({
+              vendor_id: createdVendor.vendor_id,
+              name: createdVendor.name,
+              email: createdVendor.email,
+              address: createdVendor.address || '',
+              url: createdVendor.url || '',
+              status: createdVendor.status,
+              admin_id: createdVendor.admin_id || '',
+              image_url: createdVendor.image_url || '',
+            })
+            setError(`Shop created, but image upload failed: ${message}`)
+            return
           } finally {
             setImageWorking(false)
           }
