@@ -6,11 +6,13 @@ import { receiptService } from '@/services/receiptService'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Label } from '@/components/ui/Label'
+import { Checkbox } from '@/components/ui/Checkbox'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/Dialog'
-import { Plus, Edit, Trash2, AlertCircle, Package, Search, ArrowUpDown, Funnel } from 'lucide-react'
+import { Plus, Edit, Trash2, AlertCircle, Package, Search, ArrowUpDown, Funnel, ChevronDown } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { useVendor } from '@/contexts/VendorContext'
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
+import * as Select from '@radix-ui/react-select'
 import { cn } from '@/lib/utils'
 
 export default function ProductList() {
@@ -38,6 +40,13 @@ export default function ProductList() {
     description: '',
     price: '',
     category_id: '',
+    imei_or_model: '',
+    color: '',
+    tax_enabled: true,
+    tax_percentage: '0',
+    discount_enabled: false,
+    discount_type: 'none' as 'none' | 'percentage' | 'flat',
+    discount_value: '0',
   })
   const [page, setPage] = useState(1)
   const [rowsPerPage, setRowsPerPage] = useState(10)
@@ -197,7 +206,19 @@ export default function ProductList() {
     }
 
     setSelectedProduct(null)
-    setFormData({ name: '', description: '', price: '', category_id: '' })
+    setFormData({
+      name: '',
+      description: '',
+      price: '',
+      category_id: '',
+      imei_or_model: '',
+      color: '',
+      tax_enabled: true,
+      tax_percentage: '0',
+      discount_enabled: false,
+      discount_type: 'none',
+      discount_value: '0',
+    })
     setShowForm(true)
   }
 
@@ -208,6 +229,13 @@ export default function ProductList() {
       description: product.description || '',
       price: product.price.toString(),
       category_id: product.category_id,
+      imei_or_model: product.imei_or_model ? String(product.imei_or_model) : '',
+      color: product.color ? String(product.color) : '',
+      tax_enabled: product.tax_enabled ?? true,
+      tax_percentage: String(product.tax_percentage ?? 0),
+      discount_enabled: product.discount_enabled ?? false,
+      discount_type: product.discount_type ?? 'none',
+      discount_value: String(product.discount_value ?? 0),
     })
     setShowForm(true)
   }
@@ -236,7 +264,7 @@ export default function ProductList() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
-    if (!formData.name || !formData.price || !formData.category_id) {
+    if (!formData.name || !formData.price) {
       setError('Please fill in all required fields')
       return
     }
@@ -250,11 +278,39 @@ export default function ProductList() {
     }
 
     try {
+      const priceNumber = Number(formData.price)
+      const safePrice = Number.isFinite(priceNumber) ? Math.max(0, priceNumber) : 0
+
+      if (safePrice <= 0) {
+        setError('Please enter a valid price greater than 0')
+        return
+      }
+
+      const taxPercentageRaw = Number(formData.tax_percentage)
+      const safeTaxPercentage = Number.isFinite(taxPercentageRaw) ? Math.min(100, Math.max(0, taxPercentageRaw)) : 0
+
+      const discountValueRaw = Number(formData.discount_value)
+      const safeDiscountValueNumber = Number.isFinite(discountValueRaw) ? Math.max(0, discountValueRaw) : 0
+
+      const safeDiscountValue =
+        formData.discount_type === 'percentage'
+          ? Math.min(100, safeDiscountValueNumber)
+          : formData.discount_type === 'flat'
+            ? Math.min(Math.floor(safePrice), Math.floor(safeDiscountValueNumber))
+            : 0
+
       const productData: any = {
         name: formData.name,
-        description: formData.description,
-        price: parseFloat(formData.price),
-        category_id: formData.category_id,
+        description: formData.description?.trim() ? formData.description.trim() : null,
+        price: safePrice,
+        category_id: formData.category_id ? formData.category_id : null,
+        imei_or_model: formData.imei_or_model.trim() ? formData.imei_or_model.trim() : null,
+        color: formData.color.trim() ? formData.color.trim() : null,
+        tax_enabled: !!formData.tax_enabled,
+        tax_percentage: safeTaxPercentage,
+        discount_enabled: !!formData.discount_enabled,
+        discount_type: formData.discount_enabled ? formData.discount_type : 'none',
+        discount_value: formData.discount_enabled ? safeDiscountValue : 0,
       }
 
       if (isNew && activeVendorId) {
@@ -533,21 +589,183 @@ export default function ProductList() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="category" className="text-sm font-semibold text-gray-900" required>Category</Label>
-                <select
-                  id="category"
-                  value={formData.category_id}
-                  onChange={(e) => setFormData({ ...formData, category_id: e.target.value })}
-                  className="w-full h-10 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm text-gray-900"
-                  required
-                >
-                  <option value="">Select a category</option>
-                  {categoriesForModal.map((cat: any) => (
-                    <option key={cat.id} value={cat.id}>
-                      {cat.name}
-                    </option>
-                  ))}
-                </select>
+                <Label htmlFor="category" className="text-sm font-semibold text-gray-900">Category</Label>
+                <Select.Root value={formData.category_id} onValueChange={(value) => setFormData({ ...formData, category_id: value })}>
+                  <Select.Trigger
+                    id="category"
+                    className="w-full h-10 px-4 py-2 border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm text-gray-900 flex items-center justify-between"
+                  >
+                    <Select.Value placeholder="Select a category" />
+                    <Select.Icon>
+                      <ChevronDown className="h-4 w-4 text-gray-500" />
+                    </Select.Icon>
+                  </Select.Trigger>
+                  <Select.Portal>
+                    <Select.Content
+                      position="popper"
+                      sideOffset={6}
+                      className="z-50 rounded-xl border border-gray-200 bg-white shadow-lg overflow-hidden"
+                      style={{ minWidth: 'var(--radix-select-trigger-width)' }}
+                    >
+                      <Select.Viewport className="py-1 max-h-60 overflow-y-auto">
+                        {categoriesForModal.map((cat: any) => (
+                          <Select.Item
+                            key={cat.id}
+                            value={cat.id}
+                            className="px-3 py-2 text-sm text-gray-800 rounded-md cursor-pointer flex items-center gap-2 data-[highlighted]:bg-blue-50 data-[highlighted]:text-blue-700 outline-none"
+                          >
+                            <Select.ItemText>{cat.name}</Select.ItemText>
+                          </Select.Item>
+                        ))}
+                      </Select.Viewport>
+                    </Select.Content>
+                  </Select.Portal>
+                </Select.Root>
+              </div>
+
+              <div className="space-y-2">
+                <p className="text-sm font-semibold text-gray-900">Defaults</p>
+                <div className="grid grid-cols-12 gap-2">
+                  <div className="col-span-12 sm:col-span-7">
+                    <Label htmlFor="product_imei_or_model" className="text-sm font-medium text-gray-700">IMEI / Model</Label>
+                    <Input
+                      id="product_imei_or_model"
+                      type="text"
+                      value={formData.imei_or_model}
+                      onChange={(e) => setFormData({ ...formData, imei_or_model: e.target.value })}
+                      placeholder="IMEI / Model"
+                      className="mt-1"
+                    />
+                  </div>
+                  <div className="col-span-12 sm:col-span-5">
+                    <Label htmlFor="product_color" className="text-sm font-medium text-gray-700">Color</Label>
+                    <Input
+                      id="product_color"
+                      type="text"
+                      value={formData.color}
+                      onChange={(e) => setFormData({ ...formData, color: e.target.value })}
+                      placeholder="Color"
+                      className="mt-1"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <p className="text-sm font-semibold text-gray-900">Tax & Discount Defaults</p>
+                <div className="space-y-2">
+                  <div className="bg-white rounded-md px-3 py-2 border border-gray-200">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        <Checkbox
+                          checked={formData.tax_enabled}
+                          onCheckedChange={(checked) => {
+                            const enabled = checked === true
+                            setFormData({
+                              ...formData,
+                              tax_enabled: enabled,
+                              tax_percentage: enabled ? formData.tax_percentage : '0',
+                            })
+                          }}
+                          id="product_tax_enabled"
+                        />
+                        <Label htmlFor="product_tax_enabled" className="text-sm font-medium text-gray-700">
+                          Tax
+                        </Label>
+                      </div>
+                      <div className="relative">
+                        <span className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-xs text-gray-500">
+                          %
+                        </span>
+                        <Input
+                          id="tax_percentage"
+                          type="number"
+                          min="0"
+                          max="100"
+                          step="0.01"
+                          value={formData.tax_percentage}
+                          onChange={(e) => setFormData({ ...formData, tax_percentage: e.target.value })}
+                          disabled={!formData.tax_enabled}
+                          className="h-8 w-28 pl-6 text-sm"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="bg-white rounded-md px-3 py-2 border border-gray-200">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        <Checkbox
+                          checked={formData.discount_enabled}
+                          onCheckedChange={(checked) => {
+                            const enabled = checked === true
+                            setFormData({
+                              ...formData,
+                              discount_enabled: enabled,
+                              discount_type: enabled ? (formData.discount_type === 'none' ? 'percentage' : formData.discount_type) : 'none',
+                              discount_value: enabled ? formData.discount_value : '0',
+                            })
+                          }}
+                          id="product_discount_enabled"
+                        />
+                        <Label htmlFor="product_discount_enabled" className="text-sm font-medium text-gray-700">
+                          Discount
+                        </Label>
+                      </div>
+                      <div className="grid grid-cols-12 gap-2 items-center w-48">
+                        <div className="col-span-7">
+                          <Select.Root
+                            value={formData.discount_type}
+                            onValueChange={(value) =>
+                              setFormData({ ...formData, discount_type: value as 'none' | 'percentage' | 'flat' })
+                            }
+                            disabled={!formData.discount_enabled}
+                          >
+                            <Select.Trigger className="w-full h-8 px-2 border border-gray-200 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 text-xs text-gray-900 flex items-center justify-between disabled:bg-gray-50 disabled:opacity-50">
+                              <Select.Value placeholder="Type" />
+                              <Select.Icon>
+                                <ChevronDown className="h-3 w-3 text-gray-500" />
+                              </Select.Icon>
+                            </Select.Trigger>
+                            <Select.Portal>
+                              <Select.Content
+                                position="popper"
+                                sideOffset={6}
+                                className="z-50 rounded-xl border border-gray-200 bg-white shadow-lg overflow-hidden"
+                                style={{ minWidth: 'var(--radix-select-trigger-width)' }}
+                              >
+                                <Select.Viewport className="py-1">
+                                  <Select.Item
+                                    value="percentage"
+                                    className="px-3 py-2 text-xs text-gray-800 rounded-md cursor-pointer flex items-center gap-2 data-[highlighted]:bg-blue-50 data-[highlighted]:text-blue-700 outline-none"
+                                  >
+                                    <Select.ItemText>%</Select.ItemText>
+                                  </Select.Item>
+                                  <Select.Item
+                                    value="flat"
+                                    className="px-3 py-2 text-xs text-gray-800 rounded-md cursor-pointer flex items-center gap-2 data-[highlighted]:bg-blue-50 data-[highlighted]:text-blue-700 outline-none"
+                                  >
+                                    <Select.ItemText>Flat</Select.ItemText>
+                                  </Select.Item>
+                                </Select.Viewport>
+                              </Select.Content>
+                            </Select.Portal>
+                          </Select.Root>
+                        </div>
+                        <Input
+                          type="number"
+                          min="0"
+                          max={formData.discount_type === 'percentage' ? 100 : undefined}
+                          step={formData.discount_type === 'flat' ? 1 : 0.01}
+                          value={formData.discount_value}
+                          onChange={(e) => setFormData({ ...formData, discount_value: e.target.value })}
+                          disabled={!formData.discount_enabled}
+                          className="col-span-5 h-8 text-sm w-full"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
               </div>
 
               <DialogFooter className="gap-3 border-t border-gray-200 pt-4 flex justify-end">

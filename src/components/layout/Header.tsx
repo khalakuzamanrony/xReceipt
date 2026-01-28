@@ -1,7 +1,7 @@
 export default function Header() {
   return (
     <header className="bg-white border-b border-gray-200 sticky top-0 z-30">
-      <div className="px-6 md:px-8 py-3 flex items-center justify-between gap-4">
+      <div className="pl-16 pr-6 md:px-8 py-3 flex items-center justify-between gap-4">
         <div className="flex items-center gap-3 min-w-0">
           <div className="h-8 w-8 rounded-lg bg-blue-600/10 flex items-center justify-center text-blue-600 font-bold text-lg">
             xR

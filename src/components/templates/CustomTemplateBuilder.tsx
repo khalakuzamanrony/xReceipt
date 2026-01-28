@@ -598,7 +598,7 @@ export default function CustomTemplateBuilder({ open, onClose, onSave, isFullPag
                 if (moduleId === 'discount' && data.showDiscount) {
                     return `
         <div class="total-row discount">
-          <span class="total-label">${data.discountLabel}</span>
+          <span class="total-label">${data.discountLabel} <span style="font-size: 12px; color: #6b7280; font-weight: 500;">{{DISCOUNT_META}}</span></span>
           <span class="total-value">{{DISCOUNT}}</span>
         </div>
         `
@@ -606,7 +606,7 @@ export default function CustomTemplateBuilder({ open, onClose, onSave, isFullPag
                 if (moduleId === 'tax' && data.showTax) {
                     return `
         <div class="total-row tax">
-          <span class="total-label">${data.taxLabel}</span>
+          <span class="total-label">${data.taxLabel} <span style="font-size: 12px; color: #6b7280; font-weight: 500;">{{TAX_META}}</span></span>
           <span class="total-value">{{TAX}}</span>
         </div>
         `

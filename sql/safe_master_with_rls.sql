@@ -94,7 +94,13 @@ CREATE TABLE IF NOT EXISTS products (
   price DECIMAL(10, 2) NOT NULL,
   category_id UUID REFERENCES categories(id) ON DELETE SET NULL,
   image_url VARCHAR(500),
+  imei_or_model VARCHAR(255),
+  color VARCHAR(100),
   tax_enabled BOOLEAN DEFAULT TRUE,
+  tax_percentage DECIMAL(5, 2) DEFAULT 0,
+  discount_enabled BOOLEAN DEFAULT FALSE,
+  discount_type VARCHAR(20) DEFAULT 'none' CHECK (discount_type IN ('none', 'percentage', 'flat')),
+  discount_value DECIMAL(10, 2) DEFAULT 0,
   vendor_id UUID REFERENCES vendors(id) ON DELETE CASCADE,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
@@ -102,8 +108,27 @@ CREATE TABLE IF NOT EXISTS products (
 
 -- Add tax_enabled column to existing products table if it doesn't exist
 ALTER TABLE products ADD COLUMN IF NOT EXISTS tax_enabled BOOLEAN DEFAULT TRUE;
+ALTER TABLE products ADD COLUMN IF NOT EXISTS imei_or_model VARCHAR(255);
+ALTER TABLE products ADD COLUMN IF NOT EXISTS color VARCHAR(100);
+ALTER TABLE products ADD COLUMN IF NOT EXISTS tax_percentage DECIMAL(5, 2) DEFAULT 0;
+ALTER TABLE products ADD COLUMN IF NOT EXISTS discount_enabled BOOLEAN DEFAULT FALSE;
+ALTER TABLE products ADD COLUMN IF NOT EXISTS discount_type VARCHAR(20) DEFAULT 'none';
+ALTER TABLE products ADD COLUMN IF NOT EXISTS discount_value DECIMAL(10, 2) DEFAULT 0;
 ALTER TABLE categories ADD COLUMN IF NOT EXISTS vendor_id UUID REFERENCES vendors(id) ON DELETE CASCADE;
 ALTER TABLE products ADD COLUMN IF NOT EXISTS vendor_id UUID REFERENCES vendors(id) ON DELETE CASCADE;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_constraint
+    WHERE conname = 'products_discount_type_check'
+  ) THEN
+    ALTER TABLE products
+    ADD CONSTRAINT products_discount_type_check
+    CHECK (discount_type IN ('none', 'percentage', 'flat'));
+  END IF;
+END $$;
 
 CREATE TABLE IF NOT EXISTS receipt_templates (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -169,6 +194,10 @@ CREATE TABLE IF NOT EXISTS receipts (
   customer_address TEXT,
   notes TEXT,
   subtotal DECIMAL(10, 2) DEFAULT 0,
+  discount DECIMAL(10, 2) DEFAULT 0,
+  discount_type VARCHAR(20) DEFAULT 'none',
+  discount_value DECIMAL(10, 2) DEFAULT 0,
+  tax_percent DECIMAL(5, 2) DEFAULT 0,
   tax DECIMAL(10, 2) DEFAULT 0,
   total DECIMAL(10, 2) DEFAULT 0,
   status VARCHAR(50) DEFAULT 'draft' CHECK (status IN ('draft', 'sent', 'paid')),
@@ -182,8 +211,25 @@ ALTER TABLE receipts ADD COLUMN IF NOT EXISTS company_name VARCHAR(255);
 ALTER TABLE receipts ADD COLUMN IF NOT EXISTS customer_company VARCHAR(255);
 ALTER TABLE receipts ADD COLUMN IF NOT EXISTS customer_phone VARCHAR(50);
 ALTER TABLE receipts ADD COLUMN IF NOT EXISTS customer_address TEXT;
+ALTER TABLE receipts ADD COLUMN IF NOT EXISTS discount DECIMAL(10, 2) DEFAULT 0;
+ALTER TABLE receipts ADD COLUMN IF NOT EXISTS discount_type VARCHAR(20) DEFAULT 'none';
+ALTER TABLE receipts ADD COLUMN IF NOT EXISTS discount_value DECIMAL(10, 2) DEFAULT 0;
+ALTER TABLE receipts ADD COLUMN IF NOT EXISTS tax_percent DECIMAL(5, 2) DEFAULT 0;
 ALTER TABLE receipt_templates ADD COLUMN IF NOT EXISTS vendor_id UUID REFERENCES vendors(id) ON DELETE CASCADE;
 ALTER TABLE receipts ADD COLUMN IF NOT EXISTS vendor_id UUID REFERENCES vendors(id) ON DELETE CASCADE;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_constraint
+    WHERE conname = 'receipts_discount_type_check'
+  ) THEN
+    ALTER TABLE receipts
+    ADD CONSTRAINT receipts_discount_type_check
+    CHECK (discount_type IN ('none', 'percentage', 'flat'));
+  END IF;
+END $$;
 
 CREATE TABLE IF NOT EXISTS receipt_items (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -194,12 +240,39 @@ CREATE TABLE IF NOT EXISTS receipt_items (
   color VARCHAR(100),
   quantity INTEGER NOT NULL CHECK (quantity > 0),
   unit_price DECIMAL(10, 2) NOT NULL,
+  tax_enabled BOOLEAN DEFAULT TRUE,
+  tax_percentage DECIMAL(5, 2) DEFAULT 0,
+  discount_enabled BOOLEAN DEFAULT FALSE,
+  discount_type VARCHAR(20) DEFAULT 'none' CHECK (discount_type IN ('none', 'percentage', 'flat')),
+  discount_value DECIMAL(10, 2) DEFAULT 0,
   total DECIMAL(10, 2) NOT NULL,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
 ALTER TABLE receipt_items ADD COLUMN IF NOT EXISTS imei_or_model VARCHAR(255);
 ALTER TABLE receipt_items ADD COLUMN IF NOT EXISTS color VARCHAR(100);
+ALTER TABLE receipt_items ADD COLUMN IF NOT EXISTS tax_enabled BOOLEAN DEFAULT TRUE;
+ALTER TABLE receipt_items ADD COLUMN IF NOT EXISTS tax_percentage DECIMAL(5, 2) DEFAULT 0;
+ALTER TABLE receipt_items ADD COLUMN IF NOT EXISTS discount_enabled BOOLEAN DEFAULT FALSE;
+ALTER TABLE receipt_items ADD COLUMN IF NOT EXISTS discount_type VARCHAR(20) DEFAULT 'none';
+ALTER TABLE receipt_items ADD COLUMN IF NOT EXISTS discount_value DECIMAL(10, 2) DEFAULT 0;
+
+-- Remove deprecated email columns if they exist
+ALTER TABLE products DROP COLUMN IF EXISTS email;
+ALTER TABLE receipt_items DROP COLUMN IF EXISTS email;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_constraint
+    WHERE conname = 'receipt_items_discount_type_check'
+  ) THEN
+    ALTER TABLE receipt_items
+    ADD CONSTRAINT receipt_items_discount_type_check
+    CHECK (discount_type IN ('none', 'percentage', 'flat'));
+  END IF;
+END $$;
 
 -- ============================================
 -- 3. CREATE INDEXES IF THEY DON'T EXIST
@@ -247,6 +320,7 @@ BEGIN
       VALUES
         ('admin-profiles', 'admin-profiles', true),
         ('category-images', 'category-images', true),
+        ('vendor-images', 'vendor-images', true),
         ('receipt-exports', 'receipt-exports', true)
       ON CONFLICT (id) DO NOTHING;
     EXCEPTION
@@ -312,6 +386,28 @@ BEGIN
       CREATE POLICY "Category images delete (auth)" ON storage.objects
         FOR DELETE TO authenticated
         USING (bucket_id = 'category-images');
+
+      -- Vendor images (shop images)
+      DROP POLICY IF EXISTS "Vendor images read (auth)" ON storage.objects;
+      DROP POLICY IF EXISTS "Vendor images insert (auth)" ON storage.objects;
+      DROP POLICY IF EXISTS "Vendor images update (auth)" ON storage.objects;
+      DROP POLICY IF EXISTS "Vendor images delete (auth)" ON storage.objects;
+
+      CREATE POLICY "Vendor images read (auth)" ON storage.objects
+        FOR SELECT TO authenticated
+        USING (bucket_id = 'vendor-images');
+
+      CREATE POLICY "Vendor images insert (auth)" ON storage.objects
+        FOR INSERT TO authenticated
+        WITH CHECK (bucket_id = 'vendor-images');
+
+      CREATE POLICY "Vendor images update (auth)" ON storage.objects
+        FOR UPDATE TO authenticated
+        USING (bucket_id = 'vendor-images');
+
+      CREATE POLICY "Vendor images delete (auth)" ON storage.objects
+        FOR DELETE TO authenticated
+        USING (bucket_id = 'vendor-images');
 
       -- Receipt exports
       DROP POLICY IF EXISTS "Receipt exports read (auth)" ON storage.objects;

@@ -55,6 +55,13 @@ export interface Product {
   price: number
   category_id: string
   image_url?: string
+  imei_or_model?: string | null
+  color?: string | null
+  tax_enabled?: boolean
+  tax_percentage?: number
+  discount_enabled?: boolean
+  discount_type?: 'none' | 'percentage' | 'flat'
+  discount_value?: number
   vendor_id?: string | null
   created_at: string
   updated_at: string
@@ -104,7 +111,11 @@ export interface Receipt {
   vendor_id?: string | null
   company_name?: string
   subtotal?: number
+  discount?: number
   tax?: number
+  tax_percent?: number
+  discount_type?: 'none' | 'percentage' | 'flat'
+  discount_value?: number
   total?: number
   status: 'draft' | 'sent' | 'paid'
   items?: ReceiptItem[]
@@ -120,6 +131,11 @@ export interface ReceiptItem {
   color?: string | null
   quantity: number
   unit_price: number
+  tax_enabled?: boolean
+  tax_percentage?: number
+  discount_enabled?: boolean
+  discount_type?: 'none' | 'percentage' | 'flat'
+  discount_value?: number
   total: number
 }
 
