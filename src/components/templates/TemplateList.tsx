@@ -7,10 +7,11 @@ import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/Dialog'
 import { Checkbox } from '@/components/ui/Checkbox'
-import { Plus, Edit, Trash2, AlertCircle, FileCode, Search, Funnel } from 'lucide-react'
+import { Plus, Edit, Trash2, AlertCircle, FileCode, Search, Funnel, Eye, ChevronDown } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { useVendor } from '@/contexts/VendorContext'
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
+import * as Select from '@radix-ui/react-select'
 import { cn } from '@/lib/utils'
 
 interface TemplateListProps {
@@ -51,6 +52,8 @@ export default function TemplateList({ onNavigateToBuilder }: TemplateListProps)
   const [vendorFilter, setVendorFilter] = useState<string>('all')
   const [dateRangeFilter, setDateRangeFilter] = useState<'all' | 'today' | '7d' | '30d'>('all')
   const [assignmentFilter, setAssignmentFilter] = useState<'all' | 'assigned' | 'unassigned'>('all')
+  const [showTemplatePreview, setShowTemplatePreview] = useState(false)
+  const [previewTemplate, setPreviewTemplate] = useState<ReceiptTemplate | null>(null)
 
   useEffect(() => {
     if (vendorLoading) return
@@ -259,6 +262,118 @@ export default function TemplateList({ onNavigateToBuilder }: TemplateListProps)
   const handleRequestDelete = (template: ReceiptTemplate) => {
     setTemplateToDelete(template)
     setShowDeleteConfirm(true)
+  }
+
+  const openPreview = (template: ReceiptTemplate) => {
+    setPreviewTemplate(template)
+    setShowTemplatePreview(true)
+  }
+
+  const buildPreviewHtml = (template: ReceiptTemplate) => {
+    const safe = (value: unknown) => (typeof value === 'string' ? value : '')
+
+    const templateHtml = safe(template.template_html)
+
+    // Determine items column order from template (data-items-columns on tbody)
+    type ItemCol =
+      | 'description'
+      | 'imei_or_model'
+      | 'color'
+      | 'discount'
+      | 'tax'
+      | 'quantity'
+      | 'price'
+      | 'total'
+
+    let itemsColumns: ItemCol[] = ['description', 'quantity', 'price', 'total']
+    const itemsColumnsMatch = templateHtml.match(/data-items-columns="([a-z_,]+)"/)
+    if (itemsColumnsMatch && itemsColumnsMatch[1]) {
+      const parts = itemsColumnsMatch[1].split(',').map((p) => p.trim()).filter(Boolean)
+      const valid: ItemCol[] = []
+      for (const col of parts) {
+        if (
+          col === 'description' ||
+          col === 'imei_or_model' ||
+          col === 'color' ||
+          col === 'discount' ||
+          col === 'tax' ||
+          col === 'quantity' ||
+          col === 'price' ||
+          col === 'total'
+        ) {
+          valid.push(col)
+        }
+      }
+      if (valid.length) {
+        itemsColumns = valid
+      }
+    }
+
+    const sampleRow = (name: string) => {
+      const cells = itemsColumns
+        .map((col) => {
+          if (col === 'description') {
+            return `<td style="padding: 8px; border-bottom: 1px solid #eee;">${name}</td>`
+          }
+          if (col === 'imei_or_model') {
+            return `<td style="padding: 8px; border-bottom: 1px solid #eee;">123456789012345</td>`
+          }
+          if (col === 'color') {
+            return `<td style="padding: 8px; border-bottom: 1px solid #eee;">Black</td>`
+          }
+          if (col === 'quantity') {
+            return `<td style="padding: 8px; border-bottom: 1px solid #eee; text-align: center;">1</td>`
+          }
+          if (col === 'price') {
+            return `<td style="padding: 8px; border-bottom: 1px solid #eee; text-align: right;">$100.00</td>`
+          }
+          if (col === 'discount') {
+            return `<td style="padding: 8px; border-bottom: 1px solid #eee; text-align: right;">-$10.00</td>`
+          }
+          if (col === 'tax') {
+            return `<td style="padding: 8px; border-bottom: 1px solid #eee; text-align: right;">+$9.00</td>`
+          }
+          if (col === 'total') {
+            return `<td style="padding: 8px; border-bottom: 1px solid #eee; text-align: right;">$99.00</td>`
+          }
+          return ''
+        })
+        .join('')
+
+      return `<tr>${cells}</tr>`
+    }
+
+    const itemsHtml = `${sampleRow('Sample Product 1')}${sampleRow('Sample Product 2')}`
+
+    return templateHtml
+      .replace(/{{RECEIPT_ID}}/g, 'PREVIEW-0001')
+      .replace(/{{DATE}}/g, new Date().toLocaleDateString())
+      .replace(/{{DUE_DATE}}/g, '')
+      .replace(/{{CUSTOMER_NAME}}/g, 'John Doe')
+      .replace(/{{CUSTOMER_EMAIL}}/g, 'john@example.com')
+      .replace(/{{CUSTOMER_COMPANY}}/g, 'Acme Corp')
+      .replace(/{{CUSTOMER_PHONE}}/g, '+1 (555) 000-0000')
+      .replace(/{{CUSTOMER_ADDRESS}}/g, '123 Main St')
+      .replace(/{{COMPANY_NAME}}/g, 'xReceipt')
+      .replace(/{{COMPANY_EMAIL}}/g, 'info@xreceipt.com')
+      .replace(/{{ITEMS}}/g, itemsHtml)
+      .replace(/{{SUBTOTAL}}/g, '200.00')
+      .replace(/{{DISCOUNT}}/g, '20.00')
+      .replace(/{{DISCOUNT_TYPE}}/g, 'flat')
+      .replace(/{{DISCOUNT_VALUE}}/g, '20.00')
+      .replace(/{{DISCOUNT_META}}/g, '($20.00)')
+      .replace(/{{ITEMS_DISCOUNT}}/g, '20.00')
+      .replace(/{{RECEIPT_DISCOUNT}}/g, '0.00')
+      .replace(/{{TOTAL_DISCOUNT}}/g, '20.00')
+      .replace(/{{TAX}}/g, '18.00')
+      .replace(/{{TAX_PERCENT}}/g, '10.00')
+      .replace(/{{TAX_META}}/g, '(10.00%)')
+      .replace(/{{ITEMS_TAX}}/g, '18.00')
+      .replace(/{{RECEIPT_TAX}}/g, '0.00')
+      .replace(/{{TOTAL_TAX}}/g, '18.00')
+      .replace(/{{TOTAL}}/g, '198.00')
+      .replace(/{{STATUS}}/g, 'draft')
+      .replace(/{{FOOTER_MESSAGE}}/g, 'Preview only')
   }
 
   const handleConfirmDelete = async () => {
@@ -520,6 +635,15 @@ export default function TemplateList({ onNavigateToBuilder }: TemplateListProps)
                     </div>
 
                     <div className="flex items-center gap-1.5">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => openPreview(template)}
+                        title="Preview"
+                        className="h-9 w-9 p-0 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-full"
+                      >
+                        <Eye size={16} />
+                      </Button>
                       <Button
                         variant="ghost"
                         size="sm"
@@ -1022,6 +1146,15 @@ export default function TemplateList({ onNavigateToBuilder }: TemplateListProps)
                           <Button
                             variant="ghost"
                             size="sm"
+                            onClick={() => openPreview(template)}
+                            title="Preview"
+                            className="h-8 w-8 p-0 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-full"
+                          >
+                            <Eye size={16} />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
                             onClick={() => onNavigateToBuilder?.(template.id)}
                             title="Edit"
                             className="h-8 w-8 p-0 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-full"
@@ -1055,19 +1188,49 @@ export default function TemplateList({ onNavigateToBuilder }: TemplateListProps)
             <div className="flex flex-col sm:flex-row sm:items-center gap-3">
               <div className="flex items-center gap-1">
                 <span className="text-gray-500">Rows per page</span>
-                <select
-                  value={rowsPerPage}
-                  onChange={(e) => {
-                    const value = Number(e.target.value) || 10
-                    setRowsPerPage(value)
+                <Select.Root
+                  value={String(rowsPerPage)}
+                  onValueChange={(value) => {
+                    const next = Number(value) || 10
+                    setRowsPerPage(next)
                     setPage(1)
                   }}
-                  className="h-7 border border-gray-300 rounded-md text-xs text-gray-900 px-2 bg-white focus:outline-none focus:ring-1 focus:ring-blue-500"
                 >
-                  <option value={10}>10</option>
-                  <option value={25}>25</option>
-                  <option value={50}>50</option>
-                </select>
+                  <Select.Trigger className="h-7 px-2 border border-gray-300 rounded-md text-xs text-gray-900 bg-white focus:outline-none focus:ring-1 focus:ring-blue-500 inline-flex items-center justify-between gap-2">
+                    <Select.Value />
+                    <Select.Icon>
+                      <ChevronDown className="h-3 w-3 text-gray-500" />
+                    </Select.Icon>
+                  </Select.Trigger>
+                  <Select.Portal>
+                    <Select.Content
+                      position="popper"
+                      sideOffset={6}
+                      className="z-50 rounded-xl border border-gray-200 bg-white shadow-lg overflow-hidden"
+                    >
+                      <Select.Viewport className="py-1">
+                        <Select.Item
+                          value="10"
+                          className="px-3 py-2 text-xs text-gray-800 rounded-md cursor-pointer flex items-center gap-2 data-[highlighted]:bg-blue-50 data-[highlighted]:text-blue-700 outline-none"
+                        >
+                          <Select.ItemText>10</Select.ItemText>
+                        </Select.Item>
+                        <Select.Item
+                          value="25"
+                          className="px-3 py-2 text-xs text-gray-800 rounded-md cursor-pointer flex items-center gap-2 data-[highlighted]:bg-blue-50 data-[highlighted]:text-blue-700 outline-none"
+                        >
+                          <Select.ItemText>25</Select.ItemText>
+                        </Select.Item>
+                        <Select.Item
+                          value="50"
+                          className="px-3 py-2 text-xs text-gray-800 rounded-md cursor-pointer flex items-center gap-2 data-[highlighted]:bg-blue-50 data-[highlighted]:text-blue-700 outline-none"
+                        >
+                          <Select.ItemText>50</Select.ItemText>
+                        </Select.Item>
+                      </Select.Viewport>
+                    </Select.Content>
+                  </Select.Portal>
+                </Select.Root>
               </div>
               <div className="flex items-center gap-2 justify-between sm:justify-start">
                 <button
@@ -1134,6 +1297,56 @@ export default function TemplateList({ onNavigateToBuilder }: TemplateListProps)
                 onClick={handleConfirmDelete}
               >
                 {isDeleting ? 'Deleting...' : 'Delete'}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {showTemplatePreview && previewTemplate && (
+        <Dialog
+          open={showTemplatePreview}
+          onOpenChange={(open) => {
+            setShowTemplatePreview(open)
+            if (!open) {
+              setPreviewTemplate(null)
+            }
+          }}
+        >
+          <DialogContent className="max-w-5xl p-0 flex flex-col">
+            <DialogHeader className="px-6 pt-6 pb-3 border-b border-gray-200 bg-white">
+              <DialogTitle className="text-lg">Template Preview</DialogTitle>
+            </DialogHeader>
+            <div className="px-6 py-4">
+              <div className="border border-gray-200 rounded-lg overflow-hidden bg-white">
+                <iframe
+                  title="Template preview"
+                  className="w-full h-[70vh] bg-white"
+                  srcDoc={buildPreviewHtml(previewTemplate)}
+                />
+              </div>
+            </div>
+            <DialogFooter className="px-6 py-4 border-t border-gray-200 bg-white flex justify-end gap-3">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  setShowTemplatePreview(false)
+                  setPreviewTemplate(null)
+                }}
+              >
+                Close
+              </Button>
+              <Button
+                type="button"
+                onClick={() => {
+                  const toOpen = previewTemplate
+                  setShowTemplatePreview(false)
+                  setPreviewTemplate(null)
+                  onNavigateToBuilder?.(toOpen.id)
+                }}
+              >
+                Edit template
               </Button>
             </DialogFooter>
           </DialogContent>

@@ -16,5 +16,7 @@
     1. show discounted amount and applied tax with each products info section with imei and color and separate them properly
     2. shoow tax and discount columns in the items table 
     3. i wwanna show the discount and tax something differnetly as we can apply these on individual and overall toal products 
-4. when sidebar is xollapsed, hovering over the menu items cretes a horizontal scriollbar and  the toolotip should be on top of the page so that it visible
+4. when sidebar is collapsed, hovering over the menu items cretes a horizontal scriollbar and  the toolotip should be on top of the page so that it visible, put the sidebar toggle somewhere else like in between sidebar and header section
 5. need preview the template , add eye icon at actionn buttons on receiprr tempplates page table
+6. show latest items on top for all tables of all pages 
+7. on recreate receipt modal i want  fuctionality like a toggle like user only can add tax or discount either individually or collectively, if user select indivisual then vat tax field will be taken from individual product if collectively then individually will not possible user has to set them at summery section. and set tax and discount differtently on ui on summey section, add divider  

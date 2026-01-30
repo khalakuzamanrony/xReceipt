@@ -31,11 +31,97 @@ export default function ReceiptPreviewModal({
   const getPreviewHTML = () => {
     if (!receipt || !template) return ''
 
+    let templateHtml = template.template_html
+
     // Use values from receipt
     const subtotal = receipt.subtotal || 0
     const discount = receipt.discount || 0
     const tax = receipt.tax || 0
     const total = receipt.total || 0
+
+    const safeNumber = (value: unknown) => {
+      const n = typeof value === 'number' ? value : Number(value)
+      return Number.isFinite(n) ? n : 0
+    }
+
+    const clampPercent = (value: unknown) => {
+      const n = safeNumber(value)
+      return Math.min(100, Math.max(0, n))
+    }
+
+    const getItemTotals = (item: any) => {
+      const quantity = Math.max(1, Math.trunc(safeNumber(item.quantity)))
+      const unitPrice = Math.max(0, safeNumber(item.unit_price))
+      const lineSubtotal = unitPrice * quantity
+
+      const discountEnabled = item.discount_enabled === true
+      const discountType = discountEnabled
+        ? item.discount_type && item.discount_type !== 'none'
+          ? item.discount_type
+          : 'percentage'
+        : 'none'
+      const discountValueRaw = Math.max(0, safeNumber(item.discount_value))
+      const discountValue =
+        discountType === 'percentage'
+          ? clampPercent(discountValueRaw)
+          : discountType === 'flat'
+            ? Math.min(unitPrice, Math.max(0, Math.floor(discountValueRaw)))
+            : 0
+      const discountAmountRaw =
+        discountType === 'percentage'
+          ? lineSubtotal * (discountValue / 100)
+          : discountType === 'flat'
+            ? discountValue * quantity
+            : 0
+      const lineDiscount = Math.min(Math.max(0, discountAmountRaw), lineSubtotal)
+
+      const taxEnabled = item.tax_enabled !== false
+      const taxPercentage = clampPercent(item.tax_percentage)
+      const taxableBase = Math.max(0, lineSubtotal - lineDiscount)
+      const lineTax = taxEnabled ? taxableBase * (taxPercentage / 100) : 0
+
+      const lineTotal = taxableBase + lineTax
+
+      return { lineSubtotal, lineDiscount, lineTax, lineTotal, taxEnabled, taxPercentage, discountType, discountValue }
+    }
+
+    let itemsSubtotal = 0
+    let itemsDiscount = 0
+    let itemsTax = 0
+    if (receipt.items && receipt.items.length > 0) {
+      for (const item of receipt.items as any[]) {
+        const { lineSubtotal, lineDiscount, lineTax } = getItemTotals(item)
+        itemsSubtotal += lineSubtotal
+        itemsDiscount += lineDiscount
+        itemsTax += lineTax
+      }
+    }
+
+    const receiptDiscountType = ((receipt as any).discount_type as string | undefined) || 'none'
+    const receiptDiscountValueRaw =
+      typeof (receipt as any).discount_value === 'number' ? ((receipt as any).discount_value as number) : 0
+    const receiptDiscountValue =
+      receiptDiscountType === 'percentage'
+        ? clampPercent(receiptDiscountValueRaw)
+        : receiptDiscountType === 'flat'
+          ? Math.max(0, Math.floor(receiptDiscountValueRaw))
+          : 0
+
+    const netAfterItemDiscount = Math.max(0, itemsSubtotal - itemsDiscount)
+    const receiptDiscountAmountRaw =
+      receiptDiscountType === 'percentage'
+        ? netAfterItemDiscount * (receiptDiscountValue / 100)
+        : receiptDiscountType === 'flat'
+          ? receiptDiscountValue
+          : 0
+    const receiptDiscount = Math.min(Math.max(0, receiptDiscountAmountRaw), netAfterItemDiscount)
+
+    const netAfterAllDiscounts = Math.max(0, netAfterItemDiscount - receiptDiscount)
+    const receiptTaxPercent = clampPercent((receipt as any).tax_percent)
+    const receiptTax = netAfterAllDiscounts * (receiptTaxPercent / 100)
+
+    const totalDiscount = itemsDiscount + receiptDiscount
+    const totalTax = itemsTax + receiptTax
 
     const taxPercent =
       typeof (receipt as any).tax_percent === 'number'
@@ -45,9 +131,8 @@ export default function ReceiptPreviewModal({
           : 0
     const safeTaxPercent = Number.isFinite(taxPercent) ? Math.max(0, taxPercent) : 0
 
-    const discountType = ((receipt as any).discount_type as string | undefined) || 'none'
-    const discountValue =
-      typeof (receipt as any).discount_value === 'number' ? ((receipt as any).discount_value as number) : 0
+    const discountType = receiptDiscountType
+    const discountValue = receiptDiscountValue
 
     const taxMeta = safeTaxPercent > 0 ? `(${safeTaxPercent.toFixed(2)}%)` : ''
     const discountMeta =
@@ -57,17 +142,74 @@ export default function ReceiptPreviewModal({
           ? `($${discountValue.toFixed(2)})`
           : ''
 
+    type ItemCol =
+      | 'description'
+      | 'imei_or_model'
+      | 'color'
+      | 'discount'
+      | 'tax'
+      | 'quantity'
+      | 'price'
+      | 'total'
+
+    const ensureTaxDiscountAfterQuantity = (cols: ItemCol[]): ItemCol[] => {
+      const without = cols.filter(
+        (c): c is Exclude<ItemCol, 'tax' | 'discount'> => c !== 'tax' && c !== 'discount'
+      )
+      const qIndex = without.indexOf('quantity')
+      const result: ItemCol[] = [...without]
+      if (qIndex !== -1) {
+        result.splice(qIndex + 1, 0, 'tax', 'discount')
+        return result
+      }
+      result.push('tax', 'discount')
+      return result
+    }
+
+    const injectItemsHeaderColumns = (
+      html: string,
+      cols: ItemCol[]
+    ) => {
+      if (!html) return html
+      if (!cols.includes('tax') || !cols.includes('discount')) return html
+
+      const hasTaxHeader = /<th[^>]*>\s*Tax\s*<\/th>/i.test(html)
+      const hasDiscountHeader = /<th[^>]*>\s*Discount\s*<\/th>/i.test(html)
+      if (hasTaxHeader && hasDiscountHeader) return html
+
+      const theadMatch = html.match(/<thead[^>]*>[\s\S]*?<tr[^>]*>([\s\S]*?)<\/tr>[\s\S]*?<\/thead>/i)
+      if (!theadMatch) return html
+
+      const headerRowInner = theadMatch[1]
+      const taxTh = '<th class="text-right">Tax</th>'
+      const discountTh = '<th class="text-right">Discount</th>'
+      let updatedHeaderRowInner = headerRowInner
+
+      const quantityThRegex = /(<th[^>]*>[\s\S]*?(Quantity|Qty)[\s\S]*?<\/th>)/i
+      const qtyMatch = headerRowInner.match(quantityThRegex)
+      if (qtyMatch) {
+        const insertion = `${qtyMatch[1]}${hasTaxHeader ? '' : taxTh}${hasDiscountHeader ? '' : discountTh}`
+        updatedHeaderRowInner = headerRowInner.replace(quantityThRegex, insertion)
+      } else {
+        updatedHeaderRowInner = `${headerRowInner}${hasTaxHeader ? '' : taxTh}${hasDiscountHeader ? '' : discountTh}`
+      }
+
+      return html.replace(theadMatch[0], theadMatch[0].replace(headerRowInner, updatedHeaderRowInner))
+    }
+
     // Determine items column order from template (data-items-columns on tbody)
-    let itemsColumns: Array<'description' | 'imei_or_model' | 'color' | 'quantity' | 'price' | 'total'> = ['description', 'quantity', 'price', 'total']
-    const itemsColumnsMatch = template.template_html.match(/data-items-columns="([a-z_,]+)"/)
+    let itemsColumns: ItemCol[] = ['description', 'quantity', 'price', 'total']
+    const itemsColumnsMatch = templateHtml.match(/data-items-columns="([a-z_,]+)"/)
     if (itemsColumnsMatch && itemsColumnsMatch[1]) {
       const parts = itemsColumnsMatch[1].split(',').map(p => p.trim()).filter(Boolean)
-      const valid: Array<'description' | 'imei_or_model' | 'color' | 'quantity' | 'price' | 'total'> = []
+      const valid: ItemCol[] = []
       for (const col of parts) {
         if (
           col === 'description' ||
           col === 'imei_or_model' ||
           col === 'color' ||
+          col === 'discount' ||
+          col === 'tax' ||
           col === 'quantity' ||
           col === 'price' ||
           col === 'total'
@@ -80,14 +222,30 @@ export default function ReceiptPreviewModal({
       }
     }
 
+    itemsColumns = ensureTaxDiscountAfterQuantity(itemsColumns)
+    if (itemsColumnsMatch) {
+      templateHtml = templateHtml.replace(itemsColumnsMatch[0], `data-items-columns="${itemsColumns.join(',')}"`)
+      templateHtml = injectItemsHeaderColumns(templateHtml, itemsColumns)
+    }
+
     // Build items HTML
     let itemsHTML = ''
     if (receipt.items && receipt.items.length > 0) {
       const hasDedicatedImeiColumn = itemsColumns.includes('imei_or_model')
       const hasDedicatedColorColumn = itemsColumns.includes('color')
+      const hasDedicatedDiscountColumn = itemsColumns.includes('discount')
+      const hasDedicatedTaxColumn = itemsColumns.includes('tax')
 
       itemsHTML = receipt.items
-        .map((item) => {
+        .map((item: any) => {
+          const { lineDiscount, lineTax, lineTotal, taxEnabled, taxPercentage, discountType, discountValue } = getItemTotals(item)
+          const discountMetaForItem =
+            discountType === 'percentage'
+              ? `${clampPercent(discountValue).toFixed(2)}%`
+              : discountType === 'flat'
+                ? `$${Math.max(0, Math.floor(discountValue)).toFixed(0)}/unit`
+                : ''
+
           const cells = itemsColumns
             .map((col) => {
               if (col === 'description') {
@@ -98,8 +256,14 @@ export default function ReceiptPreviewModal({
                 if (!hasDedicatedColorColumn && item.color) {
                   metaParts.push(`Color: ${item.color}`)
                 }
+                if (!hasDedicatedDiscountColumn && item.discount_enabled === true) {
+                  metaParts.push(`Discount: ${discountMetaForItem} (-$${lineDiscount.toFixed(2)})`)
+                }
+                if (!hasDedicatedTaxColumn) {
+                  metaParts.push(taxEnabled ? `Tax: ${taxPercentage.toFixed(2)}% (+$${lineTax.toFixed(2)})` : 'Tax: Off')
+                }
                 const metaHtml = metaParts.length
-                  ? `<div style="margin-top: 2px; font-size: 11px; color: #666;">${metaParts.join(' · ')}</div>`
+                  ? `<div style="margin-top: 2px; font-size: 11px; color: #666; line-height: 1.35;">${metaParts.join('<br/>')}</div>`
                   : ''
 
                 return `<td style="padding: 8px; border-bottom: 1px solid #eee;"><div>${item.name}</div>${metaHtml}</td>`
@@ -110,6 +274,12 @@ export default function ReceiptPreviewModal({
               if (col === 'color') {
                 return `<td style="padding: 8px; border-bottom: 1px solid #eee;">${item.color || ''}</td>`
               }
+              if (col === 'discount') {
+                return `<td style="padding: 8px; border-bottom: 1px solid #eee; text-align: right;">${item.discount_enabled === true ? `-$${lineDiscount.toFixed(2)}` : ''}</td>`
+              }
+              if (col === 'tax') {
+                return `<td style="padding: 8px; border-bottom: 1px solid #eee; text-align: right;">${taxEnabled ? `+$${lineTax.toFixed(2)}` : ''}</td>`
+              }
               if (col === 'quantity') {
                 return `<td style="padding: 8px; border-bottom: 1px solid #eee; text-align: center;">${item.quantity}</td>`
               }
@@ -117,7 +287,7 @@ export default function ReceiptPreviewModal({
                 return `<td style="padding: 8px; border-bottom: 1px solid #eee; text-align: right;">$${item.unit_price.toFixed(2)}</td>`
               }
               if (col === 'total') {
-                return `<td style="padding: 8px; border-bottom: 1px solid #eee; text-align: right;">$${item.total.toFixed(2)}</td>`
+                return `<td style="padding: 8px; border-bottom: 1px solid #eee; text-align: right;">$${lineTotal.toFixed(2)}</td>`
               }
               return ''
             })
@@ -141,11 +311,11 @@ export default function ReceiptPreviewModal({
     }
 
     // Check if any item has tax enabled
-    const hasTaxableItems = receipt.items && receipt.items.length > 0 && tax > 0
+    const hasTaxableItems = receipt.items && receipt.items.length > 0 && Math.max(0, tax, totalTax) > 0
 
     const companyName = receipt.company_name || 'xReceipt'
 
-    let html = template.template_html
+    let html = templateHtml
       .replace(/{{RECEIPT_ID}}/g, receipt.id)
       .replace(/{{DATE}}/g, new Date(receipt.created_at).toLocaleDateString())
       .replace(/{{DUE_DATE}}/g, '')
@@ -164,6 +334,12 @@ export default function ReceiptPreviewModal({
       .replace(/{{DISCOUNT_TYPE}}/g, discountType)
       .replace(/{{DISCOUNT_VALUE}}/g, Number.isFinite(discountValue) ? discountValue.toFixed(2) : '0.00')
       .replace(/{{DISCOUNT_META}}/g, discountMeta)
+      .replace(/{{ITEMS_DISCOUNT}}/g, itemsDiscount.toFixed(2))
+      .replace(/{{RECEIPT_DISCOUNT}}/g, receiptDiscount.toFixed(2))
+      .replace(/{{TOTAL_DISCOUNT}}/g, totalDiscount.toFixed(2))
+      .replace(/{{ITEMS_TAX}}/g, itemsTax.toFixed(2))
+      .replace(/{{RECEIPT_TAX}}/g, receiptTax.toFixed(2))
+      .replace(/{{TOTAL_TAX}}/g, totalTax.toFixed(2))
       .replace(/{{STATUS}}/g, receipt.status)
       .replace(/{{COMPANY_NAME}}/g, companyName)
       .replace(/{{COMPANY_EMAIL}}/g, 'info@xreceipt.com')

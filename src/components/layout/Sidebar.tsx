@@ -10,8 +10,6 @@ import {
   Settings,
   Store,
   ChevronDown,
-  ChevronLeft,
-  ChevronRight,
   LogOut,
 } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
@@ -19,6 +17,7 @@ import { useVendor } from '@/contexts/VendorContext'
 import { Input } from '@/components/ui/Input'
 import * as Select from '@radix-ui/react-select'
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
+import * as Popover from '@radix-ui/react-popover'
 import { cn } from '@/lib/utils'
 import { supabase } from '@/lib/supabase'
 
@@ -26,11 +25,11 @@ interface SidebarProps {
   currentPage: string
   onPageChange: (page: string) => void
   collapsed: boolean
-  onCollapsedChange: (collapsed: boolean) => void
 }
 
-export default function Sidebar({ currentPage, onPageChange, collapsed, onCollapsedChange }: SidebarProps) {
+export default function Sidebar({ currentPage, onPageChange, collapsed }: SidebarProps) {
   const [isOpen, setIsOpen] = useState(false)
+  const [hoveredMenuId, setHoveredMenuId] = useState<string | null>(null)
   const { user, role, signOut } = useAuth()
   const { memberships, activeVendorId, setActiveVendorId, permissions, permissionsLoading } = useVendor()
   const [vendorSearch, setVendorSearch] = useState('')
@@ -304,19 +303,6 @@ export default function Sidebar({ currentPage, onPageChange, collapsed, onCollap
             </div>
           )}
 
-          {/* Collapse toggle (tablet/desktop) */}
-          <div className={cn('hidden md:flex px-3 pt-3', collapsed ? 'justify-center' : 'justify-end')}>
-            <button
-              type="button"
-              onClick={() => onCollapsedChange(!collapsed)}
-              className="h-9 w-9 flex items-center justify-center rounded-lg hover:bg-gray-100 transition-colors cursor-pointer"
-              aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-              title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-            >
-              {collapsed ? <ChevronRight size={18} className="text-gray-700" /> : <ChevronLeft size={18} className="text-gray-700" />}
-            </button>
-          </div>
-
           {/* Menu Items */}
           <nav className="mt-5 flex-1 overflow-y-auto px-3 space-y-1">
             {menuItems.map((item) => {
@@ -325,26 +311,42 @@ export default function Sidebar({ currentPage, onPageChange, collapsed, onCollap
               const label = item.id === 'admin' && role === 'grand_user' ? 'Users' : item.label
 
               return (
-                <button
+                <Popover.Root
                   key={item.id}
-                  onClick={() => handleMenuClick(item.id)}
-                  className={cn(
-                    'w-full relative group flex items-center gap-3 px-4 py-2.5 rounded-lg transition-colors font-medium text-sm cursor-pointer',
-                    collapsed ? 'md:justify-center md:px-0' : undefined,
-                    isActive ? 'bg-blue-50 text-blue-600' : 'text-gray-700 hover:bg-gray-50',
-                  )}
-                  title={collapsed ? label : undefined}
+                  open={collapsed && hoveredMenuId === item.id}
                 >
-                  <Icon size={18} className="flex-shrink-0" />
-                  <span className={cn('truncate', collapsed ? 'md:hidden' : undefined)}>{label}</span>
+                  <Popover.Trigger asChild>
+                    <button
+                      onClick={() => handleMenuClick(item.id)}
+                      onMouseEnter={() => setHoveredMenuId(item.id)}
+                      onMouseLeave={() => setHoveredMenuId((prev) => (prev === item.id ? null : prev))}
+                      onFocus={() => setHoveredMenuId(item.id)}
+                      onBlur={() => setHoveredMenuId((prev) => (prev === item.id ? null : prev))}
+                      className={cn(
+                        'w-full relative flex items-center gap-3 px-4 py-2.5 rounded-lg transition-colors font-medium text-sm cursor-pointer',
+                        collapsed ? 'md:justify-center md:px-0' : undefined,
+                        isActive ? 'bg-blue-50 text-blue-600' : 'text-gray-700 hover:bg-gray-50',
+                      )}
+                      title={collapsed ? label : undefined}
+                    >
+                      <Icon size={18} className="flex-shrink-0" />
+                      <span className={cn('truncate', collapsed ? 'md:hidden' : undefined)}>{label}</span>
+                    </button>
+                  </Popover.Trigger>
 
-                  {/* Hover label when collapsed (tablet/desktop) */}
                   {collapsed && (
-                    <span className="hidden md:group-hover:flex absolute left-[4.75rem] top-1/2 -translate-y-1/2 z-50 whitespace-nowrap rounded-lg border border-gray-200 bg-white px-2 py-1 text-xs text-gray-800 shadow-lg">
-                      {label}
-                    </span>
+                    <Popover.Portal>
+                      <Popover.Content
+                        side="right"
+                        align="center"
+                        sideOffset={10}
+                        className="hidden md:block z-[100] whitespace-nowrap rounded-lg border border-gray-200 bg-white px-2 py-1 text-xs text-gray-800 shadow-lg"
+                      >
+                        {label}
+                      </Popover.Content>
+                    </Popover.Portal>
                   )}
-                </button>
+                </Popover.Root>
               )
             })}
           </nav>

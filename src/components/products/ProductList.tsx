@@ -50,7 +50,7 @@ export default function ProductList() {
   })
   const [page, setPage] = useState(1)
   const [rowsPerPage, setRowsPerPage] = useState(10)
-  const [priceSortDirection, setPriceSortDirection] = useState<'asc' | 'desc'>('asc')
+  const [priceSortDirection, setPriceSortDirection] = useState<'asc' | 'desc'>('desc')
   const [categoryFilter, setCategoryFilter] = useState<string>('all')
   const [dateRangeFilter, setDateRangeFilter] = useState<'all' | 'today' | '7d' | '30d'>('all')
   const [minPrice, setMinPrice] = useState('')
@@ -188,9 +188,13 @@ export default function ProductList() {
     filteredProducts = filteredProducts.filter((product) => product.price <= maxPriceValue)
   }
 
-  const sortedProducts = [...filteredProducts].sort((a, b) =>
-    priceSortDirection === 'asc' ? a.price - b.price : b.price - a.price,
-  )
+  const sortedProducts = [...filteredProducts].sort((a, b) => {
+    const priceDelta = priceSortDirection === 'asc' ? a.price - b.price : b.price - a.price
+    if (priceDelta !== 0) return priceDelta
+    const aTime = a.created_at ? new Date(a.created_at).getTime() : 0
+    const bTime = b.created_at ? new Date(b.created_at).getTime() : 0
+    return bTime - aTime
+  })
 
   const totalProducts = sortedProducts.length
   const totalPages = Math.max(1, Math.ceil(totalProducts / rowsPerPage))

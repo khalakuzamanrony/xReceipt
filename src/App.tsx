@@ -11,6 +11,7 @@ import TemplateBuilderPage from '@/components/templates/TemplateBuilderPage'
 import VendorList from '@/components/vendors/VendorList'
 import { useAuth } from '@/contexts/AuthContext'
 import SignInPage from '@/components/auth/SignInPage'
+import { ChevronLeft, ChevronRight } from 'lucide-react'
 
 export default function App() {
   const { user, loading } = useAuth()
@@ -99,8 +100,24 @@ export default function App() {
         currentPage={currentPage}
         onPageChange={setCurrentPage}
         collapsed={sidebarCollapsed}
-        onCollapsedChange={setSidebarCollapsed}
       />
+
+      {/* Sidebar collapse toggle (between sidebar and header) */}
+      <button
+        type="button"
+        onClick={() => setSidebarCollapsed((prev) => !prev)}
+        className={`hidden md:flex items-center justify-center fixed top-4 ${
+          sidebarCollapsed ? 'left-20' : 'left-64'
+        } -translate-x-1/2 h-9 w-9 rounded-lg border border-gray-200 bg-white shadow-sm hover:bg-gray-50 transition-colors cursor-pointer z-40`}
+        aria-label={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+        title={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+      >
+        {sidebarCollapsed ? (
+          <ChevronRight size={18} className="text-gray-700" />
+        ) : (
+          <ChevronLeft size={18} className="text-gray-700" />
+        )}
+      </button>
 
       {/* Main Content */}
       <div className={`${sidebarCollapsed ? 'md:ml-20' : 'md:ml-64'} flex flex-col flex-1 overflow-hidden`}>

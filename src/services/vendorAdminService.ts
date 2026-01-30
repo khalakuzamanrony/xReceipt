@@ -7,7 +7,7 @@ export const vendorAdminService = {
       .from('vendor_admins')
       .select('*')
       .eq('vendor_id', vendorId)
-      .order('created_at', { ascending: true })
+      .order('created_at', { ascending: false })
 
     if (error) throw error
     return data || []
@@ -20,7 +20,7 @@ export const vendorAdminService = {
       .from('vendor_admins')
       .select('*')
       .in('vendor_id', vendorIds)
-      .order('created_at', { ascending: true })
+      .order('created_at', { ascending: false })
 
     if (error) throw error
     return (data || []) as VendorAdmin[]

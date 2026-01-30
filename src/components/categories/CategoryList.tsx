@@ -208,11 +208,19 @@ export default function CategoryList() {
     return categories.filter((cat) => cat.vendor_id === vendorId)
   })()
 
-  const totalCategories = filteredCategories.length
+  const sortedCategories = filteredCategories.slice().sort((a, b) => {
+    const aTime = a.created_at ? new Date(a.created_at).getTime() : 0
+    const bTime = b.created_at ? new Date(b.created_at).getTime() : 0
+    const delta = bTime - aTime
+    if (delta !== 0) return delta
+    return (a.name || '').localeCompare(b.name || '')
+  })
+
+  const totalCategories = sortedCategories.length
   const totalPages = Math.max(1, Math.ceil(totalCategories / rowsPerPage))
   const currentPage = Math.min(page, totalPages)
   const startIndex = (currentPage - 1) * rowsPerPage
-  const pagedCategories = filteredCategories.slice(startIndex, startIndex + rowsPerPage)
+  const pagedCategories = sortedCategories.slice(startIndex, startIndex + rowsPerPage)
 
   if (loading || vendorLoading) {
     return (
