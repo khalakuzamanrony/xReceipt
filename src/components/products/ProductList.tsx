@@ -7,8 +7,8 @@ import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Label } from '@/components/ui/Label'
 import { Checkbox } from '@/components/ui/Checkbox'
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/Dialog'
-import { Plus, Edit, Trash2, AlertCircle, Package, Search, ArrowUpDown, Funnel, ChevronDown } from 'lucide-react'
+import { Dialog, DialogClose, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/Dialog'
+import { Plus, Edit, Trash2, AlertCircle, Package, Search, ArrowUpDown, Funnel, ChevronDown, X } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { useVendor } from '@/contexts/VendorContext'
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
@@ -547,14 +547,29 @@ export default function ProductList() {
       {/* Product Form Modal */}
       {showForm && (
         <Dialog open={true} onOpenChange={setShowForm}>
-          <DialogContent className="max-w-md bg-white">
-            <DialogHeader className="border-b border-gray-200 pb-4">
-              <DialogTitle className="text-xl font-bold text-gray-900">
-                {selectedProduct ? 'Edit Product' : 'Add New Product'}
-              </DialogTitle>
-            </DialogHeader>
+          <DialogContent
+            className="max-w-md max-h-[calc(100dvh-2rem)] p-0 flex flex-col overflow-hidden min-h-0 bg-white"
+            showCloseButton={false}
+          >
+            <form onSubmit={handleSubmit} className="flex flex-col h-full min-h-0">
+              <DialogHeader className="px-4 sm:px-6 py-3 border-b border-gray-200 bg-white">
+                <div className="flex items-center justify-between gap-3">
+                  <DialogTitle className="text-base sm:text-lg font-semibold text-gray-900">
+                    {selectedProduct ? 'Edit Product' : 'Add New Product'}
+                  </DialogTitle>
+                  <DialogClose asChild>
+                    <button
+                      type="button"
+                      className="h-8 w-8 inline-flex items-center justify-center rounded-md text-gray-600 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      aria-label="Close"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  </DialogClose>
+                </div>
+              </DialogHeader>
 
-            <form onSubmit={handleSubmit} className="space-y-4 py-4">
+              <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-4 space-y-4 bg-white min-h-0">
               <div className="space-y-2">
                 <Label htmlFor="name" className="text-sm font-semibold text-gray-900" required>Product Name</Label>
                 <Input
@@ -772,19 +787,13 @@ export default function ProductList() {
                 </div>
               </div>
 
-              <DialogFooter className="gap-3 border-t border-gray-200 pt-4 flex justify-end">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => setShowForm(false)}
-                  className="px-4 py-2"
-                >
+              </div>
+
+              <DialogFooter className="px-4 sm:px-6 py-3 border-t border-gray-200 bg-white flex justify-end gap-3">
+                <Button type="button" variant="outline" onClick={() => setShowForm(false)} className="h-9 px-4">
                   Cancel
                 </Button>
-                <Button 
-                  type="submit"
-                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white"
-                >
+                <Button type="submit" className="h-9 px-4">
                   {selectedProduct ? 'Update' : 'Create'}
                 </Button>
               </DialogFooter>

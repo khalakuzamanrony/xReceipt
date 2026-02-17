@@ -20,3 +20,18 @@
 5. need preview the template , add eye icon at actionn buttons on receiprr tempplates page table
 6. show latest items on top for all tables of all pages 
 7. on recreate receipt modal i want  fuctionality like a toggle like user only can add tax or discount either individually or collectively, if user select indivisual then vat tax field will be taken from individual product if collectively then individually will not possible user has to set them at summery section. and set tax and discount differtently on ui on summey section, add divider  
+8.on receipt template create modal, if collective is selected make the tax  fiekd 0 by default if undividal is set  show the data set to a product same do for discount 
+
+
+9. ok i wanna make some changes on modals, this will be applied on add receipt,add products, add category, add shop and add user, the header and footer will be fixed and their height will be minimal and small, header will contain modal name on left and and cross icon with functionality will be on right and on bottom footer, this will be narroow in height and action buttons, and make the modals scrollable on mobile and tab ensuring the header and footer fixed and content scrollable
+
+
+10. unable to delete user shows unable to setup required, failed to send requestt to edge function
+11. dollar sign
+12. modal scroll > user
+13. forgot password, > redirect link
+14. send via mail
+15. brand user update
+16. redefine user permisssion
+17. permission a assign template drkr nav, only view and create thakbe
+18. permisiion not reflection other portal

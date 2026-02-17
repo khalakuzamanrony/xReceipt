@@ -53,9 +53,9 @@ serve(async (req) => {
     return jsonResponse({ error: 'Method not allowed' }, 405, origin)
   }
 
-  const supabaseUrl = Deno.env.get('SUPABASE_URL')
-  const anonKey = Deno.env.get('SUPABASE_ANON_KEY')
-  const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
+  const supabaseUrl = Deno.env.get('VITE_SUPABASE_URL')
+  const anonKey = Deno.env.get('VITE_SUPABASE_ANON_KEY')
+  const serviceRoleKey = Deno.env.get('VITE_SUPABASE_SERVICE_ROLE_KEY')
 
   if (!supabaseUrl || !anonKey || !serviceRoleKey) {
     return jsonResponse({ error: 'Missing function environment variables' }, 500, origin)

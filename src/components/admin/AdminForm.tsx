@@ -5,7 +5,7 @@ import { vendorService } from '@/services/vendorService'
 import { vendorAdminService } from '@/services/vendorAdminService'
 import { useAuth } from '@/contexts/AuthContext'
 import { useVendor } from '@/contexts/VendorContext'
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/Dialog'
+import { Dialog, DialogClose, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/Dialog'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Label } from '@/components/ui/Label'
@@ -15,7 +15,7 @@ import ProductAccessGroup from './permissions/ProductAccessGroup'
 import CategoryAccessGroup from './permissions/CategoryAccessGroup'
 import ReceiptAccessGroup from './permissions/ReceiptAccessGroup'
 import TemplateAccessGroup from './permissions/TemplateAccessGroup'
-import { Eye, EyeOff } from 'lucide-react'
+import { Eye, EyeOff, X } from 'lucide-react'
 
 interface AdminFormProps {
   admin: User | null
@@ -357,21 +357,36 @@ export default function AdminForm({ admin, onClose, canEditEmail = false }: Admi
 
   return (
     <Dialog open={true} onOpenChange={onClose}>
-      <DialogContent className="max-w-2xl max-h-[calc(100dvh-2rem)] p-0 flex flex-col overflow-hidden">
-        <form onSubmit={handleSubmit} className="flex flex-col h-full">
-          <DialogHeader className="px-6 pt-6 pb-4 border-b bg-white">
-            <DialogTitle className="text-2xl">
-              {admin
-                ? role === 'grand_user'
-                  ? 'Edit User'
-                  : 'Edit Admin'
-                : role === 'grand_user'
-                  ? 'Create New User'
-                  : 'Create New Admin'}
-            </DialogTitle>
+      <DialogContent
+        className="max-w-2xl max-h-[calc(100dvh-2rem)] p-0 flex flex-col overflow-hidden"
+        showCloseButton={false}
+        scrollBehavior="content"
+      >
+        <form onSubmit={handleSubmit} className="flex flex-col h-full min-h-0">
+          <DialogHeader className="px-4 sm:px-5 py-2 border-b border-gray-100 bg-white">
+            <div className="flex items-center justify-between gap-3">
+              <DialogTitle className="text-base sm:text-lg font-semibold text-gray-900">
+                {admin
+                  ? role === 'grand_user'
+                    ? 'Edit User'
+                    : 'Edit Admin'
+                  : role === 'grand_user'
+                    ? 'Create New User'
+                    : 'Create New Admin'}
+              </DialogTitle>
+              <DialogClose asChild>
+                <button
+                  type="button"
+                  className="h-8 w-8 inline-flex items-center justify-center rounded-md text-gray-600 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  aria-label="Close"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </DialogClose>
+            </div>
           </DialogHeader>
 
-          <div className="flex-1 overflow-y-auto px-6 py-4 space-y-6 bg-gray-50/40">
+          <div className="flex-1 overflow-y-auto px-4 sm:px-5 py-4 space-y-6 bg-gray-50/40">
             {error && (
               <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
                 {error}
@@ -568,7 +583,7 @@ export default function AdminForm({ admin, onClose, canEditEmail = false }: Admi
             </Tabs>
           </div>
 
-          <DialogFooter className="gap-3 px-6 py-4 border-t bg-white flex justify-end">
+          <DialogFooter className="gap-3 px-4 sm:px-5 py-2 border-t border-gray-100 bg-white flex justify-end">
             <Button
               type="button"
               variant="outline"

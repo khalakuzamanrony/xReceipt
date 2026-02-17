@@ -7,8 +7,8 @@ import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Label } from '@/components/ui/Label'
 import { Checkbox } from '@/components/ui/Checkbox'
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/Dialog'
-import { Plus, AlertCircle, FileText, Search, Edit, Trash2, Eye, Download, ArrowUpDown, Funnel, ChevronDown, Check } from 'lucide-react'
+import { Dialog, DialogClose, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/Dialog'
+import { Plus, AlertCircle, FileText, Search, Edit, Trash2, Eye, Download, ArrowUpDown, Funnel, ChevronDown, Check, X } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { useVendor } from '@/contexts/VendorContext'
 import ReceiptPreviewModal from './ReceiptPreviewModal'
@@ -1444,15 +1444,29 @@ export default function ReceiptList() {
       {/* Receipt Form Modal */}
       {showForm && (
         <Dialog open={true} onOpenChange={setShowForm}>
-          <DialogContent className="max-w-2xl max-h-[calc(100dvh-2rem)] p-0 flex flex-col overflow-hidden min-h-0">
+          <DialogContent
+            className="max-w-2xl max-h-[calc(100dvh-2rem)] p-0 flex flex-col overflow-hidden min-h-0"
+            showCloseButton={false}
+          >
             <form onSubmit={handleSubmit} className="flex flex-col h-full min-h-0">
-              <DialogHeader className="px-6 pt-6 pb-4 border-b border-gray-200 bg-white">
-                <DialogTitle className="text-2xl">
-                  {selectedReceipt ? 'Edit Receipt' : 'New Receipt'}
-                </DialogTitle>
+              <DialogHeader className="px-4 sm:px-6 py-3 border-b border-gray-200 bg-white">
+                <div className="flex items-center justify-between gap-3">
+                  <DialogTitle className="text-base sm:text-lg font-semibold text-gray-900">
+                    {selectedReceipt ? 'Edit Receipt' : 'New Receipt'}
+                  </DialogTitle>
+                  <DialogClose asChild>
+                    <button
+                      type="button"
+                      className="h-8 w-8 inline-flex items-center justify-center rounded-md text-gray-600 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      aria-label="Close"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  </DialogClose>
+                </div>
               </DialogHeader>
 
-              <div className="flex-1 overflow-y-auto px-6 py-4 bg-gray-50/40 space-y-6 min-h-0">
+              <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-4 bg-gray-50/40 space-y-6 min-h-0">
               <div>
                 <Label htmlFor="company_name" className="text-sm font-medium text-gray-700">Company Name</Label>
                 <Input
@@ -2676,7 +2690,7 @@ export default function ReceiptList() {
 
               </div>
 
-              <DialogFooter className="gap-3 px-6 py-4 border-t border-gray-200 bg-white flex justify-end">
+              <DialogFooter className="gap-3 px-4 sm:px-6 py-3 border-t border-gray-200 bg-white flex justify-end">
                 <Button
                   type="button"
                   variant="outline"

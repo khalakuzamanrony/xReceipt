@@ -284,21 +284,71 @@ export const adminService = {
   async deleteAdmin(
     id: string,
   ): Promise<{ storageDeleted: boolean; storageError: string | null; authDeleted: boolean }> {
-    const { data, error } = await supabase.functions.invoke('delete-user', {
-      body: { userId: id },
-    })
+    try {
+      const { data, error } = await supabase.functions.invoke('delete-user', {
+        body: { userId: id },
+      })
 
-    if (error) throw error
+      if (error) throw error
 
-    const payload = (data || {}) as any
-    if (payload?.error) {
-      throw new Error(String(payload.error))
-    }
+      const payload = (data || {}) as any
+      if (payload?.error) {
+        throw new Error(String(payload.error))
+      }
 
-    return {
-      storageDeleted: payload?.storageDeleted ?? true,
-      storageError: payload?.storageError ?? null,
-      authDeleted: payload?.authDeleted ?? false,
+      return {
+        storageDeleted: payload?.storageDeleted ?? true,
+        storageError: payload?.storageError ?? null,
+        authDeleted: payload?.authDeleted ?? false,
+      }
+    } catch (err) {
+      // If the edge function is not deployed / blocked by CORS / network error,
+      // still allow deletion of the app DB row as a fallback.
+      const msg = err instanceof Error ? err.message : String(err)
+      const lower = msg.toLowerCase()
+
+      const isInvokeTransportError =
+        lower.includes('failed to send request') ||
+        lower.includes('functionsfetcherror') ||
+        lower.includes('fetch')
+
+      if (!isInvokeTransportError) {
+        throw err
+      }
+
+      let storageDeleted = true
+      let storageError: string | null = null
+
+      try {
+        const { data: userRow, error: userError } = await supabase
+          .from('users')
+          .select('profile_image_url')
+          .eq('id', id)
+          .maybeSingle()
+        if (userError) throw userError
+
+        const path = resolveAdminProfileStoragePath(userRow?.profile_image_url || '')
+        if (path) {
+          const { error: removeError } = await supabase.storage.from('admin-profiles').remove([path])
+          if (removeError) {
+            storageDeleted = false
+            storageError = removeError.message || String(removeError)
+          }
+        }
+      } catch (storageErr) {
+        storageDeleted = false
+        storageError = storageErr instanceof Error ? storageErr.message : String(storageErr)
+      }
+
+      const { error: deleteDbError } = await supabase.from('users').delete().eq('id', id)
+      if (deleteDbError) {
+        const fallbackMessage =
+          'Delete failed because the delete-user edge function is unreachable (CORS / not deployed) and direct database deletion is blocked (likely by RLS). Deploy the Supabase Edge Function "delete-user" and ensure its OPTIONS preflight returns 200 with Access-Control-Allow-Origin for your app origin (e.g. http://localhost:5173), then try again.'
+        throw new Error(fallbackMessage)
+      }
+
+      // authDeleted is unknown in fallback mode (edge function not executed).
+      return { storageDeleted, storageError, authDeleted: false }
     }
   },
 
