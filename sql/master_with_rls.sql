@@ -24,7 +24,7 @@ CREATE TABLE IF NOT EXISTS users (
   email VARCHAR(255) UNIQUE NOT NULL,
   name VARCHAR(255) NOT NULL,
   phone VARCHAR(20),
-  role VARCHAR(50) NOT NULL CHECK (role IN ('grand_user', 'admin')),
+  role VARCHAR(50) NOT NULL CHECK (role IN ('grand_user', 'admin', 'super_admin')),
   profile_image_url VARCHAR(500),
   created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
@@ -35,14 +35,14 @@ CREATE INDEX IF NOT EXISTS idx_users_role ON users(role);
 
 -- Normalize users.role constraint and legacy values so this script is safe on older databases
 ALTER TABLE users DROP CONSTRAINT IF EXISTS users_role_check;
-UPDATE users SET role = 'grand_user' WHERE role IN ('super_admin', 'god_user');
-ALTER TABLE users ADD CONSTRAINT users_role_check CHECK (role IN ('grand_user', 'admin'));
+UPDATE users SET role = 'grand_user' WHERE role IN ('god_user');
+ALTER TABLE users ADD CONSTRAINT users_role_check CHECK (role IN ('grand_user', 'admin', 'super_admin'));
 
 CREATE TABLE IF NOT EXISTS vendors (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   vendor_id VARCHAR(100) UNIQUE NOT NULL,
   name VARCHAR(255) NOT NULL,
-  email VARCHAR(255) NOT NULL,
+  email VARCHAR(255),
   address TEXT,
   url VARCHAR(500),
   status VARCHAR(50) NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'inactive')),
@@ -51,6 +51,8 @@ CREATE TABLE IF NOT EXISTS vendors (
   created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
+
+ALTER TABLE vendors ALTER COLUMN email DROP NOT NULL;
 
 CREATE INDEX IF NOT EXISTS idx_vendors_vendor_id ON vendors(vendor_id);
 CREATE INDEX IF NOT EXISTS idx_vendors_admin_id ON vendors(admin_id);
@@ -97,6 +99,7 @@ CREATE INDEX IF NOT EXISTS idx_vendor_admins_admin_id ON vendor_admins(admin_id)
 CREATE TABLE IF NOT EXISTS categories (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   name VARCHAR(255) NOT NULL,
+  parent_id UUID REFERENCES categories(id) ON DELETE SET NULL,
   image_url VARCHAR(500),
   vendor_id UUID REFERENCES vendors(id) ON DELETE CASCADE,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
@@ -104,6 +107,7 @@ CREATE TABLE IF NOT EXISTS categories (
 );
 
 CREATE INDEX IF NOT EXISTS idx_categories_vendor_id ON categories(vendor_id);
+CREATE INDEX IF NOT EXISTS idx_categories_parent_id ON categories(parent_id);
 
 -- ============================================
 -- 3. PRODUCTS TABLE

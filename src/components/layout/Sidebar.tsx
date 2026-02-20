@@ -51,7 +51,7 @@ export default function Sidebar({ currentPage, onPageChange, collapsed }: Sideba
   const hasAnyVendorMembership = memberships.length > 0
   const isVendorSuperAdmin = memberships.some((m) => m.isVendorSuperAdmin)
   const isVendorSuperAdminForActiveVendor =
-    role === 'admin' &&
+    (role === 'admin' || role === 'super_admin') &&
     !!activeVendorId &&
     memberships.some((m) => m.vendor.id === activeVendorId && m.isVendorSuperAdmin)
 
@@ -140,7 +140,7 @@ export default function Sidebar({ currentPage, onPageChange, collapsed }: Sideba
 
     // While loading shop-scoped permissions, avoid rendering an empty sidebar for admins.
     // Feature pages still enforce permissions.
-    if (role === 'admin' && permissionsLoading) {
+    if ((role === 'admin' || role === 'super_admin') && permissionsLoading) {
       if (item.id === 'vendors') return hasAnyVendorMembership
       return true
     }
@@ -148,7 +148,7 @@ export default function Sidebar({ currentPage, onPageChange, collapsed }: Sideba
     // Vendor super admins should see the full vendor-scoped menu for the active shop.
     if (isVendorSuperAdminForActiveVendor) {
       if (item.id === 'admin') return true
-      if (item.id === 'vendors') return hasAnyVendorMembership
+      if (item.id === 'vendors') return false
       return true
     }
 
@@ -162,8 +162,9 @@ export default function Sidebar({ currentPage, onPageChange, collapsed }: Sideba
       case 'categories':
         return !!permissions?.can_view_categories
       case 'vendors':
-        // Any user with vendor memberships can see Vendors
-        return hasAnyVendorMembership
+        return false
+      case 'settings':
+        return false
       case 'admin':
         // Vendor super admins get Admin access scoped to their vendors
         return isVendorSuperAdmin
@@ -215,19 +216,93 @@ export default function Sidebar({ currentPage, onPageChange, collapsed }: Sideba
           {/* Vendor selector card at top */}
           {showVendorSelector && (
             <div className="px-4 pt-5 pb-4 border-b border-gray-200">
-              <Select.Root
-                value={selectValue}
-                onValueChange={(value) => {
-                  if (isGrandUser && value === '__all__') {
-                    setActiveVendorId(null)
-                  } else {
-                    setActiveVendorId(value || null)
-                  }
-                }}
-              >
-                <Select.Trigger
+              {isGrandUser ? (
+                <Select.Root
+                  value={selectValue}
+                  onValueChange={(value) => {
+                    if (value === '__all__') {
+                      setActiveVendorId(null)
+                    } else {
+                      setActiveVendorId(value || null)
+                    }
+                  }}
+                >
+                  <Select.Trigger
+                    className={cn(
+                      'w-full flex items-center justify-between gap-3 rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 shadow-sm hover:bg-gray-100 cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500',
+                      collapsed ? 'md:px-2 md:justify-center' : undefined,
+                    )}
+                  >
+                    <div className="flex items-center gap-2 min-w-0">
+                      {activeVendor?.image_url ? (
+                        <img
+                          src={activeVendor.image_url}
+                          alt={activeVendor.name}
+                          className="h-8 w-8 rounded-lg object-cover"
+                        />
+                      ) : (
+                        <div className="h-8 w-8 rounded-lg bg-blue-600/10 flex items-center justify-center text-[11px] font-semibold text-blue-700">
+                          {(activeVendor?.name || 'VR')
+                            .split(' ')
+                            .filter(Boolean)
+                            .map((part) => part.charAt(0).toUpperCase())
+                            .slice(0, 2)
+                            .join('')}
+                        </div>
+                      )}
+                      <div className={cn('flex flex-col min-w-0 text-left', collapsed ? 'md:hidden' : undefined)}>
+                        <span className="text-[12px] font-semibold text-gray-900 truncate">
+                          <Select.Value placeholder="All shops" />
+                        </span>
+                        <span className="text-[11px] text-gray-500 truncate">
+                          {!activeVendorId ? 'Global workspace' : activeVendor ? 'Active workspace' : 'No shop selected'}
+                        </span>
+                      </div>
+                    </div>
+                    <Select.Icon className={cn(collapsed ? 'md:hidden' : undefined)}>
+                      <ChevronDown className="h-3.5 w-3.5 text-gray-500 flex-shrink-0" />
+                    </Select.Icon>
+                  </Select.Trigger>
+                  <Select.Portal>
+                    <Select.Content
+                      position="popper"
+                      sideOffset={6}
+                      className="z-50 rounded-xl border border-gray-200 bg-white shadow-lg overflow-hidden"
+                      style={{ minWidth: 'var(--radix-select-trigger-width)' }}
+                    >
+                      <div className="px-3 py-2 border-b border-gray-100 bg-gray-50">
+                        <Input
+                          type="text"
+                          value={vendorSearch}
+                          onChange={(e) => setVendorSearch(e.target.value)}
+                          placeholder="Search shops..."
+                          className="h-8 text-xs"
+                        />
+                      </div>
+                      <Select.Viewport className="py-1 max-h-60 overflow-y-auto">
+                        <Select.Item
+                          value="__all__"
+                          className="px-3 py-1.5 text-xs text-gray-800 rounded-md cursor-pointer flex items-center gap-2 data-[highlighted]:bg-blue-50 data-[highlighted]:text-blue-700 outline-none"
+                        >
+                          <Select.ItemText>All shops</Select.ItemText>
+                        </Select.Item>
+                        {filteredMemberships.map(({ vendor }) => (
+                          <Select.Item
+                            key={vendor.id}
+                            value={vendor.id}
+                            className="px-3 py-1.5 text-xs text-gray-800 rounded-md cursor-pointer flex items-center gap-2 data-[highlighted]:bg-blue-50 data-[highlighted]:text-blue-700 outline-none"
+                          >
+                            <Select.ItemText>{vendor.name}</Select.ItemText>
+                          </Select.Item>
+                        ))}
+                      </Select.Viewport>
+                    </Select.Content>
+                  </Select.Portal>
+                </Select.Root>
+              ) : (
+                <div
                   className={cn(
-                    'w-full flex items-center justify-between gap-3 rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 shadow-sm hover:bg-gray-100 cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500',
+                    'w-full flex items-center justify-between gap-3 rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 shadow-sm',
                     collapsed ? 'md:px-2 md:justify-center' : undefined,
                   )}
                 >
@@ -250,59 +325,13 @@ export default function Sidebar({ currentPage, onPageChange, collapsed }: Sideba
                     )}
                     <div className={cn('flex flex-col min-w-0 text-left', collapsed ? 'md:hidden' : undefined)}>
                       <span className="text-[12px] font-semibold text-gray-900 truncate">
-                        <Select.Value placeholder={isGrandUser ? 'All shops' : 'Select shop'} />
+                        {activeVendor?.name || 'No shop selected'}
                       </span>
-                      <span className="text-[11px] text-gray-500 truncate">
-                        {isGrandUser && !activeVendorId
-                          ? 'Global workspace'
-                          : activeVendor
-                          ? 'Active workspace'
-                          : 'No shop selected'}
-                      </span>
+                      <span className="text-[11px] text-gray-500 truncate">Active workspace</span>
                     </div>
                   </div>
-                  <Select.Icon className={cn(collapsed ? 'md:hidden' : undefined)}>
-                    <ChevronDown className="h-3.5 w-3.5 text-gray-500 flex-shrink-0" />
-                  </Select.Icon>
-                </Select.Trigger>
-                <Select.Portal>
-                  <Select.Content
-                    position="popper"
-                    sideOffset={6}
-                    className="z-50 rounded-xl border border-gray-200 bg-white shadow-lg overflow-hidden"
-                    style={{ minWidth: 'var(--radix-select-trigger-width)' }}
-                  >
-                    <div className="px-3 py-2 border-b border-gray-100 bg-gray-50">
-                      <Input
-                        type="text"
-                        value={vendorSearch}
-                        onChange={(e) => setVendorSearch(e.target.value)}
-                        placeholder="Search shops..."
-                        className="h-8 text-xs"
-                      />
-                    </div>
-                    <Select.Viewport className="py-1 max-h-60 overflow-y-auto">
-                      {isGrandUser && (
-                        <Select.Item
-                          value="__all__"
-                          className="px-3 py-1.5 text-xs text-gray-800 rounded-md cursor-pointer flex items-center gap-2 data-[highlighted]:bg-blue-50 data-[highlighted]:text-blue-700 outline-none"
-                        >
-                          <Select.ItemText>All shops</Select.ItemText>
-                        </Select.Item>
-                      )}
-                      {filteredMemberships.map(({ vendor }) => (
-                        <Select.Item
-                          key={vendor.id}
-                          value={vendor.id}
-                          className="px-3 py-1.5 text-xs text-gray-800 rounded-md cursor-pointer flex items-center gap-2 data-[highlighted]:bg-blue-50 data-[highlighted]:text-blue-700 outline-none"
-                        >
-                          <Select.ItemText>{vendor.name}</Select.ItemText>
-                        </Select.Item>
-                      ))}
-                    </Select.Viewport>
-                  </Select.Content>
-                </Select.Portal>
-              </Select.Root>
+                </div>
+              )}
             </div>
           )}
 

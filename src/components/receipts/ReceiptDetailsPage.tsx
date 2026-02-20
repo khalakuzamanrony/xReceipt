@@ -200,7 +200,7 @@ export default function ReceiptDetailsPage({ receiptId, onBack }: ReceiptDetails
       discountType === 'percentage' && discountValue > 0
         ? `(${discountValue.toFixed(2)}%)`
         : discountType === 'flat' && discountValue > 0
-          ? `($${discountValue.toFixed(2)})`
+          ? `(৳${discountValue.toFixed(2)})`
           : ''
 
     type ItemCol =
@@ -293,14 +293,14 @@ export default function ReceiptDetailsPage({ receiptId, onBack }: ReceiptDetails
       const hasDedicatedDiscountColumn = itemsColumns.includes('discount')
       const hasDedicatedTaxColumn = itemsColumns.includes('tax')
 
-      itemsHTML = receipt.items
+      itemsHTML = (receipt.items as any[])
         .map((item) => {
           const { lineDiscount, lineTax, lineTotal, taxEnabled, taxPercentage, discountType, discountValue } = getItemTotals(item)
           const discountMetaForItem =
             discountType === 'percentage'
               ? `${clampPercent(discountValue).toFixed(2)}%`
               : discountType === 'flat'
-                ? `$${Math.max(0, Math.floor(discountValue)).toFixed(0)}/unit`
+                ? `৳${Math.max(0, Math.floor(discountValue)).toFixed(0)}/unit`
                 : ''
 
           const cells = itemsColumns
@@ -314,10 +314,10 @@ export default function ReceiptDetailsPage({ receiptId, onBack }: ReceiptDetails
                   metaParts.push(`Color: ${item.color}`)
                 }
                 if (!hasDedicatedDiscountColumn && item.discount_enabled === true) {
-                  metaParts.push(`Discount: ${discountMetaForItem} (-$${lineDiscount.toFixed(2)})`)
+                  metaParts.push(`Discount: ${discountMetaForItem} (-৳${lineDiscount.toFixed(2)})`)
                 }
                 if (!hasDedicatedTaxColumn) {
-                  metaParts.push(taxEnabled ? `Tax: ${taxPercentage.toFixed(2)}% (+$${lineTax.toFixed(2)})` : 'Tax: Off')
+                  metaParts.push(taxEnabled ? `Tax: ${taxPercentage.toFixed(2)}% (+৳${lineTax.toFixed(2)})` : 'Tax: Off')
                 }
                 const metaHtml = metaParts.length
                   ? `<div style="margin-top: 2px; font-size: 11px; color: #666; line-height: 1.35;">${metaParts.join('<br/>')}</div>`
@@ -332,19 +332,19 @@ export default function ReceiptDetailsPage({ receiptId, onBack }: ReceiptDetails
                 return `<td style="padding: 8px; border-bottom: 1px solid #eee;">${item.color || ''}</td>`
               }
               if (col === 'discount') {
-                return `<td style="padding: 8px; border-bottom: 1px solid #eee; text-align: right;">${item.discount_enabled === true ? `-$${lineDiscount.toFixed(2)}` : ''}</td>`
+                return `<td style="padding: 8px; border-bottom: 1px solid #eee; text-align: right;">${item.discount_enabled === true ? `-৳${lineDiscount.toFixed(2)}` : ''}</td>`
               }
               if (col === 'tax') {
-                return `<td style="padding: 8px; border-bottom: 1px solid #eee; text-align: right;">${taxEnabled ? `+$${lineTax.toFixed(2)}` : ''}</td>`
+                return `<td style="padding: 8px; border-bottom: 1px solid #eee; text-align: right;">${taxEnabled ? `+৳${lineTax.toFixed(2)}` : ''}</td>`
               }
               if (col === 'quantity') {
                 return `<td style="padding: 8px; border-bottom: 1px solid #eee; text-align: center;">${item.quantity}</td>`
               }
               if (col === 'price') {
-                return `<td style="padding: 8px; border-bottom: 1px solid #eee; text-align: right;">$${item.unit_price.toFixed(2)}</td>`
+                return `<td style="padding: 8px; border-bottom: 1px solid #eee; text-align: right;">৳${Number(item.unit_price || 0).toFixed(2)}</td>`
               }
               if (col === 'total') {
-                return `<td style="padding: 8px; border-bottom: 1px solid #eee; text-align: right;">$${lineTotal.toFixed(2)}</td>`
+                return `<td style="padding: 8px; border-bottom: 1px solid #eee; text-align: right;">৳${lineTotal.toFixed(2)}</td>`
               }
               return ''
             })
@@ -584,9 +584,9 @@ export default function ReceiptDetailsPage({ receiptId, onBack }: ReceiptDetails
 
             <div className="bg-white p-4 rounded-lg border border-gray-200">
               <p className="text-xs text-gray-600 font-semibold uppercase mb-2">Total</p>
-              <p className="text-lg font-bold text-blue-600">${receipt.total?.toFixed(2) || '0.00'}</p>
+              <p className="text-lg font-bold text-blue-600">৳{receipt.total?.toFixed(2) || '0.00'}</p>
               <p className="text-[11px] text-gray-500 mt-1">
-                Subtotal ${receipt.subtotal?.toFixed(2) || '0.00'} · Tax ${receipt.tax?.toFixed(2) || '0.00'}
+                Subtotal ৳{receipt.subtotal?.toFixed(2) || '0.00'} · Tax ৳{receipt.tax?.toFixed(2) || '0.00'}
               </p>
             </div>
 

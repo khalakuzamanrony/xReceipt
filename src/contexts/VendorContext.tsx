@@ -84,7 +84,7 @@ export function VendorProvider({ children }: { children: ReactNode }) {
       return
     }
 
-    if (role !== 'admin') {
+    if (role !== 'admin' && role !== 'super_admin') {
       setPermissions(null)
       setPermissionsLoading(false)
       return

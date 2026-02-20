@@ -832,7 +832,7 @@ export default function ReceiptList() {
       discountType === 'percentage' && discountValue > 0
         ? `(${discountValue.toFixed(2)}%)`
         : discountType === 'flat' && discountValue > 0
-          ? `($${discountValue.toFixed(2)})`
+          ? `(৳${discountValue.toFixed(2)})`
           : ''
 
     type ItemCol =
@@ -931,7 +931,7 @@ export default function ReceiptList() {
             discountType === 'percentage'
               ? `${clampPercent(discountValue).toFixed(2)}%`
               : discountType === 'flat'
-                ? `$${Math.max(0, Math.floor(discountValue)).toFixed(0)}/unit`
+                ? `৳${Math.max(0, Math.floor(discountValue)).toFixed(0)}/unit`
                 : ''
 
           const cells = itemsColumns
@@ -945,10 +945,10 @@ export default function ReceiptList() {
                   metaParts.push(`Color: ${item.color}`)
                 }
                 if (!hasDedicatedDiscountColumn && item.discount_enabled === true) {
-                  metaParts.push(`Discount: ${discountMetaForItem} (-$${lineDiscount.toFixed(2)})`)
+                  metaParts.push(`Discount: ${discountMetaForItem} (-৳${lineDiscount.toFixed(2)})`)
                 }
                 if (!hasDedicatedTaxColumn) {
-                  metaParts.push(taxEnabled ? `Tax: ${taxPercentage.toFixed(2)}% (+$${lineTax.toFixed(2)})` : 'Tax: Off')
+                  metaParts.push(taxEnabled ? `Tax: ${taxPercentage.toFixed(2)}% (+৳${lineTax.toFixed(2)})` : 'Tax: Off')
                 }
                 const metaHtml = metaParts.length
                   ? `<div style="margin-top: 2px; font-size: 11px; color: #666; line-height: 1.35;">${metaParts.join('<br/>')}</div>`
@@ -963,19 +963,19 @@ export default function ReceiptList() {
                 return `<td style="padding: 8px; border-bottom: 1px solid #eee;">${item.color || ''}</td>`
               }
               if (col === 'discount') {
-                return `<td style="padding: 8px; border-bottom: 1px solid #eee; text-align: right;">${item.discount_enabled === true ? `-$${lineDiscount.toFixed(2)}` : ''}</td>`
+                return `<td style="padding: 8px; border-bottom: 1px solid #eee; text-align: right;">${item.discount_enabled === true ? `-৳${lineDiscount.toFixed(2)}` : ''}</td>`
               }
               if (col === 'tax') {
-                return `<td style="padding: 8px; border-bottom: 1px solid #eee; text-align: right;">${taxEnabled ? `+$${lineTax.toFixed(2)}` : ''}</td>`
+                return `<td style="padding: 8px; border-bottom: 1px solid #eee; text-align: right;">${taxEnabled ? `+৳${lineTax.toFixed(2)}` : ''}</td>`
               }
               if (col === 'quantity') {
                 return `<td style="padding: 8px; border-bottom: 1px solid #eee; text-align: center;">${item.quantity}</td>`
               }
               if (col === 'price') {
-                return `<td style="padding: 8px; border-bottom: 1px solid #eee; text-align: right;">$${item.unit_price.toFixed(2)}</td>`
+                return `<td style="padding: 8px; border-bottom: 1px solid #eee; text-align: right;">৳${item.unit_price.toFixed(2)}</td>`
               }
               if (col === 'total') {
-                return `<td style="padding: 8px; border-bottom: 1px solid #eee; text-align: right;">$${lineTotal.toFixed(2)}</td>`
+                return `<td style="padding: 8px; border-bottom: 1px solid #eee; text-align: right;">৳${lineTotal.toFixed(2)}</td>`
               }
               return ''
             })
@@ -1550,8 +1550,7 @@ export default function ReceiptList() {
               <div>
                 <Label htmlFor="template" className="text-sm font-medium text-gray-700" required>Receipt Template</Label>
                 {(() => {
-                  const baseTemplates = vendorIdForReceiptModal ? modalTemplates : templatesForReceiptModal
-                  const templatesForReceiptModal = baseTemplates
+                  const templatesToShow = vendorIdForReceiptModal ? modalTemplates : templatesForReceiptModal
 
                   return (
                     <Select.Root
@@ -1576,7 +1575,7 @@ export default function ReceiptList() {
                           style={{ minWidth: 'var(--radix-select-trigger-width)' }}
                         >
                           <Select.Viewport className="py-1 max-h-60 overflow-y-auto">
-                            {templatesForReceiptModal.map((template: any) => (
+                            {templatesToShow.map((template: any) => (
                               <Select.Item
                                 key={template.id}
                                 value={template.id}
@@ -1715,7 +1714,7 @@ export default function ReceiptList() {
                         discountType === 'percentage'
                           ? `${clampPercent(discountValue).toFixed(2)}%`
                           : discountType === 'flat'
-                            ? `$${Math.max(0, Math.floor(discountValue)).toFixed(0)}/unit`
+                            ? `৳${Math.max(0, Math.floor(discountValue)).toFixed(0)}/unit`
                             : ''
 
                       const taxEnabled = taxMode === 'individual' && item.tax_enabled !== false
@@ -1731,7 +1730,7 @@ export default function ReceiptList() {
                           <div className="col-span-3">
                             <div className="min-w-0">
                               <p className="text-sm font-medium text-gray-900 truncate">{item.name}</p>
-                              <p className="text-xs text-gray-600">${item.unit_price.toFixed(2)} each</p>
+                              <p className="text-xs text-gray-600">৳{item.unit_price.toFixed(2)} each</p>
                             </div>
                           </div>
 
@@ -1741,7 +1740,7 @@ export default function ReceiptList() {
 
                           <div className="col-span-2 text-right">
                             <p className="text-sm font-medium text-gray-900">
-                              {discountEnabled ? `-$${lineDiscount.toFixed(2)}` : '-'}
+                              {discountEnabled ? `-৳${lineDiscount.toFixed(2)}` : '-'}
                             </p>
                             {discountEnabled && discountLabel ? (
                               <p className="text-xs text-gray-600">{discountLabel}</p>
@@ -1751,17 +1750,17 @@ export default function ReceiptList() {
                           <div className="col-span-2 text-right">
                             {taxEnabled ? (
                               <>
-                                <p className="text-sm font-medium text-gray-900">+${lineTax.toFixed(2)}</p>
+                                <p className="text-sm font-medium text-gray-900">+৳{lineTax.toFixed(2)}</p>
                                 <p className="text-xs text-gray-600">{taxPercent.toFixed(2)}%</p>
                               </>
                             ) : (
-                              <p className="text-sm font-medium text-gray-500">-</p>
+                              <p className="text-sm font-medium text-gray-400">-</p>
                             )}
                           </div>
 
                           <div className="col-span-2 text-right">
-                            <p className="text-xs text-gray-600">${lineSubtotal.toFixed(2)}</p>
-                            <p className="text-sm font-semibold text-gray-900">${lineTotal.toFixed(2)}</p>
+                            <p className="text-xs text-gray-600">৳{lineSubtotal.toFixed(2)}</p>
+                            <p className="text-sm font-semibold text-gray-900">৳{lineTotal.toFixed(2)}</p>
                           </div>
                           <div className="col-span-2 flex justify-end">
                             <div className="flex items-center justify-end gap-1.5">
@@ -2051,7 +2050,7 @@ export default function ReceiptList() {
                                   className="px-3 py-2 text-sm text-gray-800 rounded-md cursor-pointer flex items-center gap-2 data-[highlighted]:bg-blue-50 data-[highlighted]:text-blue-700 outline-none"
                                 >
                                   <Select.ItemText>
-                                    {product.name} - ${product.price.toFixed(2)}
+                                    {product.name} - ৳{product.price.toFixed(2)}
                                   </Select.ItemText>
                                 </Select.Item>
                               ))}
@@ -2465,12 +2464,12 @@ export default function ReceiptList() {
                         <>
                           <div className="flex items-center justify-between">
                             <p className="text-sm font-medium text-gray-700">Subtotal</p>
-                            <p className="text-sm font-semibold text-gray-900">${subtotal.toFixed(2)}</p>
+                            <p className="text-sm font-semibold text-gray-900">৳{subtotal.toFixed(2)}</p>
                           </div>
 
                           <div className="flex items-center justify-between">
                             <p className="text-sm font-medium text-gray-700">Item discount</p>
-                            <p className="text-sm font-semibold text-gray-900">-${itemDiscount.toFixed(2)}</p>
+                            <p className="text-sm font-semibold text-gray-900">-৳{itemDiscount.toFixed(2)}</p>
                           </div>
 
                           <div className="pt-2">
@@ -2505,7 +2504,7 @@ export default function ReceiptList() {
                                   discountType === 'percentage'
                                     ? `${clampPercent(discountValue).toFixed(2)}%`
                                     : discountType === 'flat'
-                                      ? `$${Math.max(0, Math.floor(discountValue)).toFixed(0)}/unit`
+                                      ? `৳${Math.max(0, Math.floor(discountValue)).toFixed(0)}/unit`
                                       : ''
 
                                 return (
@@ -2522,18 +2521,18 @@ export default function ReceiptList() {
                                     </div>
                                     <div className="col-span-1 text-xs text-gray-700 text-center">{item.quantity}</div>
                                     <div className="col-span-2 text-right">
-                                      <div className="text-xs text-gray-700">{discountEnabled ? `-$${lineDiscount.toFixed(2)}` : '—'}</div>
+                                      <div className="text-xs text-gray-700">{discountEnabled ? `-৳${lineDiscount.toFixed(2)}` : '—'}</div>
                                       {discountEnabled && discountMeta ? (
                                         <div className="text-[10px] text-gray-500">{discountMeta}</div>
                                       ) : null}
                                     </div>
                                     <div className="col-span-2 text-right">
-                                      <div className="text-xs text-gray-700">{taxEnabled ? `+$${lineTax.toFixed(2)}` : '—'}</div>
+                                      <div className="text-xs text-gray-700">{taxEnabled ? `+৳${lineTax.toFixed(2)}` : '—'}</div>
                                       {taxEnabled ? (
                                         <div className="text-[10px] text-gray-500">{taxPercent.toFixed(2)}%</div>
                                       ) : null}
                                     </div>
-                                    <div className="col-span-2 text-xs font-semibold text-gray-900 text-right">${lineTotal.toFixed(2)}</div>
+                                    <div className="col-span-2 text-xs font-semibold text-gray-900 text-right">৳{lineTotal.toFixed(2)}</div>
                                   </div>
                                 )
                               })}
@@ -2541,9 +2540,9 @@ export default function ReceiptList() {
                               <div className="grid grid-cols-12 gap-2 px-2 py-1 rounded-md border-t border-white/60 mt-1">
                                 <div className="col-span-5 text-xs font-semibold text-gray-900">Totals</div>
                                 <div className="col-span-1 text-xs font-semibold text-gray-900 text-center">{totalQty}</div>
-                                <div className="col-span-2 text-xs font-semibold text-gray-900 text-right">-${itemDiscount.toFixed(2)}</div>
-                                <div className="col-span-2 text-xs font-semibold text-gray-900 text-right">+${itemTax.toFixed(2)}</div>
-                                <div className="col-span-2 text-xs font-semibold text-gray-900 text-right">${(Math.max(0, subtotal - itemDiscount) + itemTax).toFixed(2)}</div>
+                                <div className="col-span-2 text-xs font-semibold text-gray-900 text-right">-৳{itemDiscount.toFixed(2)}</div>
+                                <div className="col-span-2 text-xs font-semibold text-gray-900 text-right">+৳{itemTax.toFixed(2)}</div>
+                                <div className="col-span-2 text-xs font-semibold text-gray-900 text-right">৳{(Math.max(0, subtotal - itemDiscount) + itemTax).toFixed(2)}</div>
                               </div>
                             </div>
                           </div>
@@ -2614,7 +2613,7 @@ export default function ReceiptList() {
                             </div>
                             <div className="col-span-5 text-right">
                               <p className="text-xs text-gray-600">Discount</p>
-                              <p className="text-sm font-semibold text-gray-900">-${receiptDiscount.toFixed(2)}</p>
+                              <p className="text-sm font-semibold text-gray-900">-৳{receiptDiscount.toFixed(2)}</p>
                             </div>
                           </div>
 
@@ -2640,29 +2639,29 @@ export default function ReceiptList() {
                             </div>
                             <div className="col-span-5 text-right">
                               <p className="text-xs text-gray-600">Tax</p>
-                              <p className="text-sm font-semibold text-gray-900">${receiptTax.toFixed(2)}</p>
+                              <p className="text-sm font-semibold text-gray-900">৳{receiptTax.toFixed(2)}</p>
                             </div>
                           </div>
 
                           <div className="flex items-center justify-between">
                             <p className="text-sm font-medium text-gray-700">Item tax</p>
-                            <p className="text-sm font-semibold text-gray-900">${itemTax.toFixed(2)}</p>
+                            <p className="text-sm font-semibold text-gray-900">৳{itemTax.toFixed(2)}</p>
                           </div>
 
                           <div className="flex items-center justify-between">
                             <p className="text-sm font-medium text-gray-700">Total discount</p>
-                            <p className="text-sm font-semibold text-gray-900">-${totalDiscount.toFixed(2)}</p>
+                            <p className="text-sm font-semibold text-gray-900">-৳{totalDiscount.toFixed(2)}</p>
                           </div>
 
                           <div className="flex items-center justify-between">
                             <p className="text-sm font-medium text-gray-700">Total tax</p>
-                            <p className="text-sm font-semibold text-gray-900">${totalTax.toFixed(2)}</p>
+                            <p className="text-sm font-semibold text-gray-900">৳{totalTax.toFixed(2)}</p>
                           </div>
 
                           <div className="border-t border-blue-200 pt-2">
                             <div className="flex items-center justify-between">
                               <p className="text-sm font-semibold text-gray-900">Total</p>
-                              <p className="text-lg font-bold text-blue-700">${total.toFixed(2)}</p>
+                              <p className="text-lg font-bold text-blue-700">৳{total.toFixed(2)}</p>
                             </div>
                           </div>
                         </>
@@ -2742,7 +2741,7 @@ export default function ReceiptList() {
                     </div>
 
                     <div className="text-right flex-shrink-0">
-                      <p className="text-sm font-bold text-gray-900">${(receipt.total ?? 0).toFixed(2)}</p>
+                      <p className="text-sm font-bold text-gray-900">৳{(receipt.total ?? 0).toFixed(2)}</p>
                       <p className="text-[11px] text-gray-500 mt-0.5">{createdAt}</p>
                     </div>
                   </div>

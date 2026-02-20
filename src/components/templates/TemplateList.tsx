@@ -321,16 +321,16 @@ export default function TemplateList({ onNavigateToBuilder }: TemplateListProps)
             return `<td style="padding: 8px; border-bottom: 1px solid #eee; text-align: center;">1</td>`
           }
           if (col === 'price') {
-            return `<td style="padding: 8px; border-bottom: 1px solid #eee; text-align: right;">$100.00</td>`
+            return `<td style="padding: 8px; border-bottom: 1px solid #eee; text-align: right;">৳100.00</td>`
           }
           if (col === 'discount') {
-            return `<td style="padding: 8px; border-bottom: 1px solid #eee; text-align: right;">-$10.00</td>`
+            return `<td style="padding: 8px; border-bottom: 1px solid #eee; text-align: right;">-৳10.00</td>`
           }
           if (col === 'tax') {
-            return `<td style="padding: 8px; border-bottom: 1px solid #eee; text-align: right;">+$9.00</td>`
+            return `<td style="padding: 8px; border-bottom: 1px solid #eee; text-align: right;">+৳9.00</td>`
           }
           if (col === 'total') {
-            return `<td style="padding: 8px; border-bottom: 1px solid #eee; text-align: right;">$99.00</td>`
+            return `<td style="padding: 8px; border-bottom: 1px solid #eee; text-align: right;">৳99.00</td>`
           }
           return ''
         })
@@ -357,7 +357,7 @@ export default function TemplateList({ onNavigateToBuilder }: TemplateListProps)
       .replace(/{{DISCOUNT}}/g, '20.00')
       .replace(/{{DISCOUNT_TYPE}}/g, 'flat')
       .replace(/{{DISCOUNT_VALUE}}/g, '20.00')
-      .replace(/{{DISCOUNT_META}}/g, '($20.00)')
+      .replace(/{{DISCOUNT_META}}/g, '(৳20.00)')
       .replace(/{{ITEMS_DISCOUNT}}/g, '20.00')
       .replace(/{{RECEIPT_DISCOUNT}}/g, '0.00')
       .replace(/{{TOTAL_DISCOUNT}}/g, '20.00')

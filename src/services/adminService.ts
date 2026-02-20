@@ -1,6 +1,6 @@
 import { supabase } from '@/lib/supabase'
 import { createClient } from '@supabase/supabase-js'
-import type { User, AdminPermissions, AdminVendorPermissions, Vendor } from '@/types'
+import type { User, AdminPermissions, AdminVendorPermissions } from '@/types'
 
 const authProvisionClient = createClient(
   import.meta.env.VITE_SUPABASE_URL!,
@@ -60,7 +60,7 @@ export const adminService = {
     const { data, error } = await supabase
       .from('users')
       .select('*')
-      .eq('role', 'admin')
+      .in('role', ['admin', 'super_admin'])
       .order('created_at', { ascending: false })
 
     if (error) throw error
@@ -72,7 +72,7 @@ export const adminService = {
     const { data, error } = await supabase
       .from('users')
       .select('*')
-      .in('role', ['grand_user', 'admin'])
+      .in('role', ['grand_user', 'admin', 'super_admin'])
       .order('created_at', { ascending: false })
 
     if (error) throw error
@@ -142,7 +142,27 @@ export const adminService = {
     phone?: string,
     profileImageUrl?: string,
     password?: string,
+    role: 'admin' | 'super_admin' = 'admin',
   ): Promise<User> {
+    if (password) {
+      await ensureAuthUser(email, password)
+
+      const { data, error } = await supabase
+        .from('users')
+        .insert({
+          name,
+          email,
+          phone,
+          profile_image_url: profileImageUrl,
+          role,
+        })
+        .select()
+        .single()
+
+      if (error) throw error
+      return data
+    }
+
     const { data, error } = await supabase
       .from('users')
       .insert({
@@ -150,24 +170,12 @@ export const adminService = {
         email,
         phone,
         profile_image_url: profileImageUrl,
-        role: 'admin',
+        role,
       })
       .select()
       .single()
 
     if (error) throw error
-
-    if (password) {
-      try {
-        await ensureAuthUser(email, password)
-      } catch (authError) {
-        console.error('Failed to create Supabase Auth user for admin:', authError)
-        const message = authError instanceof Error ? authError.message : 'Failed to create Supabase Auth user for admin'
-        // Surface this so the UI can tell the user why login might fail
-        throw new Error(message)
-      }
-    }
-
     return data
   },
 
@@ -204,58 +212,6 @@ export const adminService = {
             : 'Failed to create Supabase Auth user for grand user'
         throw new Error(message)
       }
-    }
-
-    return data
-  },
-
-  // Create a full-permission vendor super admin for a specific vendor
-  async createVendorSuperAdminForVendor(vendor: Vendor, passwordOverride?: string): Promise<User> {
-    const base = (vendor.vendor_id || vendor.name)
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, '')
-    const safeBase = base || 'shop'
-
-    if (!vendor.email) {
-      throw new Error('Vendor email is required to create a vendor super admin')
-    }
-
-    const email = vendor.email
-    const passwordBase = safeBase.charAt(0).toUpperCase() + safeBase.slice(1)
-    const defaultPassword = `#${passwordBase}1`
-    const password = passwordOverride || defaultPassword
-
-    const { data, error } = await supabase
-      .from('users')
-      .insert({
-        name: `${vendor.name} Super Admin`,
-        email,
-        role: 'admin',
-      })
-      .select()
-      .single()
-
-    if (error) throw error
-
-    // Grant full permissions to this vendor super admin by default
-    await this.saveAdminPermissions(data.id, {
-      can_view_products: true,
-      can_create_products: true,
-      assigned_product_ids: [],
-      can_view_categories: true,
-      can_create_categories: true,
-      can_assign_categories: true,
-      assigned_category_ids: [],
-      can_view_receipts: true,
-      can_create_receipts: true,
-      can_view_templates: true,
-      can_create_templates: true,
-    })
-
-    try {
-      await ensureAuthUser(email, password)
-    } catch (authError) {
-      console.error('Failed to create Supabase Auth user for vendor super admin:', authError)
     }
 
     return data

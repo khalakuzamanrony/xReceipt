@@ -63,11 +63,25 @@ export const vendorAdminService = {
     }))
 
     // With a UNIQUE(admin_id) constraint, we must upsert by admin_id
-    const { error: upsertError } = await supabase
-      .from('vendor_admins')
-      .upsert(payload, { onConflict: 'admin_id' })
+    const { error: upsertError } = await supabase.from('vendor_admins').upsert(payload, { onConflict: 'admin_id' })
 
-    if (upsertError) throw upsertError
+    if (!upsertError) return
+
+    const message = String((upsertError as any)?.message || '').toLowerCase()
+    const isMissingOnConflictConstraint =
+      message.includes('no unique') ||
+      message.includes('no unique or exclusion constraint') ||
+      message.includes('on conflict')
+
+    if (!isMissingOnConflictConstraint) throw upsertError
+
+    // Fallback for databases that don't yet have UNIQUE(admin_id):
+    // remove any existing assignment for these admins, then insert fresh.
+    const { error: deleteExistingError } = await supabase.from('vendor_admins').delete().in('admin_id', adminIds)
+    if (deleteExistingError) throw deleteExistingError
+
+    const { error: insertError } = await supabase.from('vendor_admins').insert(payload)
+    if (insertError) throw insertError
   },
 
   async setVendorForAdmin(
@@ -75,18 +89,29 @@ export const vendorAdminService = {
     vendorId: string,
     isVendorSuperAdmin: boolean,
   ): Promise<void> {
-    const { error } = await supabase
-      .from('vendor_admins')
-      .upsert(
-        {
-          admin_id: adminId,
-          vendor_id: vendorId,
-          is_vendor_super_admin: isVendorSuperAdmin,
-        },
-        { onConflict: 'admin_id' },
-      )
+    const payload = {
+      admin_id: adminId,
+      vendor_id: vendorId,
+      is_vendor_super_admin: isVendorSuperAdmin,
+    }
 
-    if (error) throw error
+    const { error } = await supabase.from('vendor_admins').upsert(payload, { onConflict: 'admin_id' })
+
+    if (!error) return
+
+    const message = String((error as any)?.message || '').toLowerCase()
+    const isMissingOnConflictConstraint =
+      message.includes('no unique') ||
+      message.includes('no unique or exclusion constraint') ||
+      message.includes('on conflict')
+
+    if (!isMissingOnConflictConstraint) throw error
+
+    const { error: deleteExistingError } = await supabase.from('vendor_admins').delete().eq('admin_id', adminId)
+    if (deleteExistingError) throw deleteExistingError
+
+    const { error: insertError } = await supabase.from('vendor_admins').insert(payload)
+    if (insertError) throw insertError
   },
 
   async getVendorSuperAdminAdminIds(): Promise<string[]> {

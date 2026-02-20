@@ -58,6 +58,7 @@ export default function AdminForm({ admin, onClose, canEditEmail = false }: Admi
         profileImage: null,
         password: '',
       })
+      setUserType(admin.role === 'grand_user' ? 'grand_user' : admin.role === 'super_admin' ? 'super_admin' : 'admin')
       loadPermissions(admin.id)
     }
   }, [admin, activeVendorId])
@@ -134,10 +135,23 @@ export default function AdminForm({ admin, onClose, canEditEmail = false }: Admi
           email: formData.email,
           phone: formData.phone,
         }
+        if (role === 'grand_user') {
+          if (userType === 'grand_user' || userType === 'admin' || userType === 'super_admin') {
+            updates.role = userType === 'grand_user' ? 'grand_user' : userType === 'super_admin' ? 'super_admin' : 'admin'
+          }
+        }
         if (profileImageUrl) {
           updates.profile_image_url = profileImageUrl
         }
         await adminService.updateAdmin(admin.id, updates)
+
+        if (activeVendorId && role === 'grand_user' && (userType === 'admin' || userType === 'super_admin')) {
+          try {
+            await vendorAdminService.setVendorForAdmin(admin.id, activeVendorId, userType === 'super_admin')
+          } catch (assignError) {
+            console.error('Failed to update admin shop assignment:', assignError)
+          }
+        }
 
         // Best-effort cleanup: if image changed, remove previous object
         if (nextPath && previousPath && nextPath !== previousPath) {
@@ -183,6 +197,7 @@ export default function AdminForm({ admin, onClose, canEditEmail = false }: Admi
           formData.phone,
           undefined,
           formData.password,
+          userType === 'super_admin' ? 'super_admin' : 'admin',
         )
 
         if (formData.profileImage) {
@@ -234,7 +249,7 @@ export default function AdminForm({ admin, onClose, canEditEmail = false }: Admi
       }
 
       // Save permissions for existing admin users only
-      if (admin && admin.role === 'admin') {
+      if (admin && (admin.role === 'admin' || admin.role === 'super_admin')) {
         if (activeVendorId) {
           await adminService.saveAdminVendorPermissions(admin.id, activeVendorId, permissions as any)
         } else {
@@ -297,7 +312,7 @@ export default function AdminForm({ admin, onClose, canEditEmail = false }: Admi
             <Tabs defaultValue="basic">
               <TabsList className="w-full">
                 <TabsTrigger value="basic">Basic Info</TabsTrigger>
-                {(admin || userType !== 'grand_user') && <TabsTrigger value="permissions">Permissions</TabsTrigger>}
+                {(admin || userType === 'admin') && <TabsTrigger value="permissions">Permissions</TabsTrigger>}
               </TabsList>
 
               <TabsContent value="basic">
@@ -384,7 +399,7 @@ export default function AdminForm({ admin, onClose, canEditEmail = false }: Admi
                       </div>
                     )}
 
-                    {!admin && role === 'grand_user' && (
+                    {role === 'grand_user' && (
                       <div className="space-y-2">
                         <Label className="text-sm font-semibold text-gray-900">User Type</Label>
                         <div className="inline-flex rounded-lg border border-gray-200 bg-gray-50 p-0.5 text-xs">
@@ -413,7 +428,7 @@ export default function AdminForm({ admin, onClose, canEditEmail = false }: Admi
                 </Card>
               </TabsContent>
 
-              {(admin || userType !== 'grand_user') && (
+              {(admin || userType === 'admin') && (
                 <TabsContent value="permissions">
                   <Card>
                     <CardHeader>

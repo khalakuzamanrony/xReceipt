@@ -139,7 +139,7 @@ export default function ReceiptPreviewModal({
       discountType === 'percentage' && discountValue > 0
         ? `(${discountValue.toFixed(2)}%)`
         : discountType === 'flat' && discountValue > 0
-          ? `($${discountValue.toFixed(2)})`
+          ? `(৳${discountValue.toFixed(2)})`
           : ''
 
     type ItemCol =
@@ -243,7 +243,7 @@ export default function ReceiptPreviewModal({
             discountType === 'percentage'
               ? `${clampPercent(discountValue).toFixed(2)}%`
               : discountType === 'flat'
-                ? `$${Math.max(0, Math.floor(discountValue)).toFixed(0)}/unit`
+                ? `৳${Math.max(0, Math.floor(discountValue)).toFixed(0)}/unit`
                 : ''
 
           const cells = itemsColumns
@@ -257,10 +257,10 @@ export default function ReceiptPreviewModal({
                   metaParts.push(`Color: ${item.color}`)
                 }
                 if (!hasDedicatedDiscountColumn && item.discount_enabled === true) {
-                  metaParts.push(`Discount: ${discountMetaForItem} (-$${lineDiscount.toFixed(2)})`)
+                  metaParts.push(`Discount: ${discountMetaForItem} (-৳${lineDiscount.toFixed(2)})`)
                 }
                 if (!hasDedicatedTaxColumn) {
-                  metaParts.push(taxEnabled ? `Tax: ${taxPercentage.toFixed(2)}% (+$${lineTax.toFixed(2)})` : 'Tax: Off')
+                  metaParts.push(taxEnabled ? `Tax: ${taxPercentage.toFixed(2)}% (+৳${lineTax.toFixed(2)})` : 'Tax: Off')
                 }
                 const metaHtml = metaParts.length
                   ? `<div style="margin-top: 2px; font-size: 11px; color: #666; line-height: 1.35;">${metaParts.join('<br/>')}</div>`
@@ -275,19 +275,19 @@ export default function ReceiptPreviewModal({
                 return `<td style="padding: 8px; border-bottom: 1px solid #eee;">${item.color || ''}</td>`
               }
               if (col === 'discount') {
-                return `<td style="padding: 8px; border-bottom: 1px solid #eee; text-align: right;">${item.discount_enabled === true ? `-$${lineDiscount.toFixed(2)}` : ''}</td>`
+                return `<td style="padding: 8px; border-bottom: 1px solid #eee; text-align: right;">${item.discount_enabled === true ? `-৳${lineDiscount.toFixed(2)}` : ''}</td>`
               }
               if (col === 'tax') {
-                return `<td style="padding: 8px; border-bottom: 1px solid #eee; text-align: right;">${taxEnabled ? `+$${lineTax.toFixed(2)}` : ''}</td>`
+                return `<td style="padding: 8px; border-bottom: 1px solid #eee; text-align: right;">${taxEnabled ? `+৳${lineTax.toFixed(2)}` : ''}</td>`
               }
               if (col === 'quantity') {
                 return `<td style="padding: 8px; border-bottom: 1px solid #eee; text-align: center;">${item.quantity}</td>`
               }
               if (col === 'price') {
-                return `<td style="padding: 8px; border-bottom: 1px solid #eee; text-align: right;">$${item.unit_price.toFixed(2)}</td>`
+                return `<td style="padding: 8px; border-bottom: 1px solid #eee; text-align: right;">৳${item.unit_price.toFixed(2)}</td>`
               }
               if (col === 'total') {
-                return `<td style="padding: 8px; border-bottom: 1px solid #eee; text-align: right;">$${lineTotal.toFixed(2)}</td>`
+                return `<td style="padding: 8px; border-bottom: 1px solid #eee; text-align: right;">৳${lineTotal.toFixed(2)}</td>`
               }
               return ''
             })

@@ -1,5 +1,5 @@
 // User types
-export type UserRole = 'grand_user' | 'admin'
+export type UserRole = 'grand_user' | 'admin' | 'super_admin'
 
 export interface User {
   id: string
@@ -20,10 +20,13 @@ export interface AdminPermissions {
   // Product permissions
   can_view_products: boolean
   can_create_products: boolean
+  assigned_product_ids?: string[]
   
   // Category permissions
   can_view_categories: boolean
   can_create_categories: boolean
+  can_assign_categories?: boolean
+  assigned_category_ids?: string[]
   
   // Receipt permissions
   can_view_receipts: boolean
@@ -160,7 +163,7 @@ export interface Vendor {
   id: string
   vendor_id: string
   name: string
-  email: string
+  email?: string | null
   address?: string | null
   url?: string | null
   status: VendorStatus

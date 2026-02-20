@@ -60,7 +60,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(dbUser)
       setRole(dbUser.role)
 
-      if (dbUser.role === 'admin') {
+      if (dbUser.role === 'admin' || dbUser.role === 'super_admin') {
         const perms = await adminService.getAdminPermissions(dbUser.id)
         setPermissions(perms)
       } else {

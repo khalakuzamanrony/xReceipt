@@ -13,7 +13,7 @@ import { supabase } from '@/lib/supabase'
 
 export default function AdminList() {
   const { role, user } = useAuth()
-  const { memberships, activeVendorId } = useVendor()
+  const { activeVendorId } = useVendor()
   const [admins, setAdmins] = useState<User[]>([])
   const [nonDeletableAdminIds, setNonDeletableAdminIds] = useState<string[]>([])
   const [loading, setLoading] = useState(true)
@@ -36,6 +36,13 @@ export default function AdminList() {
   const [brokenAvatarAdminIds, setBrokenAvatarAdminIds] = useState<Record<string, boolean>>({})
 
   const isGrandUserView = role === 'grand_user'
+
+  const getUserTypeLabel = (admin: User) => {
+    if (admin.role === 'grand_user') return 'Grand User'
+    const vendorInfo = adminVendorInfo[admin.id] || []
+    const isAnyVendorSuper = vendorInfo.some((v) => v.isVendorSuperAdmin)
+    return isAnyVendorSuper ? 'Super Admin' : 'Admin'
+  }
 
   useEffect(() => {
     loadAdmins()
@@ -476,6 +483,9 @@ export default function AdminList() {
 
                       <div className="min-w-0">
                         <p className="text-sm font-semibold text-gray-900 truncate">{admin.name}</p>
+                        {isGrandUserView && (
+                          <p className="text-xs text-gray-500 truncate">{getUserTypeLabel(admin)}</p>
+                        )}
                         <p className="text-xs text-gray-500 truncate">{admin.email}</p>
                         <p className="text-xs text-gray-500 truncate">{admin.phone || '—'}</p>
                       </div>
@@ -596,7 +606,12 @@ export default function AdminList() {
                                 </span>
                               </div>
                             )}
-                            <span className="text-sm font-medium text-gray-900">{admin.name}</span>
+                            <div className="min-w-0">
+                              <p className="text-sm font-medium text-gray-900">{admin.name}</p>
+                              {isGrandUserView && (
+                                <p className="text-xs text-gray-500">{getUserTypeLabel(admin)}</p>
+                              )}
+                            </div>
                           </div>
                         </div>
                       </td>

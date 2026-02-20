@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/Input'
 import { Label } from '@/components/ui/Label'
 import { Dialog, DialogClose, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/Dialog'
 import { Checkbox } from '@/components/ui/Checkbox'
-import { Plus, Edit, Trash2, AlertCircle, Store, Search, Eye, EyeOff, X } from 'lucide-react'
+import { Plus, Edit, Trash2, AlertCircle, Store, Search, X } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { useVendor } from '@/contexts/VendorContext'
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
@@ -46,28 +46,15 @@ export default function VendorList() {
   const [formData, setFormData] = useState({
     vendor_id: '',
     name: '',
-    email: '',
     address: '',
     url: '',
     status: 'active' as 'active' | 'inactive',
-    admin_id: '',
     image_url: '',
   })
   const [imageFile, setImageFile] = useState<File | null>(null)
   const [imagePreviewUrl, setImagePreviewUrl] = useState<string>('')
   const [imageWorking, setImageWorking] = useState(false)
-  const [superAdminPassword, setSuperAdminPassword] = useState('')
-  const [showSuperAdminPassword, setShowSuperAdminPassword] = useState(false)
-
-  const scopedAdmins = (() => {
-    const vendorId = selectedVendor?.id || activeVendorId || null
-    if (!vendorId) return []
-
-    const ids = vendorAdminAssignments[vendorId]?.adminIds || []
-    return ids
-      .map((id) => admins.find((a) => a.id === id))
-      .filter(Boolean) as User[]
-  })()
+  const [saving, setSaving] = useState(false)
 
   useEffect(() => {
     return () => {
@@ -275,7 +262,7 @@ export default function VendorList() {
 
   const filteredVendors = vendors.filter((vendor) =>
     vendor.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    vendor.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (vendor.email || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
     vendor.vendor_id.toLowerCase().includes(searchTerm.toLowerCase())
   )
 
@@ -301,16 +288,13 @@ export default function VendorList() {
     setFormData({
       vendor_id: '',
       name: '',
-      email: '',
       address: '',
       url: '',
       status: 'active',
-      admin_id: '',
       image_url: '',
     })
     setImageFile(null)
     setImagePreviewUrl('')
-    setSuperAdminPassword('')
     setShowForm(true)
   }
 
@@ -319,16 +303,13 @@ export default function VendorList() {
     setFormData({
       vendor_id: vendor.vendor_id,
       name: vendor.name,
-      email: vendor.email,
       address: vendor.address || '',
       url: vendor.url || '',
       status: vendor.status,
-      admin_id: vendor.admin_id || '',
       image_url: vendor.image_url || '',
     })
     setImageFile(null)
     setImagePreviewUrl(vendor.image_url || '')
-    setSuperAdminPassword('')
     setShowForm(true)
   }
 
@@ -404,26 +385,22 @@ export default function VendorList() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
-    if (!formData.vendor_id || !formData.name || !formData.email) {
-      setError('Shop ID, name, and email are required')
-      return
-    }
-
-    if (!selectedVendor && !superAdminPassword) {
-      setError('Please provide a password for the shop super admin')
+    if (!formData.vendor_id || !formData.name || !formData.url) {
+      setError('Shop ID, name, and url are required')
       return
     }
 
     try {
+      setSaving(true)
       const payload = {
         vendor_id: formData.vendor_id,
         name: formData.name,
-        email: formData.email,
         address: formData.address || null,
         url: formData.url || null,
         status: formData.status,
         image_url: formData.image_url || null,
-        admin_id: formData.admin_id || null,
+        email: selectedVendor?.email ?? null,
+        admin_id: selectedVendor?.admin_id ?? null,
       }
 
       if (selectedVendor) {
@@ -468,11 +445,9 @@ export default function VendorList() {
             setFormData({
               vendor_id: createdVendor.vendor_id,
               name: createdVendor.name,
-              email: createdVendor.email,
               address: createdVendor.address || '',
               url: createdVendor.url || '',
               status: createdVendor.status,
-              admin_id: createdVendor.admin_id || '',
               image_url: createdVendor.image_url || '',
             })
             setError(`Shop created, but image upload failed: ${message}`)
@@ -482,36 +457,8 @@ export default function VendorList() {
           }
         }
 
-        try {
-          const superAdmin = await adminService.createVendorSuperAdminForVendor(
-            createdVendor,
-            superAdminPassword,
-          )
-
-          await adminService.saveAdminVendorPermissions(superAdmin.id, createdVendor.id, {
-            can_view_products: true,
-            can_create_products: true,
-            assigned_product_ids: [],
-            can_view_categories: true,
-            can_create_categories: true,
-            can_assign_categories: true,
-            assigned_category_ids: [],
-            can_view_receipts: true,
-            can_create_receipts: true,
-            can_view_templates: true,
-            can_create_templates: true,
-          })
-
-          // Set as primary admin on vendor
-          await vendorService.updateVendor(createdVendor.id, { admin_id: superAdmin.id })
-          // Assign as vendor super admin in vendor_admins mapping
-          await vendorAdminService.saveAdminsForVendor(createdVendor.id, [
-            { admin_id: superAdmin.id, is_vendor_super_admin: true },
-          ])
-        } catch (autoError) {
-          console.error('Failed to create vendor super admin:', autoError)
-          setError('Shop created but failed to create default shop super user. Please create an admin manually.')
-        }
+        // User creation is intentionally not performed here.
+        // Create users from the Users/Admin page after selecting a shop.
       }
 
       setShowForm(false)
@@ -520,6 +467,7 @@ export default function VendorList() {
       setError(err instanceof Error ? err.message : 'Failed to save shop')
     } finally {
       setImageWorking(false)
+      setSaving(false)
     }
   }
 
@@ -785,7 +733,7 @@ export default function VendorList() {
                             )}
                             <div className="min-w-0">
                               <p className="text-sm font-medium text-gray-900 truncate">{vendor.name}</p>
-                              <p className="text-xs text-gray-500 truncate">{vendor.email}</p>
+                              <p className="text-xs text-gray-500 truncate">{vendor.email || '—'}</p>
                             </div>
                           </div>
                         </td>
@@ -944,7 +892,12 @@ export default function VendorList() {
 
             {/* Add Button - only for Grand Users */}
             {isGrandUser && (
-              <Button onClick={handleAddNew} size="sm">
+              <Button
+                onClick={handleAddNew}
+                size="sm"
+                disabled={Boolean(activeVendorId)}
+                title={activeVendorId ? 'Switch to All shops to add a new shop' : undefined}
+              >
                 <Plus size={16} />
                 Add Shop
               </Button>
@@ -968,7 +921,7 @@ export default function VendorList() {
       {showForm && (
         <Dialog open={true} onOpenChange={setShowForm}>
           <DialogContent
-            className="max-w-lg max-h-[calc(100dvh-2rem)] p-0 flex flex-col overflow-hidden min-h-0 bg-white"
+            className="w-[calc(100vw-2rem)] sm:w-full sm:max-w-2xl lg:max-w-3xl max-h-[calc(100dvh-2rem)] p-0 flex flex-col overflow-hidden min-h-0 bg-white"
             showCloseButton={false}
           >
             <form onSubmit={handleSubmit} className="flex flex-col h-full min-h-0">
@@ -990,184 +943,152 @@ export default function VendorList() {
               </DialogHeader>
 
               <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-4 space-y-4 bg-white min-h-0">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="vendor_id" className="text-sm font-semibold text-gray-900" required>Shop ID</Label>
-                  <Input
-                    id="vendor_id"
-                    type="text"
-                    value={formData.vendor_id}
-                    onChange={(e) => setFormData({ ...formData, vendor_id: e.target.value })}
-                    placeholder="Unique shop code"
-                    required
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="name" className="text-sm font-semibold text-gray-900" required>Shop Name</Label>
-                  <Input
-                    id="name"
-                    type="text"
-                    value={formData.name}
-                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                    placeholder="Shop name"
-                    required
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="email" className="text-sm font-semibold text-gray-900" required>Email</Label>
-                  <Input
-                    id="email"
-                    type="email"
-                    value={formData.email}
-                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                    placeholder="shop@example.com"
-                    required
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="url" className="text-sm font-semibold text-gray-900">Shop URL</Label>
-                  <Input
-                    id="url"
-                    type="url"
-                    value={formData.url}
-                    onChange={(e) => setFormData({ ...formData, url: e.target.value })}
-                    placeholder="https://shop-site.com"
-                  />
-                </div>
-
-                {!selectedVendor && (
-                  <div className="space-y-2 md:col-span-2">
-                    <Label htmlFor="superadmin_password" className="text-sm font-semibold text-gray-900" required>
-                      Shop super admin password
-                    </Label>
-                    <div className="relative">
+                <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="vendor_id" className="text-sm font-semibold text-gray-900" required>
+                        Shop ID
+                      </Label>
                       <Input
-                        id="superadmin_password"
-                        type={showSuperAdminPassword ? 'text' : 'password'}
-                        value={superAdminPassword}
-                        onChange={(e) => setSuperAdminPassword(e.target.value)}
-                        placeholder="Password for this shop's super admin"
-                        className="pr-10"
+                        id="vendor_id"
+                        type="text"
+                        value={formData.vendor_id}
+                        onChange={(e) => setFormData({ ...formData, vendor_id: e.target.value })}
+                        placeholder="Unique shop code"
                         required
                       />
-                      <button
-                        type="button"
-                        onClick={() => setShowSuperAdminPassword((v) => !v)}
-                        className="absolute inset-y-0 right-0 px-3 flex items-center text-gray-500 hover:text-gray-700"
-                        aria-label={showSuperAdminPassword ? 'Hide password' : 'Show password'}
-                      >
-                        {showSuperAdminPassword ? <EyeOff size={14} /> : <Eye size={14} />}
-                      </button>
-                    </div>
-                  </div>
-                )}
-
-                <div className="space-y-2 md:col-span-2">
-                  <Label htmlFor="address" className="text-sm font-semibold text-gray-900">Address</Label>
-                  <Input
-                    id="address"
-                    type="text"
-                    value={formData.address}
-                    onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-                    placeholder="Shop address"
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="status" className="text-sm font-semibold text-gray-900">Status</Label>
-                  <select
-                    id="status"
-                    value={formData.status}
-                    onChange={(e) => setFormData({ ...formData, status: e.target.value as 'active' | 'inactive' })}
-                    className="w-full h-10 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm text-gray-900"
-                  >
-                    <option value="active">Active</option>
-                    <option value="inactive">Inactive</option>
-                  </select>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="admin_id" className="text-sm font-semibold text-gray-900">Assigned Admin</Label>
-                  <select
-                    id="admin_id"
-                    value={formData.admin_id}
-                    onChange={(e) => setFormData({ ...formData, admin_id: e.target.value })}
-                    className="w-full h-10 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm text-gray-900"
-                  >
-                    <option value="">Unassigned</option>
-                    {scopedAdmins.map((admin) => (
-                      <option key={admin.id} value={admin.id}>
-                        {admin.name} ({admin.email})
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div className="space-y-2 md:col-span-2">
-                  <Label htmlFor="vendor_image" className="text-sm font-semibold text-gray-900">Shop Image</Label>
-                  <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-                    <div className="w-16 h-16 rounded-full overflow-hidden ring-2 ring-gray-200 bg-gray-50 flex items-center justify-center">
-                      {imagePreviewUrl ? (
-                        <img
-                          src={imagePreviewUrl}
-                          alt="Shop"
-                          className="w-full h-full object-cover"
-                        />
-                      ) : (
-                        <span className="text-xs font-semibold text-gray-500">No image</span>
-                      )}
                     </div>
 
-                    <div className="flex-1 space-y-2">
+                    <div className="space-y-2">
+                      <Label htmlFor="name" className="text-sm font-semibold text-gray-900" required>
+                        Shop Name
+                      </Label>
                       <Input
-                        id="vendor_image"
-                        type="file"
-                        accept="image/*"
-                        disabled={imageWorking}
-                        onChange={(e) => handleImageChange(e.target.files?.[0] || null)}
+                        id="name"
+                        type="text"
+                        value={formData.name}
+                        onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                        placeholder="Shop name"
+                        required
                       />
+                    </div>
 
-                      <div className="flex flex-wrap items-center gap-2">
-                        {imageFile && (
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            disabled={imageWorking}
-                            onClick={() => handleImageChange(null)}
-                          >
-                            Clear selection
-                          </Button>
-                        )}
+                    <div className="space-y-2 md:col-span-2">
+                      <Label htmlFor="url" className="text-sm font-semibold text-gray-900" required>
+                        Shop URL
+                      </Label>
+                      <Input
+                        id="url"
+                        type="url"
+                        value={formData.url}
+                        onChange={(e) => setFormData({ ...formData, url: e.target.value })}
+                        placeholder="https://shop-site.com"
+                        required
+                      />
+                    </div>
 
-                        {selectedVendor?.id && (selectedVendor.image_url || formData.image_url) && (
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
+                    <div className="space-y-2 md:col-span-2">
+                      <Label htmlFor="address" className="text-sm font-semibold text-gray-900">
+                        Address
+                      </Label>
+                      <Input
+                        id="address"
+                        type="text"
+                        value={formData.address}
+                        onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+                        placeholder="Shop address"
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="status" className="text-sm font-semibold text-gray-900">
+                        Status
+                      </Label>
+                      <select
+                        id="status"
+                        value={formData.status}
+                        onChange={(e) => setFormData({ ...formData, status: e.target.value as 'active' | 'inactive' })}
+                        className="w-full h-10 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm text-gray-900"
+                      >
+                        <option value="active">Active</option>
+                        <option value="inactive">Inactive</option>
+                      </select>
+                    </div>
+
+                    <div className="space-y-2 md:col-span-2">
+                      <Label htmlFor="vendor_image" className="text-sm font-semibold text-gray-900">
+                        Shop Image
+                      </Label>
+                      <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+                        <div className="w-16 h-16 rounded-full overflow-hidden ring-2 ring-gray-200 bg-gray-50 flex items-center justify-center">
+                          {imagePreviewUrl ? (
+                            <img src={imagePreviewUrl} alt="Shop" className="w-full h-full object-cover" />
+                          ) : (
+                            <span className="text-xs font-semibold text-gray-500">No image</span>
+                          )}
+                        </div>
+
+                        <div className="flex-1 space-y-2">
+                          <Input
+                            id="vendor_image"
+                            type="file"
+                            accept="image/*"
                             disabled={imageWorking}
-                            onClick={handleRemoveImage}
-                          >
-                            {imageWorking ? 'Removing...' : 'Remove image'}
-                          </Button>
-                        )}
+                            onChange={(e) => handleImageChange(e.target.files?.[0] || null)}
+                          />
+
+                          <div className="flex flex-wrap items-center gap-2">
+                            {imageFile && (
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                disabled={imageWorking}
+                                onClick={() => handleImageChange(null)}
+                              >
+                                Clear selection
+                              </Button>
+                            )}
+
+                            {selectedVendor?.id && (selectedVendor.image_url || formData.image_url) && (
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                disabled={imageWorking}
+                                onClick={handleRemoveImage}
+                              >
+                                {imageWorking ? 'Removing...' : 'Remove image'}
+                              </Button>
+                            )}
+                          </div>
+                        </div>
                       </div>
                     </div>
                   </div>
                 </div>
               </div>
-
-              </div>
-
               <DialogFooter className="px-4 sm:px-6 py-3 border-t border-gray-200 bg-white flex justify-end gap-3">
-                <Button type="button" variant="outline" onClick={() => setShowForm(false)} className="h-9 px-4">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setShowForm(false)}
+                  className="h-9 px-4"
+                  disabled={saving || imageWorking}
+                >
                   Cancel
                 </Button>
-                <Button type="submit" className="h-9 px-4">
-                  {selectedVendor ? 'Update' : 'Create'}
+                <Button type="submit" className="h-9 px-4" disabled={saving || imageWorking}>
+                  {saving ? (
+                    <span className="inline-flex items-center gap-2">
+                      <span className="h-4 w-4 rounded-full border-2 border-white/60 border-t-white animate-spin" />
+                      {selectedVendor ? 'Updating...' : 'Creating...'}
+                    </span>
+                  ) : selectedVendor ? (
+                    'Update'
+                  ) : (
+                    'Create'
+                  )}
                 </Button>
               </DialogFooter>
             </form>
@@ -1299,7 +1220,7 @@ export default function VendorList() {
                       <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0">
                           <p className="text-sm font-semibold text-gray-900 truncate">{vendor.name}</p>
-                          <p className="text-xs text-gray-500 truncate">{vendor.email}</p>
+                          <p className="text-xs text-gray-500 truncate">{vendor.email || '—'}</p>
                         </div>
                         <span
                           className={cn(
@@ -1564,79 +1485,81 @@ export default function VendorList() {
                   })
 
                   return (
-                  <tr key={vendor.id} className="hover:bg-gray-50 transition-colors">
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-3">
-                        {vendor.image_url ? (
-                          <img
-                            src={vendor.image_url}
-                            alt={vendor.name}
-                            className="w-10 h-10 rounded-full object-cover ring-2 ring-gray-200"
-                          />
-                        ) : (
-                          <div className="w-10 h-10 rounded-full bg-gradient-to-br from-indigo-400 to-indigo-600 flex items-center justify-center ring-2 ring-gray-200">
-                            <span className="text-white font-bold text-sm">
-                              {vendor.name.charAt(0).toUpperCase()}
-                            </span>
+                    <tr key={vendor.id} className="hover:bg-gray-50 transition-colors">
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-3">
+                          {vendor.image_url ? (
+                            <img
+                              src={vendor.image_url}
+                              alt={vendor.name}
+                              className="w-10 h-10 rounded-full object-cover ring-2 ring-gray-200"
+                            />
+                          ) : (
+                            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-indigo-400 to-indigo-600 flex items-center justify-center ring-2 ring-gray-200">
+                              <span className="text-white font-bold text-sm">
+                                {vendor.name.charAt(0).toUpperCase()}
+                              </span>
+                            </div>
+                          )}
+                          <div className="min-w-0">
+                            <p className="text-sm font-medium text-gray-900 truncate">{vendor.name}</p>
+                            <p className="text-xs text-gray-500 truncate">{vendor.email || '—'}</p>
                           </div>
-                        )}
-                        <div className="min-w-0">
-                          <p className="text-sm font-medium text-gray-900 truncate">{vendor.name}</p>
-                          <p className="text-xs text-gray-500 truncate">{vendor.email}</p>
                         </div>
-                      </div>
-                    </td>
-                    <td className="px-4 py-3">
-                      <p className="text-sm text-gray-600">{vendor.vendor_id}</p>
-                    </td>
-                    <td className="px-4 py-3">
-                      {vendor.url ? (
-                        <a
-                          href={vendor.url}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="text-sm text-blue-600 hover:underline"
+                      </td>
+                      <td className="px-4 py-3">
+                        <p className="text-sm text-gray-600">{vendor.vendor_id}</p>
+                      </td>
+                      <td className="px-4 py-3">
+                        {vendor.url ? (
+                          <a
+                            href={vendor.url}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="text-sm text-blue-600 hover:underline"
+                          >
+                            {vendor.url}
+                          </a>
+                        ) : (
+                          <p className="text-sm text-gray-400">—</p>
+                        )}
+                      </td>
+
+                      <td className="px-4 py-3">
+                        <span
+                          className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                            vendor.status === 'active'
+                              ? 'bg-green-50 text-green-700 border border-green-200'
+                              : 'bg-gray-50 text-gray-700 border border-gray-200'
+                          }`}
                         >
-                          {vendor.url}
-                        </a>
-                      ) : (
-                        <p className="text-sm text-gray-400">—</p>
-                      )}
-                    </td>
-                    <td className="px-4 py-3">
-                      <span
-                        className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                          vendor.status === 'active'
-                            ? 'bg-green-50 text-green-700 border border-green-200'
-                            : 'bg-gray-50 text-gray-700 border border-gray-200'
-                        }`}
-                      >
-                        {vendor.status === 'active' ? 'Active' : 'Inactive'}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3">
-                      <DropdownMenu.Root
-                        open={isDesktop && isOpen}
-                        onOpenChange={(open) => {
-                          if (!isDesktop) return
-                          if (open) {
-                            setAssignVendorId(vendor.id)
-                            setAssignSearch('')
-                            setAssignError(null)
-                            const validAdminIds = new Set(admins.map((a) => a.id))
-                            const baseIds = (vendorAdminAssignments[vendor.id]?.adminIds || []).filter((id) =>
-                              validAdminIds.has(id),
-                            )
-                            setAssignSelectedAdminIds(baseIds)
-                          } else if (!assignSaving) {
-                            setAssignVendorId(null)
-                            setAssignSearch('')
-                            setAssignSelectedAdminIds([])
-                            setAssignError(null)
-                          }
-                        }}
-                      >
-                        <DropdownMenu.Trigger asChild>
+                          {vendor.status === 'active' ? 'Active' : 'Inactive'}
+                        </span>
+                      </td>
+
+                      <td className="px-4 py-3">
+                        <DropdownMenu.Root
+                          open={isDesktop && isOpen}
+                          onOpenChange={(open) => {
+                            if (!isDesktop) return
+                            if (open) {
+                              setAssignVendorId(vendor.id)
+                              setAssignSearch('')
+                              setAssignError(null)
+                              const validAdminIds = new Set(admins.map((a) => a.id))
+                              const baseIds = (vendorAdminAssignments[vendor.id]?.adminIds || []).filter((id) =>
+                                validAdminIds.has(id),
+                              )
+                              setAssignSelectedAdminIds(baseIds)
+                            } else if (!assignSaving) {
+                              setAssignVendorId(null)
+                              setAssignSearch('')
+                              setAssignSelectedAdminIds([])
+                              setAssignError(null)
+                            }
+                          }}
+                        >
+                          <DropdownMenu.Trigger asChild>
                           <button
                             type="button"
                             className="inline-flex items-center gap-2 px-0 py-0 cursor-pointer bg-transparent border-0"
@@ -1814,7 +1737,8 @@ export default function VendorList() {
                       </td>
                     )}
                   </tr>
-                )})}
+                )
+                })}
               </tbody>
             </table>
           </div>

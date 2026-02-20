@@ -833,7 +833,7 @@ export default function ProductList() {
                       <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-gray-600">
                         <span className="truncate max-w-[240px]">{getCategoryName(product.category_id)}</span>
                         <span className="text-gray-400">•</span>
-                        <span className="font-semibold text-gray-900">${product.price.toFixed(2)}</span>
+                        <span className="font-semibold text-gray-900">৳{product.price.toFixed(2)}</span>
                       </div>
                     </div>
 
@@ -973,7 +973,7 @@ export default function ProductList() {
                         </span>
                       </td>
                       <td className="px-4 py-3 text-right">
-                        <p className="text-sm font-semibold text-gray-900">${product.price.toFixed(2)}</p>
+                        <p className="text-sm font-semibold text-gray-900">৳{product.price.toFixed(2)}</p>
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex gap-2 justify-end">

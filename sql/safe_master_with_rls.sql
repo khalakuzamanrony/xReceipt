@@ -13,15 +13,15 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP WITH TIME ZONE D
 ALTER TABLE users DROP CONSTRAINT IF EXISTS users_role_check;
 UPDATE users
 SET role = 'grand_user'
-WHERE role IN ('super_admin', 'god_user');
+WHERE role IN ('god_user');
 
 -- Coerce any legacy/invalid roles into the supported set so the CHECK
 -- constraint can be applied safely on existing databases.
 UPDATE users
 SET role = 'admin'
-WHERE role NOT IN ('grand_user', 'admin') OR role IS NULL;
+WHERE role NOT IN ('grand_user', 'admin', 'super_admin') OR role IS NULL;
 
-ALTER TABLE users ADD CONSTRAINT users_role_check CHECK (role IN ('grand_user', 'admin'));
+ALTER TABLE users ADD CONSTRAINT users_role_check CHECK (role IN ('grand_user', 'admin', 'super_admin'));
 
 -- ============================================
 -- 2. CREATE NEW TABLES IF THEY DON'T EXIST
@@ -31,7 +31,7 @@ CREATE TABLE IF NOT EXISTS vendors (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   vendor_id VARCHAR(100) UNIQUE NOT NULL,
   name VARCHAR(255) NOT NULL,
-  email VARCHAR(255) NOT NULL,
+  email VARCHAR(255),
   address TEXT,
   url VARCHAR(500),
   status VARCHAR(50) NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'inactive')),
@@ -40,6 +40,8 @@ CREATE TABLE IF NOT EXISTS vendors (
   created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
+
+ALTER TABLE vendors ALTER COLUMN email DROP NOT NULL;
 
 CREATE TABLE IF NOT EXISTS admin_vendor_permissions (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -108,11 +110,15 @@ CREATE TABLE IF NOT EXISTS vendor_admins (
 CREATE TABLE IF NOT EXISTS categories (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   name VARCHAR(255) NOT NULL,
+  parent_id UUID REFERENCES categories(id) ON DELETE SET NULL,
   image_url VARCHAR(500),
   vendor_id UUID REFERENCES vendors(id) ON DELETE CASCADE,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
+
+ALTER TABLE categories ADD COLUMN IF NOT EXISTS parent_id UUID REFERENCES categories(id) ON DELETE SET NULL;
+CREATE INDEX IF NOT EXISTS idx_categories_parent_id ON categories(parent_id);
 
 CREATE TABLE IF NOT EXISTS products (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
