@@ -20,24 +20,18 @@ export interface AdminPermissions {
   // Product permissions
   can_view_products: boolean
   can_create_products: boolean
-  assigned_product_ids: string[]
   
   // Category permissions
   can_view_categories: boolean
   can_create_categories: boolean
-  can_assign_categories: boolean
-  assigned_category_ids: string[]
   
   // Receipt permissions
   can_view_receipts: boolean
   can_create_receipts: boolean
-  can_assign_receipt_templates: boolean
   
   // Template permissions
   can_view_templates: boolean
   can_create_templates: boolean
-  can_assign_templates: boolean
-  assigned_template_ids: string[]
   
   created_at: string
   updated_at: string
@@ -181,6 +175,17 @@ export interface VendorAdmin {
   vendor_id: string
   admin_id: string
   is_vendor_super_admin: boolean
+  created_at: string
+  updated_at: string
+}
+
+// Brand settings (per vendor)
+export interface BrandSettings {
+  vendor_id: string
+  app_name: string
+  tagline: string | null
+  icon_url: string | null
+  icon_path: string | null
   created_at: string
   updated_at: string
 }

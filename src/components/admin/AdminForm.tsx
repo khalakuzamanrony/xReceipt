@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react'
-import type { User, AdminPermissions, Vendor } from '@/types'
+import type { User, AdminPermissions } from '@/types'
 import { adminService } from '@/services/adminService'
-import { vendorService } from '@/services/vendorService'
 import { vendorAdminService } from '@/services/vendorAdminService'
 import { useAuth } from '@/contexts/AuthContext'
 import { useVendor } from '@/contexts/VendorContext'
@@ -14,7 +13,6 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/Tabs'
 import ProductAccessGroup from './permissions/ProductAccessGroup'
 import CategoryAccessGroup from './permissions/CategoryAccessGroup'
 import ReceiptAccessGroup from './permissions/ReceiptAccessGroup'
-import TemplateAccessGroup from './permissions/TemplateAccessGroup'
 import { Eye, EyeOff, X } from 'lucide-react'
 
 interface AdminFormProps {
@@ -24,7 +22,7 @@ interface AdminFormProps {
 }
 
 export default function AdminForm({ admin, onClose, canEditEmail = false }: AdminFormProps) {
-  const { role, user } = useAuth()
+  const { role } = useAuth()
   const { activeVendorId } = useVendor()
   const [formData, setFormData] = useState({
     name: '',
@@ -34,32 +32,22 @@ export default function AdminForm({ admin, onClose, canEditEmail = false }: Admi
     password: '',
   })
   const [showPassword, setShowPassword] = useState(false)
-  const [vendors, setVendors] = useState<Vendor[]>([])
-  const [assignedVendorIds, setAssignedVendorIds] = useState<string[]>([])
   const [userType, setUserType] = useState<'grand_user' | 'super_admin' | 'admin'>('admin')
 
   const [permissions, setPermissions] = useState<Partial<AdminPermissions>>({
     can_view_products: false,
     can_create_products: false,
-    assigned_product_ids: [],
     can_view_categories: false,
     can_create_categories: false,
-    can_assign_categories: false,
-    assigned_category_ids: [],
     can_view_receipts: false,
     can_create_receipts: false,
-    can_assign_receipt_templates: false,
     can_view_templates: false,
     can_create_templates: false,
-    can_assign_templates: false,
-    assigned_template_ids: [],
   })
 
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [warning, setWarning] = useState<string | null>(null)
-
-  const isVendorSuperAdminContext = role === 'admin'
 
   useEffect(() => {
     if (admin) {
@@ -74,58 +62,7 @@ export default function AdminForm({ admin, onClose, canEditEmail = false }: Admi
     }
   }, [admin, activeVendorId])
 
-  useEffect(() => {
-    if (admin) {
-      setAssignedVendorIds([])
-      return
-    }
-
-    const loadVendors = async () => {
-      try {
-        let data = await vendorService.getAllVendors()
-
-        // Grand user can see all vendors. Vendor super admins should only
-        // see vendors where they are assigned. Creation will still be
-        // strictly scoped to the active shop in the sidebar.
-        if (role === 'admin' && user) {
-          try {
-            const memberships = await vendorAdminService.getVendorsForAdmin(user.id)
-            const memberVendorIds = memberships.map((m) => m.vendor.id)
-
-            const allowedVendorIds = activeVendorId
-              ? memberVendorIds.filter((id) => id === activeVendorId)
-              : memberVendorIds
-
-            data = allowedVendorIds.length
-              ? data.filter((vendor) => allowedVendorIds.includes(vendor.id))
-              : []
-          } catch (membershipError) {
-            console.error('Failed to load current admin vendor memberships:', membershipError)
-            data = []
-          }
-        }
-
-        setVendors(data)
-      } catch (err) {
-        console.error('Failed to load vendors for admin assignment:', err)
-      }
-    }
-
-    loadVendors()
-  }, [admin, role, user, activeVendorId])
-
-  useEffect(() => {
-    if (admin) return
-    if (!isVendorSuperAdminContext) return
-
-    // Vendor super admins must be shop-scoped: the active shop in the sidebar
-    // is the only allowed assignment target when creating a user.
-    if (activeVendorId) {
-      setAssignedVendorIds([activeVendorId])
-    } else {
-      setAssignedVendorIds([])
-    }
-  }, [admin, isVendorSuperAdminContext, activeVendorId])
+  // Admins are single-shop scoped. We always assign them to the currently active shop.
 
   const loadPermissions = async (adminId: string) => {
     try {
@@ -155,21 +92,6 @@ export default function AdminForm({ admin, onClose, canEditEmail = false }: Admi
     setPermissions(prev => ({ ...prev, [key]: value }))
   }
 
-  const handleToggleVendorAssigned = (vendorId: string, checked: boolean) => {
-    if (isVendorSuperAdminContext) {
-      // Locked to the active shop for vendor super admins.
-      if (!activeVendorId) return
-      if (vendorId !== activeVendorId) return
-      if (!checked) return
-      setAssignedVendorIds([activeVendorId])
-      return
-    }
-
-    setAssignedVendorIds((prev) =>
-      checked ? (prev.includes(vendorId) ? prev : [...prev, vendorId]) : prev.filter((id) => id !== vendorId),
-    )
-  }
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
@@ -177,8 +99,8 @@ export default function AdminForm({ admin, onClose, canEditEmail = false }: Admi
     setWarning(null)
 
     try {
-      if (!admin && isVendorSuperAdminContext && !activeVendorId) {
-        setError('Please select a shop from the left sidebar before creating a user/admin.')
+      if (!admin && userType !== 'grand_user' && !activeVendorId) {
+        setError('Please select a shop from the left sidebar before creating an admin.')
         return
       }
 
@@ -283,56 +205,29 @@ export default function AdminForm({ admin, onClose, canEditEmail = false }: Admi
             ? {
                 can_view_products: true,
                 can_create_products: true,
-                assigned_product_ids: [],
                 can_view_categories: true,
                 can_create_categories: true,
-                can_assign_categories: true,
-                assigned_category_ids: [],
                 can_view_receipts: true,
                 can_create_receipts: true,
-                can_assign_receipt_templates: true,
                 can_view_templates: true,
                 can_create_templates: true,
-                can_assign_templates: true,
-                assigned_template_ids: [],
               }
             : permissions
 
-        if (assignedVendorIds.length > 0) {
-          for (const vendorId of assignedVendorIds) {
-            await adminService.saveAdminVendorPermissions(newAdmin.id, vendorId, basePermissions as any)
-          }
-        } else if (activeVendorId) {
+        if (activeVendorId) {
           await adminService.saveAdminVendorPermissions(newAdmin.id, activeVendorId, basePermissions as any)
+
+          try {
+            await vendorAdminService.setVendorForAdmin(
+              newAdmin.id,
+              activeVendorId,
+              userType === 'super_admin',
+            )
+          } catch (assignError) {
+            console.error('Failed to assign admin to shop:', assignError)
+          }
         } else {
           await adminService.saveAdminPermissions(newAdmin.id, basePermissions as any)
-        }
-
-        // Assign vendors for new admin / super admin if selected
-        if (assignedVendorIds.length) {
-          try {
-            for (const vendorId of assignedVendorIds) {
-              const existing = await vendorAdminService.getAdminsForVendor(vendorId)
-              const already = existing.find((va) => va.admin_id === newAdmin.id)
-              const assignments = [
-                ...existing.map((va) => ({
-                  admin_id: va.admin_id,
-                  is_vendor_super_admin: va.is_vendor_super_admin,
-                })),
-                ...(already
-                  ? []
-                  : [
-                      {
-                        admin_id: newAdmin.id,
-                        is_vendor_super_admin: userType === 'super_admin',
-                      },
-                    ]),
-              ]
-              await vendorAdminService.saveAdminsForVendor(vendorId, assignments)
-            }
-          } catch (assignError) {
-            console.error('Failed to assign admin to vendors:', assignError)
-          }
         }
         onClose()
         return
@@ -402,13 +297,10 @@ export default function AdminForm({ admin, onClose, canEditEmail = false }: Admi
             <Tabs defaultValue="basic">
               <TabsList className="w-full">
                 <TabsTrigger value="basic">Basic Info</TabsTrigger>
-                {(admin || userType !== 'grand_user') && (
-                  <TabsTrigger value="permissions">Permissions</TabsTrigger>
-                )}
+                {(admin || userType !== 'grand_user') && <TabsTrigger value="permissions">Permissions</TabsTrigger>}
               </TabsList>
 
               <TabsContent value="basic">
-                {/* Basic Information */}
                 <Card>
                   <CardHeader>
                     <CardTitle className="text-lg">Basic Information</CardTitle>
@@ -416,7 +308,9 @@ export default function AdminForm({ admin, onClose, canEditEmail = false }: Admi
                   <CardContent className="space-y-4">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div className="space-y-2">
-                        <Label htmlFor="name" required>Name</Label>
+                        <Label htmlFor="name" required>
+                          Name
+                        </Label>
                         <Input
                           id="name"
                           type="text"
@@ -429,7 +323,9 @@ export default function AdminForm({ admin, onClose, canEditEmail = false }: Admi
                       </div>
 
                       <div className="space-y-2">
-                        <Label htmlFor="email" required>Email</Label>
+                        <Label htmlFor="email" required>
+                          Email
+                        </Label>
                         <Input
                           id="email"
                           type="email"
@@ -456,18 +352,15 @@ export default function AdminForm({ admin, onClose, canEditEmail = false }: Admi
 
                       <div className="space-y-2">
                         <Label htmlFor="image">Profile Image</Label>
-                        <Input
-                          id="image"
-                          type="file"
-                          accept="image/*"
-                          onChange={handleImageChange}
-                        />
+                        <Input id="image" type="file" accept="image/*" onChange={handleImageChange} />
                       </div>
                     </div>
 
                     {!admin && (
                       <div className="space-y-2">
-                        <Label htmlFor="password" required>Password (for Supabase user setup)</Label>
+                        <Label htmlFor="password" required>
+                          Password (for Supabase user setup)
+                        </Label>
                         <div className="relative">
                           <Input
                             id="password"
@@ -495,7 +388,11 @@ export default function AdminForm({ admin, onClose, canEditEmail = false }: Admi
                       <div className="space-y-2">
                         <Label className="text-sm font-semibold text-gray-900">User Type</Label>
                         <div className="inline-flex rounded-lg border border-gray-200 bg-gray-50 p-0.5 text-xs">
-                          {[{ id: 'grand_user', label: 'Grand User' }, { id: 'super_admin', label: 'Super Admin' }, { id: 'admin', label: 'Admin' }].map((option) => (
+                          {[
+                            { id: 'grand_user', label: 'Grand User' },
+                            { id: 'super_admin', label: 'Super Admin' },
+                            { id: 'admin', label: 'Admin' },
+                          ].map((option) => (
                             <button
                               key={option.id}
                               type="button"
@@ -512,70 +409,20 @@ export default function AdminForm({ admin, onClose, canEditEmail = false }: Admi
                         </div>
                       </div>
                     )}
-
-                    {!admin && userType !== 'grand_user' && (
-                      <div className="space-y-2">
-                        <Label className="text-sm font-semibold text-gray-900">Assign Shops</Label>
-                        <div className="border border-gray-200 rounded-lg max-h-40 overflow-y-auto p-2 space-y-1">
-                          {vendors.map((vendor) => {
-                            const checked = assignedVendorIds.includes(vendor.id)
-                            const locked = isVendorSuperAdminContext
-                            return (
-                              <label
-                                key={vendor.id}
-                                className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-gray-50 cursor-pointer"
-                              >
-                                <input
-                                  type="checkbox"
-                                  className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                                  checked={checked}
-                                  disabled={locked}
-                                  onChange={(e) => handleToggleVendorAssigned(vendor.id, e.target.checked)}
-                                />
-                                <span>{vendor.name}</span>
-                              </label>
-                            )
-                          })}
-                        </div>
-
-                        {isVendorSuperAdminContext && !activeVendorId && (
-                          <p className="text-xs text-yellow-700">
-                            Select a shop from the left sidebar to create users for that shop.
-                          </p>
-                        )}
-                      </div>
-                    )}
                   </CardContent>
                 </Card>
               </TabsContent>
 
               {(admin || userType !== 'grand_user') && (
                 <TabsContent value="permissions">
-                  {/* Permissions */}
                   <Card>
                     <CardHeader>
                       <CardTitle className="text-lg">Permissions</CardTitle>
                     </CardHeader>
                     <CardContent className="space-y-4">
-                      <ProductAccessGroup
-                        permissions={permissions}
-                        onChange={handlePermissionChange}
-                      />
-
-                      <CategoryAccessGroup
-                        permissions={permissions}
-                        onChange={handlePermissionChange}
-                      />
-
-                      <ReceiptAccessGroup
-                        permissions={permissions}
-                        onChange={handlePermissionChange}
-                      />
-
-                      <TemplateAccessGroup
-                        permissions={permissions}
-                        onChange={handlePermissionChange}
-                      />
+                      <ProductAccessGroup permissions={permissions} onChange={handlePermissionChange} />
+                      <CategoryAccessGroup permissions={permissions} onChange={handlePermissionChange} />
+                      <ReceiptAccessGroup permissions={permissions} onChange={handlePermissionChange} />
                     </CardContent>
                   </Card>
                 </TabsContent>
@@ -584,17 +431,10 @@ export default function AdminForm({ admin, onClose, canEditEmail = false }: Admi
           </div>
 
           <DialogFooter className="gap-3 px-4 sm:px-5 py-2 border-t border-gray-100 bg-white flex justify-end">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={onClose}
-            >
+            <Button type="button" variant="outline" onClick={onClose}>
               Cancel
             </Button>
-            <Button
-              type="submit"
-              disabled={loading}
-            >
+            <Button type="submit" disabled={loading}>
               {loading ? 'Saving...' : role === 'grand_user' ? 'Save User' : 'Save Admin'}
             </Button>
           </DialogFooter>

@@ -20,7 +20,7 @@ interface TemplateListProps {
 
 export default function TemplateList({ onNavigateToBuilder }: TemplateListProps) {
   const { role } = useAuth()
-  const { memberships, activeVendorId, permissions, loading: vendorLoading } = useVendor()
+  const { memberships, activeVendorId, loading: vendorLoading } = useVendor()
 
   const isGrandUserAllShops = role === 'grand_user' && !activeVendorId
 
@@ -29,8 +29,8 @@ export default function TemplateList({ onNavigateToBuilder }: TemplateListProps)
     !!activeVendorId &&
     memberships.some((m) => m.vendor.id === activeVendorId && m.isVendorSuperAdmin)
 
-  const canViewTemplates = role === 'grand_user' || isVendorSuperAdminForActiveVendor || !!permissions?.can_view_templates
-  const canCreateTemplates = role === 'grand_user' || isVendorSuperAdminForActiveVendor || !!permissions?.can_create_templates
+  const canViewTemplates = role === 'grand_user' || isVendorSuperAdminForActiveVendor
+  const canCreateTemplates = role === 'grand_user' || isVendorSuperAdminForActiveVendor
   const isGrandUser = role === 'grand_user'
   const [templates, setTemplates] = useState<ReceiptTemplate[]>([])
   const [loading, setLoading] = useState(true)
@@ -57,6 +57,12 @@ export default function TemplateList({ onNavigateToBuilder }: TemplateListProps)
 
   useEffect(() => {
     if (vendorLoading) return
+
+    if (!canViewTemplates) {
+      setTemplates([])
+      setLoading(false)
+      return
+    }
 
     if (!activeVendorId && !isGrandUserAllShops) {
       setTemplates([])
@@ -134,17 +140,7 @@ export default function TemplateList({ onNavigateToBuilder }: TemplateListProps)
     }
   }
 
-  const assignedTemplateIds = permissions?.assigned_template_ids || []
-  const permissionFilteredTemplates =
-    role === 'admin' &&
-    !isVendorSuperAdminForActiveVendor &&
-    permissions?.can_view_templates &&
-    permissions?.can_assign_templates &&
-    assignedTemplateIds.length > 0
-      ? templates.filter((template) => assignedTemplateIds.includes(template.id))
-      : templates
-
-  const filteredTemplates = permissionFilteredTemplates.filter((template) => {
+  const filteredTemplates = templates.filter((template) => {
     const term = searchTerm.toLowerCase()
     const nameMatch = template.name.toLowerCase().includes(term)
     const descriptionMatch = template.description

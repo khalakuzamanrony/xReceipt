@@ -119,7 +119,6 @@ export default function ReceiptList() {
   const [modalTemplates, setModalTemplates] = useState<any[]>([])
 
   const assignedProductIds = permissions?.assigned_product_ids || []
-  const assignedTemplateIds = permissions?.assigned_template_ids || []
 
   const vendors: Vendor[] = memberships.map((m) => m.vendor)
   const activeVendorName = activeVendorId ? vendors.find((v) => v.id === activeVendorId)?.name || '' : ''
@@ -1552,14 +1551,7 @@ export default function ReceiptList() {
                 <Label htmlFor="template" className="text-sm font-medium text-gray-700" required>Receipt Template</Label>
                 {(() => {
                   const baseTemplates = vendorIdForReceiptModal ? modalTemplates : templatesForReceiptModal
-                  const permissionFilteredTemplates =
-                    role === 'admin' &&
-                    !isVendorSuperAdminForActiveVendor &&
-                    permissions?.can_view_templates &&
-                    permissions?.can_assign_receipt_templates &&
-                    assignedTemplateIds.length > 0
-                      ? baseTemplates.filter((template: any) => assignedTemplateIds.includes(template.id))
-                      : baseTemplates
+                  const templatesForReceiptModal = baseTemplates
 
                   return (
                     <Select.Root
@@ -1584,7 +1576,7 @@ export default function ReceiptList() {
                           style={{ minWidth: 'var(--radix-select-trigger-width)' }}
                         >
                           <Select.Viewport className="py-1 max-h-60 overflow-y-auto">
-                            {permissionFilteredTemplates.map((template: any) => (
+                            {templatesForReceiptModal.map((template: any) => (
                               <Select.Item
                                 key={template.id}
                                 value={template.id}

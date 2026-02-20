@@ -59,6 +59,16 @@ export default function VendorList() {
   const [superAdminPassword, setSuperAdminPassword] = useState('')
   const [showSuperAdminPassword, setShowSuperAdminPassword] = useState(false)
 
+  const scopedAdmins = (() => {
+    const vendorId = selectedVendor?.id || activeVendorId || null
+    if (!vendorId) return []
+
+    const ids = vendorAdminAssignments[vendorId]?.adminIds || []
+    return ids
+      .map((id) => admins.find((a) => a.id === id))
+      .filter(Boolean) as User[]
+  })()
+
   useEffect(() => {
     return () => {
       if (imagePreviewUrl && imagePreviewUrl.startsWith('blob:')) {
@@ -477,6 +487,21 @@ export default function VendorList() {
             createdVendor,
             superAdminPassword,
           )
+
+          await adminService.saveAdminVendorPermissions(superAdmin.id, createdVendor.id, {
+            can_view_products: true,
+            can_create_products: true,
+            assigned_product_ids: [],
+            can_view_categories: true,
+            can_create_categories: true,
+            can_assign_categories: true,
+            assigned_category_ids: [],
+            can_view_receipts: true,
+            can_create_receipts: true,
+            can_view_templates: true,
+            can_create_templates: true,
+          })
+
           // Set as primary admin on vendor
           await vendorService.updateVendor(createdVendor.id, { admin_id: superAdmin.id })
           // Assign as vendor super admin in vendor_admins mapping
@@ -1073,7 +1098,7 @@ export default function VendorList() {
                     className="w-full h-10 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm text-gray-900"
                   >
                     <option value="">Unassigned</option>
-                    {admins.map((admin) => (
+                    {scopedAdmins.map((admin) => (
                       <option key={admin.id} value={admin.id}>
                         {admin.name} ({admin.email})
                       </option>

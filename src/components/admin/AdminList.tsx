@@ -1,23 +1,19 @@
 import { useEffect, useState } from 'react'
-import type { User, Vendor } from '@/types'
+import type { User } from '@/types'
 import { adminService } from '@/services/adminService'
 import { vendorAdminService } from '@/services/vendorAdminService'
-import { vendorService } from '@/services/vendorService'
 import AdminForm from './AdminForm'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/Dialog'
-import { Checkbox } from '@/components/ui/Checkbox'
 import { Plus, Edit, Trash2, AlertCircle, Users, Search, Mail } from 'lucide-react'
-import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
-import * as Popover from '@radix-ui/react-popover'
 import { useAuth } from '@/contexts/AuthContext'
 import { useVendor } from '@/contexts/VendorContext'
 import { supabase } from '@/lib/supabase'
 
 export default function AdminList() {
   const { role, user } = useAuth()
-  const { activeVendorId } = useVendor()
+  const { memberships, activeVendorId } = useVendor()
   const [admins, setAdmins] = useState<User[]>([])
   const [nonDeletableAdminIds, setNonDeletableAdminIds] = useState<string[]>([])
   const [loading, setLoading] = useState(true)
@@ -33,14 +29,6 @@ export default function AdminList() {
   const [adminVendorInfo, setAdminVendorInfo] = useState<
     Record<string, { vendorId: string; vendorName: string; isVendorSuperAdmin: boolean }[]>
   >({})
-  const [vendors, setVendors] = useState<Vendor[]>([])
-  const [assignAdminId, setAssignAdminId] = useState<string | null>(null)
-  const [assignSearch, setAssignSearch] = useState('')
-  const [assignSelectedVendorIds, setAssignSelectedVendorIds] = useState<string[]>([])
-  const [assignSaving, setAssignSaving] = useState(false)
-  const [assignError, setAssignError] = useState<string | null>(null)
-  const [assignedShopTooltipAdminId, setAssignedShopTooltipAdminId] = useState<string | null>(null)
-  const [isDesktop, setIsDesktop] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [adminToDelete, setAdminToDelete] = useState<User | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
@@ -51,24 +39,6 @@ export default function AdminList() {
 
   useEffect(() => {
     loadAdmins()
-  }, [])
-
-  useEffect(() => {
-    const mql = window.matchMedia('(min-width: 768px)')
-    const handleChange = () => {
-      setIsDesktop(mql.matches)
-      setAssignAdminId(null)
-      setAssignSelectedVendorIds([])
-      setAssignSearch('')
-      setAssignError(null)
-      setAssignedShopTooltipAdminId(null)
-    }
-
-    handleChange()
-    mql.addEventListener('change', handleChange)
-    return () => {
-      mql.removeEventListener('change', handleChange)
-    }
   }, [])
 
   const loadAdmins = async () => {
@@ -173,18 +143,6 @@ export default function AdminList() {
       } catch (err) {
         console.error('Failed to load admin vendor memberships:', err)
       }
-
-      // Load vendors for assignment (grand users manage all vendors)
-      if (role === 'grand_user') {
-        try {
-          const allVendors = await vendorService.getAllVendors()
-          setVendors(allVendors)
-        } catch (err) {
-          console.error('Failed to load vendors for admin assignments:', err)
-        }
-      } else {
-        setVendors([])
-      }
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to load admins'
       // Check if it's a database error (table doesn't exist)
@@ -200,6 +158,10 @@ export default function AdminList() {
   }
 
   const handleAddNew = () => {
+    if (!activeVendorId) {
+      setError('Please select a shop from the left sidebar before creating an admin.')
+      return
+    }
     setSelectedAdmin(null)
     setShowForm(true)
   }
@@ -340,83 +302,6 @@ export default function AdminList() {
   const startIndex = (currentPage - 1) * rowsPerPage
   const pagedAdmins = filteredAdmins.slice(startIndex, startIndex + rowsPerPage)
 
-  const buildVendorInitials = (name: string) =>
-    name
-      .split(' ')
-      .filter(Boolean)
-      .map((part) => part.charAt(0).toUpperCase())
-      .slice(0, 2)
-      .join('')
-
-  const handleSaveVendorAssignmentsForAdmin = async (admin: User) => {
-    if (assignAdminId !== admin.id) return
-
-    try {
-      setAssignSaving(true)
-      setAssignError(null)
-
-      const currentInfo = adminVendorInfo[admin.id] || []
-      const currentVendorIds = currentInfo.map((v) => v.vendorId)
-      const finalVendorIds = assignSelectedVendorIds
-      const touchedVendorIds = Array.from(new Set([...currentVendorIds, ...finalVendorIds]))
-
-      for (const vendorId of touchedVendorIds) {
-        const existing = await vendorAdminService.getAdminsForVendor(vendorId)
-        const others = existing.filter((va) => va.admin_id !== admin.id)
-        const isSelected = finalVendorIds.includes(vendorId)
-
-        const newAssignments = isSelected
-          ? [
-              ...others.map((va) => ({
-                admin_id: va.admin_id,
-                is_vendor_super_admin: va.is_vendor_super_admin,
-              })),
-              {
-                admin_id: admin.id,
-                is_vendor_super_admin:
-                  currentInfo.find((v) => v.vendorId === vendorId)?.isVendorSuperAdmin || false,
-              },
-            ]
-          : others.map((va) => ({
-              admin_id: va.admin_id,
-              is_vendor_super_admin: va.is_vendor_super_admin,
-            }))
-
-        await vendorAdminService.saveAdminsForVendor(vendorId, newAssignments)
-      }
-
-      setAdminVendorInfo((prev) => {
-        const updated = { ...prev }
-        const infoList = finalVendorIds
-          .map((vendorId) => {
-            const vendor = vendors.find((v) => v.id === vendorId)
-            if (!vendor) return null
-            const isVendorSuperAdminFlag =
-              currentInfo.find((v) => v.vendorId === vendorId)?.isVendorSuperAdmin || false
-            return {
-              vendorId: vendor.id,
-              vendorName: vendor.name,
-              isVendorSuperAdmin: isVendorSuperAdminFlag,
-            }
-          })
-          .filter(Boolean) as { vendorId: string; vendorName: string; isVendorSuperAdmin: boolean }[]
-
-        updated[admin.id] = infoList
-        return updated
-      })
-
-      setAssignAdminId(null)
-      setAssignSelectedVendorIds([])
-      setAssignSearch('')
-      setAssignError(null)
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to assign shops to admin'
-      setAssignError(message)
-    } finally {
-      setAssignSaving(false)
-    }
-  }
-
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center h-96 gap-4">
@@ -488,7 +373,11 @@ export default function AdminList() {
                 </div>
               )}
 
-              <Button onClick={handleAddNew} size="sm">
+              <Button
+                onClick={handleAddNew}
+                size="sm"
+                disabled={!activeVendorId}
+              >
                 <Plus size={16} />
                 {isGrandUserView ? 'Add User' : 'Add Admin'}
               </Button>
@@ -644,236 +533,15 @@ export default function AdminList() {
                         }}
                       >
                         <span className="text-gray-500">Assigned shop</span>
-                        {vendors.length === 0 ? (
-                          <span className="text-xs text-gray-400">No shops</span>
-                        ) : (
-                          (() => {
-                            const assignedInfo = adminVendorInfo[admin.id] || []
-                            const assignedVendorIds = assignedInfo.map((v) => v.vendorId)
-                            const assignedVendors = vendors.filter((v) =>
-                              assignedVendorIds.includes(v.id),
-                            )
-
-                            const search = assignSearch.toLowerCase()
-                            const filteredVendors = vendors.filter((v) =>
-                              v.name.toLowerCase().includes(search),
-                            )
-                            const filteredIds = filteredVendors.map((v) => v.id)
-                            const allSelectedForFiltered =
-                              filteredIds.length > 0 &&
-                              filteredIds.every((id) => assignSelectedVendorIds.includes(id))
-
-                            return (
-                              <DropdownMenu.Root
-                                open={!isDesktop && assignAdminId === admin.id}
-                                onOpenChange={(open) => {
-                                  if (isDesktop) return
-                                  if (open) {
-                                    setAssignedShopTooltipAdminId(null)
-                                    setAssignAdminId(admin.id)
-                                    setAssignSearch('')
-                                    setAssignError(null)
-                                    const validVendorIds = new Set(vendors.map((v) => v.id))
-                                    const baseIds = assignedVendorIds.filter((id) =>
-                                      validVendorIds.has(id),
-                                    )
-                                    setAssignSelectedVendorIds(baseIds)
-                                  } else if (assignAdminId === admin.id && !assignSaving) {
-                                    setAssignAdminId(null)
-                                    setAssignSelectedVendorIds([])
-                                    setAssignSearch('')
-                                    setAssignError(null)
-                                  }
-                                }}
-                              >
-                                <Popover.Root
-                                  open={
-                                    assignedVendors.length > 0 &&
-                                    assignedShopTooltipAdminId === admin.id &&
-                                    assignAdminId === null
-                                  }
-                                  onOpenChange={(open) => {
-                                    if (!assignedVendors.length) return
-                                    if (assignAdminId !== null) return
-                                    setAssignedShopTooltipAdminId(open ? admin.id : null)
-                                  }}
-                                >
-                                  <Popover.Anchor asChild>
-                                    <div
-                                      className="inline-flex"
-                                      onMouseEnter={() => {
-                                        if (!assignedVendors.length) return
-                                        if (assignAdminId !== null) return
-                                        setAssignedShopTooltipAdminId(admin.id)
-                                      }}
-                                      onMouseLeave={() => {
-                                        if (assignedShopTooltipAdminId === admin.id) {
-                                          setAssignedShopTooltipAdminId(null)
-                                        }
-                                      }}
-                                    >
-                                      <DropdownMenu.Trigger asChild>
-                                        <button
-                                          type="button"
-                                          className="inline-flex items-center gap-2 px-2.5 py-1.5 rounded-md border border-gray-200 bg-white text-xs text-gray-700 hover:bg-gray-50"
-                                          onPointerDown={() => {
-                                            setAssignedShopTooltipAdminId(null)
-                                          }}
-                                        >
-                                          {assignedVendors.length > 0 ? (
-                                            <span className="font-medium text-gray-800">
-                                              {assignedVendors.length} assigned
-                                            </span>
-                                          ) : (
-                                            <span className="text-xs text-gray-600">Assign</span>
-                                          )}
-                                        </button>
-                                      </DropdownMenu.Trigger>
-                                    </div>
-                                  </Popover.Anchor>
-
-                                  {assignedVendors.length > 0 && (
-                                    <Popover.Portal>
-                                      <Popover.Content
-                                        side="top"
-                                        align="start"
-                                        sideOffset={6}
-                                        className="rounded-md border border-gray-200 bg-white shadow-lg px-3 py-2 text-xs text-gray-700 max-w-xs"
-                                        onMouseEnter={() => {
-                                          if (assignAdminId === admin.id) return
-                                          setAssignedShopTooltipAdminId(admin.id)
-                                        }}
-                                        onMouseLeave={() => {
-                                          if (assignedShopTooltipAdminId === admin.id) {
-                                            setAssignedShopTooltipAdminId(null)
-                                          }
-                                        }}
-                                      >
-                                        <div className="font-semibold text-gray-900 mb-1">Assigned shop</div>
-                                        <div className="space-y-0.5">
-                                          {assignedVendors.map((v) => (
-                                            <div key={v.id} className="truncate">
-                                              {v.name}
-                                            </div>
-                                          ))}
-                                        </div>
-                                      </Popover.Content>
-                                    </Popover.Portal>
-                                  )}
-                                </Popover.Root>
-
-                                <DropdownMenu.Portal>
-                                  <DropdownMenu.Content className="min-w-[260px] rounded-md border border-gray-200 bg-white shadow-lg p-2 mr-1 mt-1 z-50 space-y-2">
-                                    <div className="px-1">
-                                      <Input
-                                        type="text"
-                                        placeholder="Search shops..."
-                                        value={assignSearch}
-                                        onChange={(e) => setAssignSearch(e.target.value)}
-                                        className="h-8 text-xs border-gray-300"
-                                      />
-                                    </div>
-                                    <div className="flex items-center justify-between px-1">
-                                      <button
-                                        type="button"
-                                        onClick={(e) => {
-                                          e.preventDefault()
-                                          if (filteredIds.length === 0) return
-
-                                          if (allSelectedForFiltered) {
-                                            setAssignSelectedVendorIds((prev) =>
-                                              prev.filter((id) => !filteredIds.includes(id)),
-                                            )
-                                          } else {
-                                            setAssignSelectedVendorIds((prev) =>
-                                              Array.from(new Set([...prev, ...filteredIds])),
-                                            )
-                                          }
-                                        }}
-                                        className="text-[11px] text-blue-600 hover:text-blue-700 font-medium cursor-pointer"
-                                      >
-                                        {allSelectedForFiltered ? 'Unselect all' : 'Select all'}
-                                      </button>
-                                    </div>
-                                    {assignError && (
-                                      <p className="px-1 text-[11px] text-red-600">{assignError}</p>
-                                    )}
-                                    <div className="max-h-48 overflow-y-auto space-y-1 mt-1">
-                                      {filteredVendors.length === 0 ? (
-                                        <div className="px-2 py-2 text-xs text-gray-500">No shops found</div>
-                                      ) : (
-                                        filteredVendors.map((vendor) => {
-                                          const checked = assignSelectedVendorIds.includes(vendor.id)
-                                          const vendorInitials = buildVendorInitials(vendor.name)
-
-                                          return (
-                                            <DropdownMenu.Item
-                                              key={vendor.id}
-                                              className="flex items-center gap-2 px-2 py-1.5 text-xs text-gray-700 rounded cursor-pointer outline-none hover:bg-gray-50"
-                                              onSelect={(event) => {
-                                                event.preventDefault()
-                                                setAssignSelectedVendorIds((prev) =>
-                                                  checked
-                                                    ? prev.filter((id) => id !== vendor.id)
-                                                    : [...prev, vendor.id],
-                                                )
-                                              }}
-                                            >
-                                              <Checkbox
-                                                checked={checked}
-                                                className="h-3.5 w-3.5 rounded-[2px]"
-                                                aria-hidden="true"
-                                              />
-                                              {vendor.image_url ? (
-                                                <img
-                                                  src={vendor.image_url}
-                                                  alt={vendor.name}
-                                                  className="w-6 h-6 rounded-full object-cover"
-                                                />
-                                              ) : (
-                                                <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-blue-50 text-[10px] font-semibold text-blue-700">
-                                                  {vendorInitials}
-                                                </span>
-                                              )}
-                                              <span className="flex-1 truncate">{vendor.name}</span>
-                                            </DropdownMenu.Item>
-                                          )
-                                        })
-                                      )}
-                                    </div>
-                                    <div className="flex justify-end gap-2 pt-2 border-t border-gray-100 px-1">
-                                      <Button
-                                        type="button"
-                                        variant="outline"
-                                        size="sm"
-                                        className="h-7 px-2 text-[11px]"
-                                        onClick={() => {
-                                          setAssignAdminId(null)
-                                          setAssignSelectedVendorIds([])
-                                          setAssignSearch('')
-                                          setAssignError(null)
-                                        }}
-                                      >
-                                        Cancel
-                                      </Button>
-                                      <Button
-                                        type="button"
-                                        size="sm"
-                                        className="h-7 px-3 text-[11px]"
-                                        disabled={assignSaving}
-                                        onClick={() => {
-                                          void handleSaveVendorAssignmentsForAdmin(admin)
-                                        }}
-                                      >
-                                        {assignSaving ? 'Saving...' : 'Save'}
-                                      </Button>
-                                    </div>
-                                  </DropdownMenu.Content>
-                                </DropdownMenu.Portal>
-                              </DropdownMenu.Root>
-                            )
-                          })()
-                        )}
+                        {(() => {
+                          const assignedInfo = adminVendorInfo[admin.id] || []
+                          const assigned = assignedInfo[0]?.vendorName || 'Unassigned'
+                          return (
+                            <span className="inline-flex items-center px-2.5 py-1.5 rounded-md border border-gray-200 bg-white text-xs text-gray-700">
+                              {assigned}
+                            </span>
+                          )
+                        })()}
                       </div>
                     )}
                   </div>
@@ -939,263 +607,12 @@ export default function AdminList() {
                         <p className="text-sm text-gray-600">{admin.phone || '—'}</p>
                       </td>
                       {isGrandUserView && (
-                        <td
-                          className="px-4 py-3"
-                          onClick={(e) => {
-                            e.stopPropagation()
-                          }}
-                        >
-                          {vendors.length === 0 ? (
-                            <span className="text-xs text-gray-400">No shops</span>
-                          ) : (
-                            (() => {
-                              const assignedInfo = adminVendorInfo[admin.id] || []
-                              const assignedVendorIds = assignedInfo.map((v) => v.vendorId)
-                              const assignedVendors = vendors.filter((v) =>
-                                assignedVendorIds.includes(v.id),
-                              )
-
-                              const search = assignSearch.toLowerCase()
-                              const filteredVendors = vendors.filter((v) =>
-                                v.name.toLowerCase().includes(search),
-                              )
-                              const filteredIds = filteredVendors.map((v) => v.id)
-                              const allSelectedForFiltered =
-                                filteredIds.length > 0 &&
-                                filteredIds.every((id) => assignSelectedVendorIds.includes(id))
-
-                              return (
-                                <DropdownMenu.Root
-                                  open={isDesktop && assignAdminId === admin.id}
-                                  onOpenChange={(open) => {
-                                    if (!isDesktop) return
-                                    if (open) {
-                                      setAssignedShopTooltipAdminId(null)
-                                      setAssignAdminId(admin.id)
-                                      setAssignSearch('')
-                                      setAssignError(null)
-                                      const validVendorIds = new Set(vendors.map((v) => v.id))
-                                      const baseIds = assignedVendorIds.filter((id) =>
-                                        validVendorIds.has(id),
-                                      )
-                                      setAssignSelectedVendorIds(baseIds)
-                                    } else if (assignAdminId === admin.id && !assignSaving) {
-                                      setAssignAdminId(null)
-                                      setAssignSelectedVendorIds([])
-                                      setAssignSearch('')
-                                      setAssignError(null)
-                                    }
-                                  }}
-                                >
-                                  <Popover.Root
-                                    open={
-                                      assignedVendors.length > 0 &&
-                                      assignedShopTooltipAdminId === admin.id &&
-                                      assignAdminId === null
-                                    }
-                                    onOpenChange={(open) => {
-                                      if (!assignedVendors.length) return
-                                      if (assignAdminId !== null) return
-                                      setAssignedShopTooltipAdminId(open ? admin.id : null)
-                                    }}
-                                  >
-                                    <Popover.Anchor asChild>
-                                      <div
-                                        className="inline-flex"
-                                        onMouseEnter={() => {
-                                          if (!assignedVendors.length) return
-                                          if (assignAdminId !== null) return
-                                          setAssignedShopTooltipAdminId(admin.id)
-                                        }}
-                                        onMouseLeave={() => {
-                                          if (assignedShopTooltipAdminId === admin.id) {
-                                            setAssignedShopTooltipAdminId(null)
-                                          }
-                                        }}
-                                      >
-                                        <DropdownMenu.Trigger asChild>
-                                          <button
-                                            type="button"
-                                            className="inline-flex items-center -space-x-1 px-0 py-0 cursor-pointer bg-transparent border-0"
-                                            onPointerDown={() => {
-                                              setAssignedShopTooltipAdminId(null)
-                                            }}
-                                          >
-                                            {assignedVendors.length > 0 ? (
-                                              <div className="flex items-center -space-x-1">
-                                                {assignedVendors.slice(0, 3).map((v) =>
-                                                  v.image_url ? (
-                                                    <img
-                                                      key={v.id}
-                                                      src={v.image_url}
-                                                      alt={v.name}
-                                                      className="w-7 h-7 rounded-full object-cover"
-                                                    />
-                                                  ) : (
-                                                    <span
-                                                      key={v.id}
-                                                      className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-blue-50 text-xs font-semibold text-blue-700"
-                                                    >
-                                                      {buildVendorInitials(v.name)}
-                                                    </span>
-                                                  ),
-                                                )}
-                                                {assignedVendors.length > 3 && (
-                                                  <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-gray-100 text-[10px] font-semibold text-gray-700">
-                                                    +{assignedVendors.length - 3}
-                                                  </span>
-                                                )}
-                                              </div>
-                                            ) : (
-                                              <span className="text-xs text-gray-500 px-1">Assign</span>
-                                            )}
-                                          </button>
-                                        </DropdownMenu.Trigger>
-                                      </div>
-                                    </Popover.Anchor>
-
-                                    {assignedVendors.length > 0 && (
-                                      <Popover.Portal>
-                                        <Popover.Content
-                                          side="top"
-                                          align="start"
-                                          sideOffset={6}
-                                          className="rounded-md border border-gray-200 bg-white shadow-lg px-3 py-2 text-xs text-gray-700 max-w-xs"
-                                          onMouseEnter={() => {
-                                            if (assignAdminId === admin.id) return
-                                            setAssignedShopTooltipAdminId(admin.id)
-                                          }}
-                                          onMouseLeave={() => {
-                                            if (assignedShopTooltipAdminId === admin.id) {
-                                              setAssignedShopTooltipAdminId(null)
-                                            }
-                                          }}
-                                        >
-                                          <div className="font-semibold text-gray-900 mb-1">Assigned shop</div>
-                                          <div className="space-y-0.5">
-                                            {assignedVendors.map((v) => (
-                                              <div key={v.id} className="truncate">
-                                                {v.name}
-                                              </div>
-                                            ))}
-                                          </div>
-                                        </Popover.Content>
-                                      </Popover.Portal>
-                                    )}
-                                  </Popover.Root>
-
-                                  <DropdownMenu.Portal>
-                                    <DropdownMenu.Content className="min-w-[260px] rounded-md border border-gray-200 bg-white shadow-lg p-2 mr-1 mt-1 z-50 space-y-2">
-                                      <div className="px-1">
-                                        <Input
-                                          type="text"
-                                          placeholder="Search shops..."
-                                          value={assignSearch}
-                                          onChange={(e) => setAssignSearch(e.target.value)}
-                                          className="h-8 text-xs border-gray-300"
-                                        />
-                                      </div>
-                                      <div className="flex items-center justify-between px-1">
-                                        <button
-                                          type="button"
-                                          onClick={(e) => {
-                                            e.preventDefault()
-                                            if (filteredIds.length === 0) return
-
-                                            if (allSelectedForFiltered) {
-                                              setAssignSelectedVendorIds((prev) =>
-                                                prev.filter((id) => !filteredIds.includes(id)),
-                                              )
-                                            } else {
-                                              setAssignSelectedVendorIds((prev) =>
-                                                Array.from(new Set([...prev, ...filteredIds])),
-                                              )
-                                            }
-                                          }}
-                                          className="text-[11px] text-blue-600 hover:text-blue-700 font-medium cursor-pointer"
-                                        >
-                                          {allSelectedForFiltered ? 'Unselect all' : 'Select all'}
-                                        </button>
-                                      </div>
-                                      {assignError && (
-                                        <p className="px-1 text-[11px] text-red-600">{assignError}</p>
-                                      )}
-                                      <div className="max-h-48 overflow-y-auto space-y-1 mt-1">
-                                        {filteredVendors.length === 0 ? (
-                                          <div className="px-2 py-2 text-xs text-gray-500">No shops found</div>
-                                        ) : (
-                                          filteredVendors.map((vendor) => {
-                                            const checked = assignSelectedVendorIds.includes(vendor.id)
-                                            const vendorInitials = buildVendorInitials(vendor.name)
-
-                                            return (
-                                              <DropdownMenu.Item
-                                                key={vendor.id}
-                                                className="flex items-center gap-2 px-2 py-1.5 text-xs text-gray-700 rounded cursor-pointer outline-none hover:bg-gray-50"
-                                                onSelect={(event) => {
-                                                  event.preventDefault()
-                                                  setAssignSelectedVendorIds((prev) =>
-                                                    checked
-                                                      ? prev.filter((id) => id !== vendor.id)
-                                                      : [...prev, vendor.id],
-                                                  )
-                                                }}
-                                              >
-                                                <Checkbox
-                                                  checked={checked}
-                                                  className="h-3.5 w-3.5 rounded-[2px]"
-                                                  aria-hidden="true"
-                                                />
-                                                {vendor.image_url ? (
-                                                  <img
-                                                    src={vendor.image_url}
-                                                    alt={vendor.name}
-                                                    className="w-6 h-6 rounded-full object-cover"
-                                                  />
-                                                ) : (
-                                                  <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-blue-50 text-[10px] font-semibold text-blue-700">
-                                                    {vendorInitials}
-                                                  </span>
-                                                )}
-                                                <span className="flex-1 truncate">{vendor.name}</span>
-                                              </DropdownMenu.Item>
-                                            )
-                                          })
-                                        )}
-                                      </div>
-                                      <div className="flex justify-end gap-2 pt-2 border-t border-gray-100 px-1">
-                                        <Button
-                                          type="button"
-                                          variant="outline"
-                                          size="sm"
-                                          className="h-7 px-2 text-[11px]"
-                                          onClick={() => {
-                                            setAssignAdminId(null)
-                                            setAssignSelectedVendorIds([])
-                                            setAssignSearch('')
-                                            setAssignError(null)
-                                          }}
-                                        >
-                                          Cancel
-                                        </Button>
-                                        <Button
-                                          type="button"
-                                          size="sm"
-                                          className="h-7 px-3 text-[11px]"
-                                          disabled={assignSaving}
-                                          onClick={() => {
-                                            void handleSaveVendorAssignmentsForAdmin(admin)
-                                          }}
-                                        >
-                                          {assignSaving ? 'Saving...' : 'Save'}
-                                        </Button>
-                                      </div>
-                                    </DropdownMenu.Content>
-                                  </DropdownMenu.Portal>
-                                </DropdownMenu.Root>
-                              )
-                            })()
-                          )}
+                        <td className="px-4 py-3">
+                          {(() => {
+                            const assignedInfo = adminVendorInfo[admin.id] || []
+                            const assigned = assignedInfo[0]?.vendorName || 'Unassigned'
+                            return <p className="text-sm text-gray-600">{assigned}</p>
+                          })()}
                         </td>
                       )}
                       <td className="px-4 py-3">

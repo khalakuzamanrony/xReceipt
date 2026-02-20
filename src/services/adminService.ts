@@ -248,11 +248,8 @@ export const adminService = {
       assigned_category_ids: [],
       can_view_receipts: true,
       can_create_receipts: true,
-      can_assign_receipt_templates: true,
       can_view_templates: true,
       can_create_templates: true,
-      can_assign_templates: true,
-      assigned_template_ids: [],
     })
 
     try {

@@ -9,6 +9,7 @@ import ReceiptList from '@/components/receipts/ReceiptList'
 import TemplateList from '@/components/templates/TemplateList'
 import TemplateBuilderPage from '@/components/templates/TemplateBuilderPage'
 import VendorList from '@/components/vendors/VendorList'
+import SettingsPage from '@/components/settings/SettingsPage'
 import { useAuth } from '@/contexts/AuthContext'
 import SignInPage from '@/components/auth/SignInPage'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
@@ -87,6 +88,8 @@ export default function App() {
         return <CategoryList />
       case 'vendors':
         return <VendorList />
+      case 'settings':
+        return <SettingsPage />
       case 'admin':
       default:
         return <AdminList />

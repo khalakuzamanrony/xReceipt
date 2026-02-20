@@ -30,14 +30,31 @@ export const vendorAdminService = {
     vendorId: string,
     admins: { admin_id: string; is_vendor_super_admin: boolean }[],
   ): Promise<void> {
-    const { error: deleteError } = await supabase
+    if (!admins.length) {
+      const { error } = await supabase.from('vendor_admins').delete().eq('vendor_id', vendorId)
+      if (error) throw error
+      return
+    }
+
+    const adminIds = admins.map((a) => a.admin_id)
+
+    // Remove assignments that belong to this vendor but are no longer selected
+    const { error: deleteRemovedError } = await supabase
       .from('vendor_admins')
       .delete()
       .eq('vendor_id', vendorId)
+      .not('admin_id', 'in', `(${adminIds.map((id) => `"${id}"`).join(',')})`)
 
-    if (deleteError) throw deleteError
+    if (deleteRemovedError) throw deleteRemovedError
 
-    if (!admins.length) return
+    // Enforce single-shop-per-admin: clear any other vendor assignment for these admins
+    const { error: clearOthersError } = await supabase
+      .from('vendor_admins')
+      .delete()
+      .in('admin_id', adminIds)
+      .neq('vendor_id', vendorId)
+
+    if (clearOthersError) throw clearOthersError
 
     const payload = admins.map((a) => ({
       vendor_id: vendorId,
@@ -45,11 +62,31 @@ export const vendorAdminService = {
       is_vendor_super_admin: a.is_vendor_super_admin,
     }))
 
-    const { error: insertError } = await supabase
+    // With a UNIQUE(admin_id) constraint, we must upsert by admin_id
+    const { error: upsertError } = await supabase
       .from('vendor_admins')
-      .insert(payload)
+      .upsert(payload, { onConflict: 'admin_id' })
 
-    if (insertError) throw insertError
+    if (upsertError) throw upsertError
+  },
+
+  async setVendorForAdmin(
+    adminId: string,
+    vendorId: string,
+    isVendorSuperAdmin: boolean,
+  ): Promise<void> {
+    const { error } = await supabase
+      .from('vendor_admins')
+      .upsert(
+        {
+          admin_id: adminId,
+          vendor_id: vendorId,
+          is_vendor_super_admin: isVendorSuperAdmin,
+        },
+        { onConflict: 'admin_id' },
+      )
+
+    if (error) throw error
   },
 
   async getVendorSuperAdminAdminIds(): Promise<string[]> {

@@ -20,6 +20,7 @@ import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
 import * as Popover from '@radix-ui/react-popover'
 import { cn } from '@/lib/utils'
 import { supabase } from '@/lib/supabase'
+import { useBrandSettings } from '@/contexts/BrandSettingsContext'
 
 interface SidebarProps {
   currentPage: string
@@ -32,6 +33,7 @@ export default function Sidebar({ currentPage, onPageChange, collapsed }: Sideba
   const [hoveredMenuId, setHoveredMenuId] = useState<string | null>(null)
   const { user, role, signOut } = useAuth()
   const { memberships, activeVendorId, setActiveVendorId, permissions, permissionsLoading } = useVendor()
+  const { settings } = useBrandSettings()
   const [vendorSearch, setVendorSearch] = useState('')
   const [userAvatarUrl, setUserAvatarUrl] = useState<string>('')
 
@@ -42,6 +44,7 @@ export default function Sidebar({ currentPage, onPageChange, collapsed }: Sideba
     { id: 'products', label: 'Products', icon: Package },
     { id: 'categories', label: 'Categories', icon: Folder },
     { id: 'vendors', label: 'Shops', icon: Store },
+    { id: 'settings', label: 'Settings', icon: Settings },
     { id: 'admin', label: 'Admin', icon: Users },
   ]
 
@@ -153,7 +156,7 @@ export default function Sidebar({ currentPage, onPageChange, collapsed }: Sideba
       case 'receipts':
         return !!permissions?.can_view_receipts
       case 'templates':
-        return !!permissions?.can_view_templates
+        return isVendorSuperAdminForActiveVendor
       case 'products':
         return !!permissions?.can_view_products
       case 'categories':
@@ -408,7 +411,7 @@ export default function Sidebar({ currentPage, onPageChange, collapsed }: Sideba
                 </DropdownMenu.Portal>
               </DropdownMenu.Root>
             )}
-            <p className="text-gray-400 text-[10px] text-center mt-2">© 2025 xReceipt</p>
+            <p className="text-gray-400 text-[10px] text-center mt-2">© 2025 {settings?.app_name?.trim() || 'xReceipt'}</p>
           </div>
         </div>
       </aside>
