@@ -25,7 +25,7 @@ export default function TemplateList({ onNavigateToBuilder }: TemplateListProps)
   const isGrandUserAllShops = role === 'grand_user' && !activeVendorId
 
   const isVendorSuperAdminForActiveVendor =
-    role === 'admin' &&
+    (role === 'admin' || role === 'super_admin') &&
     !!activeVendorId &&
     memberships.some((m) => m.vendor.id === activeVendorId && m.isVendorSuperAdmin)
 

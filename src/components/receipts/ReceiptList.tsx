@@ -1444,7 +1444,7 @@ export default function ReceiptList() {
       {showForm && (
         <Dialog open={true} onOpenChange={setShowForm}>
           <DialogContent
-            className="max-w-2xl max-h-[calc(100dvh-2rem)] p-0 flex flex-col overflow-hidden min-h-0"
+            className="max-w-2xl lg:max-w-4xl max-h-[calc(100dvh-2rem)] p-0 flex flex-col overflow-hidden min-h-0"
             showCloseButton={false}
           >
             <form onSubmit={handleSubmit} className="flex flex-col h-full min-h-0">

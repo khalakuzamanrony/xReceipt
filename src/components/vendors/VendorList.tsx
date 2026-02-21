@@ -17,7 +17,7 @@ import { supabase } from '@/lib/supabase'
 
 export default function VendorList() {
   const { role } = useAuth()
-  const { memberships, activeVendorId } = useVendor()
+  const { memberships, activeVendorId, refreshMemberships } = useVendor()
   const [vendors, setVendors] = useState<Vendor[]>([])
   const [admins, setAdmins] = useState<User[]>([])
   const [loading, setLoading] = useState(true)
@@ -463,6 +463,7 @@ export default function VendorList() {
 
       setShowForm(false)
       await loadData()
+      await refreshMemberships()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to save shop')
     } finally {
