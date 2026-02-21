@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState } from 'react'
+import { createContext, useContext, useEffect, useState, useCallback } from 'react'
 import type { ReactNode } from 'react'
 import type { Vendor, AdminVendorPermissions } from '@/types'
 import { useAuth } from '@/contexts/AuthContext'
@@ -15,6 +15,7 @@ interface VendorContextValue {
   memberships: VendorMembership[]
   activeVendorId: string | null
   setActiveVendorId: (vendorId: string | null) => void
+  refreshMemberships: () => Promise<void>
   permissions: AdminVendorPermissions | null
   permissionsLoading: boolean
   loading: boolean
@@ -32,6 +33,46 @@ export function VendorProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  const refreshMemberships = useCallback(async () => {
+    if (!user || !role) {
+      setMemberships([])
+      setActiveVendorId(null)
+      return
+    }
+
+    setLoading(true)
+    setError(null)
+
+    try {
+      if (role === 'grand_user') {
+        const vendors = await vendorService.getAllVendors()
+        setMemberships(
+          vendors.map((vendor) => ({
+            vendor,
+            isVendorSuperAdmin: true,
+          })),
+        )
+        setActiveVendorId((prev) => prev ?? null)
+      } else {
+        const entries = await vendorAdminService.getVendorsForAdmin(user.id)
+        setMemberships(entries)
+
+        setActiveVendorId((prev) => {
+          if (prev && entries.some((e) => e.vendor.id === prev)) {
+            return prev
+          }
+          return entries.length > 0 ? entries[0].vendor.id : null
+        })
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load vendors for user')
+      setMemberships([])
+      setActiveVendorId(null)
+    } finally {
+      setLoading(false)
+    }
+  }, [role, user])
+
   useEffect(() => {
     if (!user || !role) {
       setMemberships([])
@@ -40,41 +81,7 @@ export function VendorProvider({ children }: { children: ReactNode }) {
       return
     }
 
-    const loadMemberships = async () => {
-      setLoading(true)
-      setError(null)
-
-      try {
-        if (role === 'grand_user') {
-          const vendors = await vendorService.getAllVendors()
-          setMemberships(
-            vendors.map((vendor) => ({
-              vendor,
-              isVendorSuperAdmin: true,
-            })),
-          )
-          setActiveVendorId((prev) => prev ?? null)
-        } else {
-          const entries = await vendorAdminService.getVendorsForAdmin(user.id)
-          setMemberships(entries)
-
-          setActiveVendorId((prev) => {
-            if (prev && entries.some((e) => e.vendor.id === prev)) {
-              return prev
-            }
-            return entries.length > 0 ? entries[0].vendor.id : null
-          })
-        }
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to load vendors for user')
-        setMemberships([])
-        setActiveVendorId(null)
-      } finally {
-        setLoading(false)
-      }
-    }
-
-    void loadMemberships()
+    void refreshMemberships()
   }, [user?.id, role])
 
   useEffect(() => {
@@ -84,7 +91,7 @@ export function VendorProvider({ children }: { children: ReactNode }) {
       return
     }
 
-    if (role !== 'admin') {
+    if (role !== 'admin' && role !== 'super_admin') {
       setPermissions(null)
       setPermissionsLoading(false)
       return
@@ -122,6 +129,7 @@ export function VendorProvider({ children }: { children: ReactNode }) {
     memberships,
     activeVendorId,
     setActiveVendorId,
+    refreshMemberships,
     permissions,
     permissionsLoading,
     loading,

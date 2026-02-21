@@ -10,7 +10,7 @@ import { productService } from '@/services/productService'
 import { categoryService } from '@/services/categoryService'
 import { templateService } from '@/services/templateService'
 import { receiptService } from '@/services/receiptService'
-import { CheckCircle2, Clock, DollarSign, FileCode, FileText, Package, Send, Users } from 'lucide-react'
+import { CheckCircle2, Clock, FileCode, FileText, Package, Send, Users } from 'lucide-react'
 
 type DateRangeId = 'today' | '7d' | '30d' | 'all'
 
@@ -57,7 +57,7 @@ export default function Dashboard() {
     return match?.vendor?.name ?? null
   }, [activeVendorId, memberships])
 
-  const isAdmin = role === 'admin'
+  const isAdmin = role === 'admin' || role === 'super_admin'
   const adminPermissionFallback = isAdmin && !permissions
 
   // Dashboard should always show shop-scoped metrics for admins.
@@ -89,7 +89,7 @@ export default function Dashboard() {
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat(undefined, {
       style: 'currency',
-      currency: 'USD',
+      currency: 'BDT',
       maximumFractionDigits: 2,
     }).format(amount)
   }
@@ -315,7 +315,9 @@ export default function Dashboard() {
         <Card className="hover:shadow-lg transition-shadow">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Revenue</CardTitle>
-            <DollarSign className="h-4 w-4 text-green-600" />
+            <span className="h-4 w-4 inline-flex items-center justify-center text-green-600 font-semibold">
+              ৳
+            </span>
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{canViewReceipts ? formatCurrency(stats.revenue) : '—'}</div>
@@ -326,7 +328,9 @@ export default function Dashboard() {
         <Card className="hover:shadow-lg transition-shadow">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Avg receipt</CardTitle>
-            <DollarSign className="h-4 w-4 text-emerald-600" />
+            <span className="h-4 w-4 inline-flex items-center justify-center text-emerald-600 font-semibold">
+              ৳
+            </span>
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{canViewReceipts ? formatCurrency(stats.avgReceipt) : '—'}</div>

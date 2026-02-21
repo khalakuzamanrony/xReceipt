@@ -7,7 +7,7 @@ export const vendorAdminService = {
       .from('vendor_admins')
       .select('*')
       .eq('vendor_id', vendorId)
-      .order('created_at', { ascending: true })
+      .order('created_at', { ascending: false })
 
     if (error) throw error
     return data || []
@@ -20,7 +20,7 @@ export const vendorAdminService = {
       .from('vendor_admins')
       .select('*')
       .in('vendor_id', vendorIds)
-      .order('created_at', { ascending: true })
+      .order('created_at', { ascending: false })
 
     if (error) throw error
     return (data || []) as VendorAdmin[]
@@ -30,14 +30,31 @@ export const vendorAdminService = {
     vendorId: string,
     admins: { admin_id: string; is_vendor_super_admin: boolean }[],
   ): Promise<void> {
-    const { error: deleteError } = await supabase
+    if (!admins.length) {
+      const { error } = await supabase.from('vendor_admins').delete().eq('vendor_id', vendorId)
+      if (error) throw error
+      return
+    }
+
+    const adminIds = admins.map((a) => a.admin_id)
+
+    // Remove assignments that belong to this vendor but are no longer selected
+    const { error: deleteRemovedError } = await supabase
       .from('vendor_admins')
       .delete()
       .eq('vendor_id', vendorId)
+      .not('admin_id', 'in', `(${adminIds.map((id) => `"${id}"`).join(',')})`)
 
-    if (deleteError) throw deleteError
+    if (deleteRemovedError) throw deleteRemovedError
 
-    if (!admins.length) return
+    // Enforce single-shop-per-admin: clear any other vendor assignment for these admins
+    const { error: clearOthersError } = await supabase
+      .from('vendor_admins')
+      .delete()
+      .in('admin_id', adminIds)
+      .neq('vendor_id', vendorId)
+
+    if (clearOthersError) throw clearOthersError
 
     const payload = admins.map((a) => ({
       vendor_id: vendorId,
@@ -45,10 +62,55 @@ export const vendorAdminService = {
       is_vendor_super_admin: a.is_vendor_super_admin,
     }))
 
-    const { error: insertError } = await supabase
-      .from('vendor_admins')
-      .insert(payload)
+    // With a UNIQUE(admin_id) constraint, we must upsert by admin_id
+    const { error: upsertError } = await supabase.from('vendor_admins').upsert(payload, { onConflict: 'admin_id' })
 
+    if (!upsertError) return
+
+    const message = String((upsertError as any)?.message || '').toLowerCase()
+    const isMissingOnConflictConstraint =
+      message.includes('no unique') ||
+      message.includes('no unique or exclusion constraint') ||
+      message.includes('on conflict')
+
+    if (!isMissingOnConflictConstraint) throw upsertError
+
+    // Fallback for databases that don't yet have UNIQUE(admin_id):
+    // remove any existing assignment for these admins, then insert fresh.
+    const { error: deleteExistingError } = await supabase.from('vendor_admins').delete().in('admin_id', adminIds)
+    if (deleteExistingError) throw deleteExistingError
+
+    const { error: insertError } = await supabase.from('vendor_admins').insert(payload)
+    if (insertError) throw insertError
+  },
+
+  async setVendorForAdmin(
+    adminId: string,
+    vendorId: string,
+    isVendorSuperAdmin: boolean,
+  ): Promise<void> {
+    const payload = {
+      admin_id: adminId,
+      vendor_id: vendorId,
+      is_vendor_super_admin: isVendorSuperAdmin,
+    }
+
+    const { error } = await supabase.from('vendor_admins').upsert(payload, { onConflict: 'admin_id' })
+
+    if (!error) return
+
+    const message = String((error as any)?.message || '').toLowerCase()
+    const isMissingOnConflictConstraint =
+      message.includes('no unique') ||
+      message.includes('no unique or exclusion constraint') ||
+      message.includes('on conflict')
+
+    if (!isMissingOnConflictConstraint) throw error
+
+    const { error: deleteExistingError } = await supabase.from('vendor_admins').delete().eq('admin_id', adminId)
+    if (deleteExistingError) throw deleteExistingError
+
+    const { error: insertError } = await supabase.from('vendor_admins').insert(payload)
     if (insertError) throw insertError
   },
 

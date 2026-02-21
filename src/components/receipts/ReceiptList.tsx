@@ -7,8 +7,8 @@ import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Label } from '@/components/ui/Label'
 import { Checkbox } from '@/components/ui/Checkbox'
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/Dialog'
-import { Plus, AlertCircle, FileText, Search, Edit, Trash2, Eye, Download, ArrowUpDown, Funnel, ChevronDown, Check } from 'lucide-react'
+import { Dialog, DialogClose, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/Dialog'
+import { Plus, AlertCircle, FileText, Search, Edit, Trash2, Eye, Download, ArrowUpDown, Funnel, ChevronDown, Check, X } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { useVendor } from '@/contexts/VendorContext'
 import ReceiptPreviewModal from './ReceiptPreviewModal'
@@ -79,6 +79,13 @@ export default function ReceiptList() {
   const [itemDiscountEnabled, setItemDiscountEnabled] = useState(false)
   const [itemDiscountType, setItemDiscountType] = useState<'none' | 'percentage' | 'flat'>('none')
   const [itemDiscountValue, setItemDiscountValue] = useState('0')
+
+  const [taxMode, setTaxMode] = useState<'individual' | 'collective'>('individual')
+  const [discountMode, setDiscountMode] = useState<'individual' | 'collective'>('individual')
+  const [individualTaxBackup, setIndividualTaxBackup] = useState<Record<string, { tax_enabled?: boolean; tax_percentage?: number }>>({})
+  const [individualDiscountBackup, setIndividualDiscountBackup] = useState<
+    Record<string, { discount_enabled?: boolean; discount_type?: 'none' | 'percentage' | 'flat'; discount_value?: number }>
+  >({})
   const [formData, setFormData] = useState({
     company_name: '',
     customer_name: '',
@@ -112,7 +119,6 @@ export default function ReceiptList() {
   const [modalTemplates, setModalTemplates] = useState<any[]>([])
 
   const assignedProductIds = permissions?.assigned_product_ids || []
-  const assignedTemplateIds = permissions?.assigned_template_ids || []
 
   const vendors: Vendor[] = memberships.map((m) => m.vendor)
   const activeVendorName = activeVendorId ? vendors.find((v) => v.id === activeVendorId)?.name || '' : ''
@@ -177,13 +183,13 @@ export default function ReceiptList() {
     for (const item of items) {
       const { lineSubtotal, lineDiscount, lineTax } = getItemBreakdown(item)
       subtotal += lineSubtotal
-      itemDiscount += lineDiscount
-      itemTax += lineTax
+      itemDiscount += discountMode === 'individual' ? lineDiscount : 0
+      itemTax += taxMode === 'individual' ? lineTax : 0
     }
     const netAfterItemDiscount = Math.max(0, subtotal - itemDiscount)
 
-    const receiptDiscountType = formData.discount_type
-    const receiptDiscountValueRaw = Math.max(0, safeNumber(formData.discount_value))
+    const receiptDiscountType = discountMode === 'collective' ? formData.discount_type : 'none'
+    const receiptDiscountValueRaw = discountMode === 'collective' ? Math.max(0, safeNumber(formData.discount_value)) : 0
     const receiptDiscountValue =
       receiptDiscountType === 'percentage'
         ? clampPercent(receiptDiscountValueRaw)
@@ -199,7 +205,7 @@ export default function ReceiptList() {
     const receiptDiscount = Math.min(Math.max(0, receiptDiscountAmountRaw), netAfterItemDiscount)
 
     const netAfterAllDiscounts = Math.max(0, netAfterItemDiscount - receiptDiscount)
-    const receiptTaxPercent = clampPercent(formData.tax_percent)
+    const receiptTaxPercent = taxMode === 'collective' ? clampPercent(formData.tax_percent) : 0
     const receiptTax = netAfterAllDiscounts * (receiptTaxPercent / 100)
 
     const totalDiscount = itemDiscount + receiptDiscount
@@ -216,7 +222,81 @@ export default function ReceiptList() {
       totalTax,
       total,
     }
-  }, [items, formData.discount_type, formData.discount_value, formData.tax_percent])
+  }, [items, formData.discount_type, formData.discount_value, formData.tax_percent, taxMode, discountMode])
+
+  useEffect(() => {
+    if (!showForm) return
+
+    if (taxMode === 'collective') {
+      setIndividualTaxBackup((prev) => {
+        const next = { ...prev }
+        for (const it of items) {
+          if (!next[it.id]) {
+            next[it.id] = { tax_enabled: it.tax_enabled, tax_percentage: it.tax_percentage }
+          }
+        }
+        return next
+      })
+      setItems((prev) => prev.map((it) => recalculateItemTotal({ ...it, tax_enabled: false, tax_percentage: 0 })))
+    }
+    if (taxMode === 'individual') {
+      setItems((prev) =>
+        prev.map((it) => {
+          const backup = individualTaxBackup[it.id]
+          if (!backup) return it
+          return recalculateItemTotal({
+            ...it,
+            tax_enabled: backup.tax_enabled,
+            tax_percentage: backup.tax_percentage,
+          })
+        }),
+      )
+    }
+  }, [taxMode])
+
+  useEffect(() => {
+    if (!showForm) return
+
+    if (discountMode === 'collective') {
+      setIndividualDiscountBackup((prev) => {
+        const next = { ...prev }
+        for (const it of items) {
+          if (!next[it.id]) {
+            next[it.id] = {
+              discount_enabled: it.discount_enabled,
+              discount_type: it.discount_type,
+              discount_value: it.discount_value,
+            }
+          }
+        }
+        return next
+      })
+      setItems((prev) =>
+        prev.map((it) =>
+          recalculateItemTotal({
+            ...it,
+            discount_enabled: false,
+            discount_type: 'none',
+            discount_value: 0,
+          }),
+        ),
+      )
+    }
+    if (discountMode === 'individual') {
+      setItems((prev) =>
+        prev.map((it) => {
+          const backup = individualDiscountBackup[it.id]
+          if (!backup) return it
+          return recalculateItemTotal({
+            ...it,
+            discount_enabled: backup.discount_enabled,
+            discount_type: backup.discount_type,
+            discount_value: backup.discount_value,
+          })
+        }),
+      )
+    }
+  }, [discountMode])
 
   useEffect(() => {
     if (vendorLoading) return
@@ -313,9 +393,24 @@ export default function ReceiptList() {
   }
 
   const sortedReceipts = [...filteredReceipts].sort((a, b) => {
+    const aCreated = a.created_at ? new Date(a.created_at).getTime() : 0
+    const bCreated = b.created_at ? new Date(b.created_at).getTime() : 0
+
+    // Default behavior (desc): newest receipts first.
+    if (sortDirection === 'desc') {
+      const createdDelta = bCreated - aCreated
+      if (createdDelta !== 0) return createdDelta
+      const aTotal = a.total ?? 0
+      const bTotal = b.total ?? 0
+      return bTotal - aTotal
+    }
+
+    // Ascending sort: primarily by total amount, tie-breaker by newest first.
     const aTotal = a.total ?? 0
     const bTotal = b.total ?? 0
-    return sortDirection === 'asc' ? aTotal - bTotal : bTotal - aTotal
+    const totalDelta = aTotal - bTotal
+    if (totalDelta !== 0) return totalDelta
+    return bCreated - aCreated
   })
 
   const totalReceipts = sortedReceipts.length
@@ -400,15 +495,15 @@ export default function ReceiptList() {
     }
   }
 
-  const templatesForReceiptModal = (() => {
+  const templatesForReceiptModal = useMemo(() => {
     if (!vendorIdForReceiptModal) return templates
     return templates.filter((tpl: any) => tpl.vendor_id === vendorIdForReceiptModal)
-  })()
+  }, [templates, vendorIdForReceiptModal])
 
-  const productsForReceiptModal = (() => {
+  const productsForReceiptModal = useMemo(() => {
     if (!vendorIdForReceiptModal) return products
     return products.filter((p: any) => p.vendor_id === vendorIdForReceiptModal)
-  })()
+  }, [products, vendorIdForReceiptModal])
 
   const permissionFilteredProductsForReceiptModal = useMemo(() => {
     return role === 'admin' && !isVendorSuperAdminForActiveVendor && permissions?.can_view_products && assignedProductIds.length > 0
@@ -643,11 +738,83 @@ export default function ReceiptList() {
     }
   }
 
-  const buildReceiptHtml = (receipt: Receipt, templateHtml: string) => {
+  const buildReceiptHtml = (receipt: Receipt, templateHtmlInput: string) => {
+    let templateHtml = templateHtmlInput
     const subtotal = receipt.subtotal || 0
     const discount = receipt.discount || 0
     const tax = receipt.tax || 0
     const total = receipt.total || 0
+
+    const getItemTotals = (item: ReceiptItem) => {
+      const quantity = Math.max(1, Math.trunc(safeNumber(item.quantity)))
+      const unitPrice = Math.max(0, safeNumber(item.unit_price))
+      const lineSubtotal = unitPrice * quantity
+
+      const discountEnabled = item.discount_enabled === true
+      const discountType = discountEnabled
+        ? item.discount_type && item.discount_type !== 'none'
+          ? item.discount_type
+          : 'percentage'
+        : 'none'
+      const discountValueRaw = Math.max(0, safeNumber(item.discount_value))
+      const discountValue =
+        discountType === 'percentage'
+          ? clampPercent(discountValueRaw)
+          : discountType === 'flat'
+            ? Math.min(unitPrice, Math.max(0, Math.floor(discountValueRaw)))
+            : 0
+      const discountAmountRaw =
+        discountType === 'percentage'
+          ? lineSubtotal * (discountValue / 100)
+          : discountType === 'flat'
+            ? discountValue * quantity
+            : 0
+      const lineDiscount = Math.min(Math.max(0, discountAmountRaw), lineSubtotal)
+
+      const taxEnabled = item.tax_enabled !== false
+      const taxPercentage = clampPercent(item.tax_percentage)
+      const taxableBase = Math.max(0, lineSubtotal - lineDiscount)
+      const lineTax = taxEnabled ? taxableBase * (taxPercentage / 100) : 0
+
+      const lineTotal = taxableBase + lineTax
+
+      return { lineSubtotal, lineDiscount, lineTax, lineTotal, taxEnabled, taxPercentage, discountType, discountValue }
+    }
+
+    let itemsSubtotal = 0
+    let itemsDiscount = 0
+    let itemsTax = 0
+    if (receipt.items && receipt.items.length > 0) {
+      for (const item of receipt.items) {
+        const { lineSubtotal, lineDiscount, lineTax } = getItemTotals(item)
+        itemsSubtotal += lineSubtotal
+        itemsDiscount += lineDiscount
+        itemsTax += lineTax
+      }
+    }
+
+    const receiptDiscountType = ((receipt as any).discount_type as string | undefined) || 'none'
+    const receiptDiscountValueRaw =
+      typeof (receipt as any).discount_value === 'number' ? ((receipt as any).discount_value as number) : 0
+    const receiptDiscountValue =
+      receiptDiscountType === 'percentage'
+        ? clampPercent(receiptDiscountValueRaw)
+        : receiptDiscountType === 'flat'
+          ? Math.max(0, Math.floor(receiptDiscountValueRaw))
+          : 0
+
+    const netAfterItemDiscount = Math.max(0, itemsSubtotal - itemsDiscount)
+    const receiptDiscountAmountRaw =
+      receiptDiscountType === 'percentage'
+        ? netAfterItemDiscount * (receiptDiscountValue / 100)
+        : receiptDiscountType === 'flat'
+          ? receiptDiscountValue
+          : 0
+    const receiptDiscount = Math.min(Math.max(0, receiptDiscountAmountRaw), netAfterItemDiscount)
+
+    const netAfterAllDiscounts = Math.max(0, netAfterItemDiscount - receiptDiscount)
+    const receiptTaxPercent = clampPercent((receipt as any).tax_percent)
+    const receiptTax = netAfterAllDiscounts * (receiptTaxPercent / 100)
 
     const taxPercent =
       typeof (receipt as any).tax_percent === 'number'
@@ -657,28 +824,81 @@ export default function ReceiptList() {
           : 0
     const safeTaxPercent = Number.isFinite(taxPercent) ? Math.max(0, taxPercent) : 0
 
-    const discountType = ((receipt as any).discount_type as string | undefined) || 'none'
-    const discountValue =
-      typeof (receipt as any).discount_value === 'number' ? ((receipt as any).discount_value as number) : 0
+    const discountType = receiptDiscountType
+    const discountValue = receiptDiscountValue
 
     const taxMeta = safeTaxPercent > 0 ? `(${safeTaxPercent.toFixed(2)}%)` : ''
     const discountMeta =
       discountType === 'percentage' && discountValue > 0
         ? `(${discountValue.toFixed(2)}%)`
         : discountType === 'flat' && discountValue > 0
-          ? `($${discountValue.toFixed(2)})`
+          ? `(৳${discountValue.toFixed(2)})`
           : ''
 
-    let itemsColumns: Array<'description' | 'imei_or_model' | 'color' | 'quantity' | 'price' | 'total'> = ['description', 'quantity', 'price', 'total']
+    type ItemCol =
+      | 'description'
+      | 'imei_or_model'
+      | 'color'
+      | 'discount'
+      | 'tax'
+      | 'quantity'
+      | 'price'
+      | 'total'
+
+    const ensureTaxDiscountAfterQuantity = (cols: ItemCol[]): ItemCol[] => {
+      const without = cols.filter(
+        (c): c is Exclude<ItemCol, 'tax' | 'discount'> => c !== 'tax' && c !== 'discount'
+      )
+      const qIndex = without.indexOf('quantity')
+      const result: ItemCol[] = [...without]
+      if (qIndex !== -1) {
+        result.splice(qIndex + 1, 0, 'tax', 'discount')
+        return result
+      }
+      result.push('tax', 'discount')
+      return result
+    }
+
+    const injectItemsHeaderColumns = (html: string, cols: ItemCol[]) => {
+      if (!html) return html
+      if (!cols.includes('tax') || !cols.includes('discount')) return html
+
+      const hasTaxHeader = /<th[^>]*>\s*Tax\s*<\/th>/i.test(html)
+      const hasDiscountHeader = /<th[^>]*>\s*Discount\s*<\/th>/i.test(html)
+      if (hasTaxHeader && hasDiscountHeader) return html
+
+      const theadMatch = html.match(/<thead[^>]*>[\s\S]*?<tr[^>]*>([\s\S]*?)<\/tr>[\s\S]*?<\/thead>/i)
+      if (!theadMatch) return html
+
+      const headerRowInner = theadMatch[1]
+      const taxTh = '<th class="text-right">Tax</th>'
+      const discountTh = '<th class="text-right">Discount</th>'
+      let updatedHeaderRowInner = headerRowInner
+
+      const quantityThRegex = /(<th[^>]*>[\s\S]*?(Quantity|Qty)[\s\S]*?<\/th>)/i
+      const qtyMatch = headerRowInner.match(quantityThRegex)
+      if (qtyMatch) {
+        const insertion = `${qtyMatch[1]}${hasTaxHeader ? '' : taxTh}${hasDiscountHeader ? '' : discountTh}`
+        updatedHeaderRowInner = headerRowInner.replace(quantityThRegex, insertion)
+      } else {
+        updatedHeaderRowInner = `${headerRowInner}${hasTaxHeader ? '' : taxTh}${hasDiscountHeader ? '' : discountTh}`
+      }
+
+      return html.replace(theadMatch[0], theadMatch[0].replace(headerRowInner, updatedHeaderRowInner))
+    }
+
+    let itemsColumns: ItemCol[] = ['description', 'quantity', 'price', 'total']
     const itemsColumnsMatch = templateHtml.match(/data-items-columns="([a-z_,]+)"/)
     if (itemsColumnsMatch && itemsColumnsMatch[1]) {
       const parts = itemsColumnsMatch[1].split(',').map(p => p.trim()).filter(Boolean)
-      const valid: Array<'description' | 'imei_or_model' | 'color' | 'quantity' | 'price' | 'total'> = []
+      const valid: ItemCol[] = []
       for (const col of parts) {
         if (
           col === 'description' ||
           col === 'imei_or_model' ||
           col === 'color' ||
+          col === 'discount' ||
+          col === 'tax' ||
           col === 'quantity' ||
           col === 'price' ||
           col === 'total'
@@ -691,13 +911,29 @@ export default function ReceiptList() {
       }
     }
 
+    itemsColumns = ensureTaxDiscountAfterQuantity(itemsColumns)
+    if (itemsColumnsMatch) {
+      templateHtml = templateHtml.replace(itemsColumnsMatch[0], `data-items-columns="${itemsColumns.join(',')}"`)
+      templateHtml = injectItemsHeaderColumns(templateHtml, itemsColumns)
+    }
+
     let itemsHTML = ''
     if (receipt.items && receipt.items.length > 0) {
       const hasDedicatedImeiColumn = itemsColumns.includes('imei_or_model')
       const hasDedicatedColorColumn = itemsColumns.includes('color')
+      const hasDedicatedDiscountColumn = itemsColumns.includes('discount')
+      const hasDedicatedTaxColumn = itemsColumns.includes('tax')
 
       itemsHTML = receipt.items
         .map((item) => {
+          const { lineDiscount, lineTax, lineTotal, taxEnabled, taxPercentage, discountType, discountValue } = getItemTotals(item)
+          const discountMetaForItem =
+            discountType === 'percentage'
+              ? `${clampPercent(discountValue).toFixed(2)}%`
+              : discountType === 'flat'
+                ? `৳${Math.max(0, Math.floor(discountValue)).toFixed(0)}/unit`
+                : ''
+
           const cells = itemsColumns
             .map((col) => {
               if (col === 'description') {
@@ -708,8 +944,14 @@ export default function ReceiptList() {
                 if (!hasDedicatedColorColumn && item.color) {
                   metaParts.push(`Color: ${item.color}`)
                 }
+                if (!hasDedicatedDiscountColumn && item.discount_enabled === true) {
+                  metaParts.push(`Discount: ${discountMetaForItem} (-৳${lineDiscount.toFixed(2)})`)
+                }
+                if (!hasDedicatedTaxColumn) {
+                  metaParts.push(taxEnabled ? `Tax: ${taxPercentage.toFixed(2)}% (+৳${lineTax.toFixed(2)})` : 'Tax: Off')
+                }
                 const metaHtml = metaParts.length
-                  ? `<div style="margin-top: 2px; font-size: 11px; color: #666;">${metaParts.join(' · ')}</div>`
+                  ? `<div style="margin-top: 2px; font-size: 11px; color: #666; line-height: 1.35;">${metaParts.join('<br/>')}</div>`
                   : ''
 
                 return `<td style="padding: 8px; border-bottom: 1px solid #eee;"><div>${item.name}</div>${metaHtml}</td>`
@@ -720,14 +962,20 @@ export default function ReceiptList() {
               if (col === 'color') {
                 return `<td style="padding: 8px; border-bottom: 1px solid #eee;">${item.color || ''}</td>`
               }
+              if (col === 'discount') {
+                return `<td style="padding: 8px; border-bottom: 1px solid #eee; text-align: right;">${item.discount_enabled === true ? `-৳${lineDiscount.toFixed(2)}` : ''}</td>`
+              }
+              if (col === 'tax') {
+                return `<td style="padding: 8px; border-bottom: 1px solid #eee; text-align: right;">${taxEnabled ? `+৳${lineTax.toFixed(2)}` : ''}</td>`
+              }
               if (col === 'quantity') {
                 return `<td style="padding: 8px; border-bottom: 1px solid #eee; text-align: center;">${item.quantity}</td>`
               }
               if (col === 'price') {
-                return `<td style="padding: 8px; border-bottom: 1px solid #eee; text-align: right;">$${item.unit_price.toFixed(2)}</td>`
+                return `<td style="padding: 8px; border-bottom: 1px solid #eee; text-align: right;">৳${item.unit_price.toFixed(2)}</td>`
               }
               if (col === 'total') {
-                return `<td style="padding: 8px; border-bottom: 1px solid #eee; text-align: right;">$${item.total.toFixed(2)}</td>`
+                return `<td style="padding: 8px; border-bottom: 1px solid #eee; text-align: right;">৳${lineTotal.toFixed(2)}</td>`
               }
               return ''
             })
@@ -750,7 +998,9 @@ export default function ReceiptList() {
       `
     }
 
-    const hasTaxableItems = receipt.items && receipt.items.length > 0 && tax > 0
+    const totalDiscount = itemsDiscount + receiptDiscount
+    const totalTax = itemsTax + receiptTax
+    const hasTaxableItems = receipt.items && receipt.items.length > 0 && totalTax > 0
 
     const companyName =
       receipt.company_name ||
@@ -776,6 +1026,12 @@ export default function ReceiptList() {
       .replace(/{{DISCOUNT_TYPE}}/g, discountType)
       .replace(/{{DISCOUNT_VALUE}}/g, Number.isFinite(discountValue) ? discountValue.toFixed(2) : '0.00')
       .replace(/{{DISCOUNT_META}}/g, discountMeta)
+      .replace(/{{ITEMS_DISCOUNT}}/g, itemsDiscount.toFixed(2))
+      .replace(/{{RECEIPT_DISCOUNT}}/g, receiptDiscount.toFixed(2))
+      .replace(/{{TOTAL_DISCOUNT}}/g, totalDiscount.toFixed(2))
+      .replace(/{{ITEMS_TAX}}/g, itemsTax.toFixed(2))
+      .replace(/{{RECEIPT_TAX}}/g, receiptTax.toFixed(2))
+      .replace(/{{TOTAL_TAX}}/g, totalTax.toFixed(2))
       .replace(/{{STATUS}}/g, receipt.status)
       .replace(/{{COMPANY_NAME}}/g, companyName)
       .replace(/{{COMPANY_EMAIL}}/g, 'info@xreceipt.com')
@@ -1187,15 +1443,29 @@ export default function ReceiptList() {
       {/* Receipt Form Modal */}
       {showForm && (
         <Dialog open={true} onOpenChange={setShowForm}>
-          <DialogContent className="max-w-2xl max-h-[calc(100dvh-2rem)] p-0 flex flex-col overflow-hidden min-h-0">
+          <DialogContent
+            className="max-w-2xl lg:max-w-4xl max-h-[calc(100dvh-2rem)] p-0 flex flex-col overflow-hidden min-h-0"
+            showCloseButton={false}
+          >
             <form onSubmit={handleSubmit} className="flex flex-col h-full min-h-0">
-              <DialogHeader className="px-6 pt-6 pb-4 border-b border-gray-200 bg-white">
-                <DialogTitle className="text-2xl">
-                  {selectedReceipt ? 'Edit Receipt' : 'New Receipt'}
-                </DialogTitle>
+              <DialogHeader className="px-4 sm:px-6 py-3 border-b border-gray-200 bg-white">
+                <div className="flex items-center justify-between gap-3">
+                  <DialogTitle className="text-base sm:text-lg font-semibold text-gray-900">
+                    {selectedReceipt ? 'Edit Receipt' : 'New Receipt'}
+                  </DialogTitle>
+                  <DialogClose asChild>
+                    <button
+                      type="button"
+                      className="h-8 w-8 inline-flex items-center justify-center rounded-md text-gray-600 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      aria-label="Close"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  </DialogClose>
+                </div>
               </DialogHeader>
 
-              <div className="flex-1 overflow-y-auto px-6 py-4 bg-gray-50/40 space-y-6 min-h-0">
+              <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-4 bg-gray-50/40 space-y-6 min-h-0">
               <div>
                 <Label htmlFor="company_name" className="text-sm font-medium text-gray-700">Company Name</Label>
                 <Input
@@ -1280,15 +1550,7 @@ export default function ReceiptList() {
               <div>
                 <Label htmlFor="template" className="text-sm font-medium text-gray-700" required>Receipt Template</Label>
                 {(() => {
-                  const baseTemplates = vendorIdForReceiptModal ? modalTemplates : templatesForReceiptModal
-                  const permissionFilteredTemplates =
-                    role === 'admin' &&
-                    !isVendorSuperAdminForActiveVendor &&
-                    permissions?.can_view_templates &&
-                    permissions?.can_assign_receipt_templates &&
-                    assignedTemplateIds.length > 0
-                      ? baseTemplates.filter((template: any) => assignedTemplateIds.includes(template.id))
-                      : baseTemplates
+                  const templatesToShow = vendorIdForReceiptModal ? modalTemplates : templatesForReceiptModal
 
                   return (
                     <Select.Root
@@ -1313,7 +1575,7 @@ export default function ReceiptList() {
                           style={{ minWidth: 'var(--radix-select-trigger-width)' }}
                         >
                           <Select.Viewport className="py-1 max-h-60 overflow-y-auto">
-                            {permissionFilteredTemplates.map((template: any) => (
+                            {templatesToShow.map((template: any) => (
                               <Select.Item
                                 key={template.id}
                                 value={template.id}
@@ -1341,6 +1603,82 @@ export default function ReceiptList() {
                   )}
                 </div>
 
+                <div className="grid grid-cols-12 gap-2">
+                  <div className="col-span-12 sm:col-span-6 bg-white rounded-md px-3 py-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-semibold text-gray-700">Tax mode</span>
+                      <div className="inline-flex rounded-lg border border-gray-200 bg-gray-50 p-1">
+                        <button
+                          type="button"
+                          onClick={() => setTaxMode('individual')}
+                          className={cn(
+                            'px-2.5 py-1 text-[11px] font-semibold rounded-md cursor-pointer transition-colors',
+                            taxMode === 'individual'
+                              ? 'bg-white text-blue-700 shadow-sm'
+                              : 'text-gray-600 hover:text-gray-900',
+                          )}
+                        >
+                          Individual
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setTaxMode('collective')}
+                          className={cn(
+                            'px-2.5 py-1 text-[11px] font-semibold rounded-md cursor-pointer transition-colors',
+                            taxMode === 'collective'
+                              ? 'bg-white text-blue-700 shadow-sm'
+                              : 'text-gray-600 hover:text-gray-900',
+                          )}
+                        >
+                          Collective
+                        </button>
+                      </div>
+                    </div>
+                    <p className="mt-1 text-[10px] text-gray-500">
+                      {taxMode === 'individual'
+                        ? 'Tax is set per product item.'
+                        : 'Tax is applied only from the summary section.'}
+                    </p>
+                  </div>
+
+                  <div className="col-span-12 sm:col-span-6 bg-white rounded-md px-3 py-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-semibold text-gray-700">Discount mode</span>
+                      <div className="inline-flex rounded-lg border border-gray-200 bg-gray-50 p-1">
+                        <button
+                          type="button"
+                          onClick={() => setDiscountMode('individual')}
+                          className={cn(
+                            'px-2.5 py-1 text-[11px] font-semibold rounded-md cursor-pointer transition-colors',
+                            discountMode === 'individual'
+                              ? 'bg-white text-blue-700 shadow-sm'
+                              : 'text-gray-600 hover:text-gray-900',
+                          )}
+                        >
+                          Individual
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setDiscountMode('collective')}
+                          className={cn(
+                            'px-2.5 py-1 text-[11px] font-semibold rounded-md cursor-pointer transition-colors',
+                            discountMode === 'collective'
+                              ? 'bg-white text-blue-700 shadow-sm'
+                              : 'text-gray-600 hover:text-gray-900',
+                          )}
+                        >
+                          Collective
+                        </button>
+                      </div>
+                    </div>
+                    <p className="mt-1 text-[10px] text-gray-500">
+                      {discountMode === 'individual'
+                        ? 'Discount is set per product item.'
+                        : 'Discount is applied only from the summary section.'}
+                    </p>
+                  </div>
+                </div>
+
                 {/* Items Table Header */}
                 {items.length > 0 && (
                   <div className="grid grid-cols-12 gap-3 px-3 py-2 bg-gray-50 rounded-md">
@@ -1358,7 +1696,7 @@ export default function ReceiptList() {
                   <div className="space-y-2">
                     {items.map((item) => {
                       const { lineSubtotal, lineDiscount, lineTax, lineTotal } = getItemBreakdown(item)
-                      const discountEnabled = item.discount_enabled === true
+                      const discountEnabled = discountMode === 'individual' && item.discount_enabled === true
                       const discountType = discountEnabled
                         ? item.discount_type && item.discount_type !== 'none'
                           ? item.discount_type
@@ -1376,10 +1714,10 @@ export default function ReceiptList() {
                         discountType === 'percentage'
                           ? `${clampPercent(discountValue).toFixed(2)}%`
                           : discountType === 'flat'
-                            ? `$${Math.max(0, Math.floor(discountValue)).toFixed(0)}/unit`
+                            ? `৳${Math.max(0, Math.floor(discountValue)).toFixed(0)}/unit`
                             : ''
 
-                      const taxEnabled = item.tax_enabled !== false
+                      const taxEnabled = taxMode === 'individual' && item.tax_enabled !== false
                       const taxPercent = clampPercent(item.tax_percentage)
 
                       const isEditing = editingItemId === item.id
@@ -1392,7 +1730,7 @@ export default function ReceiptList() {
                           <div className="col-span-3">
                             <div className="min-w-0">
                               <p className="text-sm font-medium text-gray-900 truncate">{item.name}</p>
-                              <p className="text-xs text-gray-600">${item.unit_price.toFixed(2)} each</p>
+                              <p className="text-xs text-gray-600">৳{item.unit_price.toFixed(2)} each</p>
                             </div>
                           </div>
 
@@ -1402,7 +1740,7 @@ export default function ReceiptList() {
 
                           <div className="col-span-2 text-right">
                             <p className="text-sm font-medium text-gray-900">
-                              {discountEnabled ? `-$${lineDiscount.toFixed(2)}` : '-'}
+                              {discountEnabled ? `-৳${lineDiscount.toFixed(2)}` : '-'}
                             </p>
                             {discountEnabled && discountLabel ? (
                               <p className="text-xs text-gray-600">{discountLabel}</p>
@@ -1412,17 +1750,17 @@ export default function ReceiptList() {
                           <div className="col-span-2 text-right">
                             {taxEnabled ? (
                               <>
-                                <p className="text-sm font-medium text-gray-900">+${lineTax.toFixed(2)}</p>
+                                <p className="text-sm font-medium text-gray-900">+৳{lineTax.toFixed(2)}</p>
                                 <p className="text-xs text-gray-600">{taxPercent.toFixed(2)}%</p>
                               </>
                             ) : (
-                              <p className="text-sm font-medium text-gray-500">-</p>
+                              <p className="text-sm font-medium text-gray-400">-</p>
                             )}
                           </div>
 
                           <div className="col-span-2 text-right">
-                            <p className="text-xs text-gray-600">${lineSubtotal.toFixed(2)}</p>
-                            <p className="text-sm font-semibold text-gray-900">${lineTotal.toFixed(2)}</p>
+                            <p className="text-xs text-gray-600">৳{lineSubtotal.toFixed(2)}</p>
+                            <p className="text-sm font-semibold text-gray-900">৳{lineTotal.toFixed(2)}</p>
                           </div>
                           <div className="col-span-2 flex justify-end">
                             <div className="flex items-center justify-end gap-1.5">
@@ -1492,7 +1830,7 @@ export default function ReceiptList() {
                                   />
                                 </div>
 
-                                <div className="grid grid-cols-12 gap-2 items-center">
+                                <div className={cn('grid grid-cols-12 gap-2 items-center', taxMode !== 'individual' ? 'opacity-50 pointer-events-none' : undefined)}>
                                   <div className="col-span-12 sm:col-span-4 flex items-center gap-2">
                                     <Checkbox
                                       checked={item.tax_enabled !== false}
@@ -1547,7 +1885,7 @@ export default function ReceiptList() {
                                   </div>
                                 </div>
 
-                                <div className="grid grid-cols-12 gap-2 items-center">
+                                <div className={cn('grid grid-cols-12 gap-2 items-center', discountMode !== 'individual' ? 'opacity-50 pointer-events-none' : undefined)}>
                                   <div className="col-span-12 sm:col-span-4 flex items-center gap-2">
                                     <Checkbox
                                       checked={item.discount_enabled === true}
@@ -1712,7 +2050,7 @@ export default function ReceiptList() {
                                   className="px-3 py-2 text-sm text-gray-800 rounded-md cursor-pointer flex items-center gap-2 data-[highlighted]:bg-blue-50 data-[highlighted]:text-blue-700 outline-none"
                                 >
                                   <Select.ItemText>
-                                    {product.name} - ${product.price.toFixed(2)}
+                                    {product.name} - ৳{product.price.toFixed(2)}
                                   </Select.ItemText>
                                 </Select.Item>
                               ))}
@@ -1745,7 +2083,7 @@ export default function ReceiptList() {
                   </div>
 
                   <div className="grid grid-cols-12 gap-2">
-                    <div className="col-span-12 sm:col-span-6 bg-white rounded-md px-3 py-2">
+                    <div className={cn('col-span-12 sm:col-span-6 bg-white rounded-md px-3 py-2', taxMode !== 'individual' ? 'opacity-50 pointer-events-none' : undefined)}>
                       <div className="flex items-center justify-between gap-2">
                         <div className="flex items-center gap-2">
                           <Checkbox
@@ -1779,7 +2117,7 @@ export default function ReceiptList() {
                       </div>
                     </div>
 
-                    <div className="col-span-12 sm:col-span-6 bg-white rounded-md px-3 py-2">
+                    <div className={cn('col-span-12 sm:col-span-6 bg-white rounded-md px-3 py-2', discountMode !== 'individual' ? 'opacity-50 pointer-events-none' : undefined)}>
                       <div className="flex items-center justify-between gap-2">
                         <div className="flex items-center gap-2">
                           <Checkbox
@@ -2120,48 +2458,98 @@ export default function ReceiptList() {
                       const totalTax = receiptItemTotals.totalTax
                       const total = receiptItemTotals.total
 
+                      const totalQty = items.reduce((sum, it) => sum + Math.max(1, Math.trunc(safeNumber(it.quantity))), 0)
+
                       return (
                         <>
                           <div className="flex items-center justify-between">
                             <p className="text-sm font-medium text-gray-700">Subtotal</p>
-                            <p className="text-sm font-semibold text-gray-900">${subtotal.toFixed(2)}</p>
+                            <p className="text-sm font-semibold text-gray-900">৳{subtotal.toFixed(2)}</p>
                           </div>
 
                           <div className="flex items-center justify-between">
                             <p className="text-sm font-medium text-gray-700">Item discount</p>
-                            <p className="text-sm font-semibold text-gray-900">-${itemDiscount.toFixed(2)}</p>
+                            <p className="text-sm font-semibold text-gray-900">-৳{itemDiscount.toFixed(2)}</p>
                           </div>
 
                           <div className="pt-2">
                             <div className="grid grid-cols-12 gap-2 px-2 py-1 bg-white/70 rounded-md">
                               <div className="col-span-5 text-[10px] font-semibold text-gray-600 uppercase">Item</div>
-                              <div className="col-span-2 text-[10px] font-semibold text-gray-600 uppercase text-center">Qty</div>
-                              <div className="col-span-2 text-[10px] font-semibold text-gray-600 uppercase text-right">Disc</div>
-                              <div className="col-span-1 text-[10px] font-semibold text-gray-600 uppercase text-right">Tax</div>
+                              <div className="col-span-1 text-[10px] font-semibold text-gray-600 uppercase text-center">Qty</div>
+                              <div className="col-span-2 text-[10px] font-semibold text-gray-600 uppercase text-right">Discount</div>
+                              <div className="col-span-2 text-[10px] font-semibold text-gray-600 uppercase text-right">Tax</div>
                               <div className="col-span-2 text-[10px] font-semibold text-gray-600 uppercase text-right">Total</div>
                             </div>
                             <div className="mt-1 space-y-1">
                               {items.map((item) => {
                                 const { lineDiscount, lineTax, lineTotal } = getItemBreakdown(item)
-                                const taxEnabled = item.tax_enabled !== false
-                                const discountEnabled = item.discount_enabled === true
-                                const taxText = taxEnabled ? `$${lineTax.toFixed(2)}` : '—'
-                                const discountText = discountEnabled ? `-$${lineDiscount.toFixed(2)}` : '—'
+                                const taxEnabled = taxMode === 'individual' && item.tax_enabled !== false
+                                const taxPercent = clampPercent(item.tax_percentage)
+                                const discountEnabled = discountMode === 'individual' && item.discount_enabled === true
+
+                                const discountType = discountEnabled
+                                  ? item.discount_type && item.discount_type !== 'none'
+                                    ? item.discount_type
+                                    : 'percentage'
+                                  : 'none'
+                                const unitPrice = Math.max(0, safeNumber(item.unit_price))
+                                const discountValueRaw = Math.max(0, safeNumber(item.discount_value))
+                                const discountValue =
+                                  discountType === 'percentage'
+                                    ? clampPercent(discountValueRaw)
+                                    : discountType === 'flat'
+                                      ? Math.min(unitPrice, Math.max(0, Math.floor(discountValueRaw)))
+                                      : 0
+                                const discountMeta =
+                                  discountType === 'percentage'
+                                    ? `${clampPercent(discountValue).toFixed(2)}%`
+                                    : discountType === 'flat'
+                                      ? `৳${Math.max(0, Math.floor(discountValue)).toFixed(0)}/unit`
+                                      : ''
 
                                 return (
                                   <div key={item.id} className="grid grid-cols-12 gap-2 px-2 py-1 rounded-md">
-                                    <div className="col-span-5 text-xs text-gray-700 truncate">{item.name}</div>
-                                    <div className="col-span-2 text-xs text-gray-700 text-center">{item.quantity}</div>
-                                    <div className="col-span-2 text-xs text-gray-700 text-right">{discountText}</div>
-                                    <div className="col-span-1 text-xs text-gray-700 text-right">{taxText}</div>
-                                    <div className="col-span-2 text-xs font-semibold text-gray-900 text-right">${lineTotal.toFixed(2)}</div>
+                                    <div className="col-span-5 min-w-0">
+                                      <div className="text-xs text-gray-700 truncate">{item.name}</div>
+                                      {(item.imei_or_model || item.color) && (
+                                        <div className="text-[10px] text-gray-500 truncate">
+                                          {item.imei_or_model ? `IMEI/Model: ${item.imei_or_model}` : ''}
+                                          {item.imei_or_model && item.color ? ' · ' : ''}
+                                          {item.color ? `Color: ${item.color}` : ''}
+                                        </div>
+                                      )}
+                                    </div>
+                                    <div className="col-span-1 text-xs text-gray-700 text-center">{item.quantity}</div>
+                                    <div className="col-span-2 text-right">
+                                      <div className="text-xs text-gray-700">{discountEnabled ? `-৳${lineDiscount.toFixed(2)}` : '—'}</div>
+                                      {discountEnabled && discountMeta ? (
+                                        <div className="text-[10px] text-gray-500">{discountMeta}</div>
+                                      ) : null}
+                                    </div>
+                                    <div className="col-span-2 text-right">
+                                      <div className="text-xs text-gray-700">{taxEnabled ? `+৳${lineTax.toFixed(2)}` : '—'}</div>
+                                      {taxEnabled ? (
+                                        <div className="text-[10px] text-gray-500">{taxPercent.toFixed(2)}%</div>
+                                      ) : null}
+                                    </div>
+                                    <div className="col-span-2 text-xs font-semibold text-gray-900 text-right">৳{lineTotal.toFixed(2)}</div>
                                   </div>
                                 )
                               })}
+
+                              <div className="grid grid-cols-12 gap-2 px-2 py-1 rounded-md border-t border-white/60 mt-1">
+                                <div className="col-span-5 text-xs font-semibold text-gray-900">Totals</div>
+                                <div className="col-span-1 text-xs font-semibold text-gray-900 text-center">{totalQty}</div>
+                                <div className="col-span-2 text-xs font-semibold text-gray-900 text-right">-৳{itemDiscount.toFixed(2)}</div>
+                                <div className="col-span-2 text-xs font-semibold text-gray-900 text-right">+৳{itemTax.toFixed(2)}</div>
+                                <div className="col-span-2 text-xs font-semibold text-gray-900 text-right">৳{(Math.max(0, subtotal - itemDiscount) + itemTax).toFixed(2)}</div>
+                              </div>
                             </div>
                           </div>
 
-                          <div className="grid grid-cols-12 gap-2 items-center">
+                          <div className="border-t border-blue-200/60 pt-2" />
+
+                          <div className={cn('grid grid-cols-12 gap-2 items-center', discountMode !== 'collective' ? 'opacity-50 pointer-events-none' : undefined)}>
                             <div className="col-span-7">
                               <Label htmlFor="discount_type" className="text-xs font-medium text-gray-700">
                                 Discount
@@ -2225,11 +2613,11 @@ export default function ReceiptList() {
                             </div>
                             <div className="col-span-5 text-right">
                               <p className="text-xs text-gray-600">Discount</p>
-                              <p className="text-sm font-semibold text-gray-900">-${receiptDiscount.toFixed(2)}</p>
+                              <p className="text-sm font-semibold text-gray-900">-৳{receiptDiscount.toFixed(2)}</p>
                             </div>
                           </div>
 
-                          <div className="grid grid-cols-12 gap-2 items-center">
+                          <div className={cn('grid grid-cols-12 gap-2 items-center', taxMode !== 'collective' ? 'opacity-50 pointer-events-none' : undefined)}>
                             <div className="col-span-7">
                               <Label htmlFor="tax_percent" className="text-xs font-medium text-gray-700">
                                 Tax
@@ -2251,28 +2639,30 @@ export default function ReceiptList() {
                             </div>
                             <div className="col-span-5 text-right">
                               <p className="text-xs text-gray-600">Tax</p>
-                              <p className="text-sm font-semibold text-gray-900">${receiptTax.toFixed(2)}</p>
+                              <p className="text-sm font-semibold text-gray-900">৳{receiptTax.toFixed(2)}</p>
                             </div>
                           </div>
 
                           <div className="flex items-center justify-between">
                             <p className="text-sm font-medium text-gray-700">Item tax</p>
-                            <p className="text-sm font-semibold text-gray-900">${itemTax.toFixed(2)}</p>
+                            <p className="text-sm font-semibold text-gray-900">৳{itemTax.toFixed(2)}</p>
                           </div>
 
                           <div className="flex items-center justify-between">
                             <p className="text-sm font-medium text-gray-700">Total discount</p>
-                            <p className="text-sm font-semibold text-gray-900">-${totalDiscount.toFixed(2)}</p>
+                            <p className="text-sm font-semibold text-gray-900">-৳{totalDiscount.toFixed(2)}</p>
                           </div>
 
                           <div className="flex items-center justify-between">
                             <p className="text-sm font-medium text-gray-700">Total tax</p>
-                            <p className="text-sm font-semibold text-gray-900">${totalTax.toFixed(2)}</p>
+                            <p className="text-sm font-semibold text-gray-900">৳{totalTax.toFixed(2)}</p>
                           </div>
 
-                          <div className="pt-2 border-t border-blue-200 flex items-center justify-between">
-                            <p className="text-sm font-medium text-gray-700">Total</p>
-                            <p className="text-lg font-bold text-blue-600">${total.toFixed(2)}</p>
+                          <div className="border-t border-blue-200 pt-2">
+                            <div className="flex items-center justify-between">
+                              <p className="text-sm font-semibold text-gray-900">Total</p>
+                              <p className="text-lg font-bold text-blue-700">৳{total.toFixed(2)}</p>
+                            </div>
                           </div>
                         </>
                       )
@@ -2291,7 +2681,7 @@ export default function ReceiptList() {
 
               </div>
 
-              <DialogFooter className="gap-3 px-6 py-4 border-t border-gray-200 bg-white flex justify-end">
+              <DialogFooter className="gap-3 px-4 sm:px-6 py-3 border-t border-gray-200 bg-white flex justify-end">
                 <Button
                   type="button"
                   variant="outline"
@@ -2351,7 +2741,7 @@ export default function ReceiptList() {
                     </div>
 
                     <div className="text-right flex-shrink-0">
-                      <p className="text-sm font-bold text-gray-900">${(receipt.total ?? 0).toFixed(2)}</p>
+                      <p className="text-sm font-bold text-gray-900">৳{(receipt.total ?? 0).toFixed(2)}</p>
                       <p className="text-[11px] text-gray-500 mt-0.5">{createdAt}</p>
                     </div>
                   </div>

@@ -52,18 +52,6 @@ export default function ReceiptAccessGroup({
               Create
             </Label>
           </div>
-
-          {/* Assign templates */}
-          <div className="flex items-center gap-2">
-            <Checkbox
-              id="can_assign_receipt_templates"
-              checked={permissions.can_assign_receipt_templates || false}
-              onCheckedChange={(checked) => handleCheckboxChange('can_assign_receipt_templates', checked as boolean)}
-            />
-            <Label htmlFor="can_assign_receipt_templates" className="cursor-pointer font-medium">
-              Assign templates
-            </Label>
-          </div>
         </div>
       </div>
     </div>

@@ -14,7 +14,6 @@ import {
     MapPin,
     FileText,
     Hash,
-    DollarSign,
     Package,
     Image as ImageIcon,
     Globe
@@ -1555,7 +1554,9 @@ export default function CustomTemplateBuilder({ open, onClose, onSave, isFullPag
                                         {/* Totals Section */}
                                         <div className="pt-4 border-t border-gray-200">
                                             <h4 className="text-sm font-bold text-gray-900 mb-4 flex items-center gap-2">
-                                                <DollarSign size={16} className="text-gray-500" />
+                                                <span className="h-4 w-4 inline-flex items-center justify-center text-gray-500 font-semibold">
+                                                    ৳
+                                                </span>
                                                 Totals Section
                                             </h4>
 
