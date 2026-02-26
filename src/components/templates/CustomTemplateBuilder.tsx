@@ -6,6 +6,7 @@ import { Checkbox } from '@/components/ui/Checkbox'
 import { Dialog, DialogContent } from '@/components/ui/Dialog'
 import { templateService } from '@/services/templateService'
 import { useVendor } from '@/contexts/VendorContext'
+import { useToast } from '@/contexts/ToastContext'
 import {
     Building2,
     User,
@@ -178,6 +179,7 @@ interface TemplateData {
 
 export default function CustomTemplateBuilder({ open, onClose, onSave, isFullPage = false, isPage = false, templateId = null }: CustomTemplateBuilderProps) {
     const { activeVendorId, memberships } = useVendor()
+    const { toast } = useToast()
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState<string | null>(null)
     const [activeTab, setActiveTab] = useState<'company' | 'client' | 'content' | 'layout' | 'style'>('company')
@@ -1075,12 +1077,16 @@ export default function CustomTemplateBuilder({ open, onClose, onSave, isFullPag
 
     const handleSave = async () => {
         if (!data.templateName.trim()) {
-            setError('Please enter a template name')
+            const message = 'Please enter a template name'
+            setError(message)
+            toast('Missing template name', message, 'error')
             return
         }
 
         if (!templateId && !activeVendorId) {
-            setError('Please select a shop from the header before creating templates.')
+            const message = 'Please select a shop from the header before creating templates.'
+            setError(message)
+            toast('Missing shop', message, 'error')
             return
         }
 
@@ -1105,10 +1111,14 @@ export default function CustomTemplateBuilder({ open, onClose, onSave, isFullPag
                 })
             }
 
+            toast('Template saved', 'Your template has been saved.', 'success')
+
             onClose()
             if (onSave) onSave()
         } catch (err) {
-            setError(err instanceof Error ? err.message : 'Failed to save template')
+            const message = err instanceof Error ? err.message : 'Failed to save template'
+            setError(message)
+            toast('Failed to save template', message, 'error')
         } finally {
             setLoading(false)
         }

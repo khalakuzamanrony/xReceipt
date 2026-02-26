@@ -8,13 +8,14 @@ import { Dialog, DialogClose, DialogContent, DialogHeader, DialogTitle, DialogFo
 import { Plus, Edit, Trash2, FolderOpen, Search, Funnel, X } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { useVendor } from '@/contexts/VendorContext'
-import * as ToastPrimitive from '@radix-ui/react-toast'
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
 import { cn } from '@/lib/utils'
+import { useToast } from '@/contexts/ToastContext'
 
 export default function CategoryList() {
   const { role } = useAuth()
   const { memberships, activeVendorId, permissions, loading: vendorLoading } = useVendor()
+  const { toast } = useToast()
 
   const isGrandUserAllShops = role === 'grand_user' && !activeVendorId
 
@@ -39,16 +40,8 @@ export default function CategoryList() {
   const [page, setPage] = useState(1)
   const [rowsPerPage, setRowsPerPage] = useState(10)
   const [typeFilter, setTypeFilter] = useState<'all' | 'root' | 'child'>('all')
-  const [toastOpen, setToastOpen] = useState(false)
-  const [toastTitle, setToastTitle] = useState('')
-  const [toastDescription, setToastDescription] = useState('')
-  const [toastVariant, setToastVariant] = useState<'success' | 'error'>('success')
-
   const showToast = (title: string, description = '', variant: 'success' | 'error' = 'success') => {
-    setToastTitle(title)
-    setToastDescription(description)
-    setToastVariant(variant)
-    setToastOpen(true)
+    toast(title, description, variant)
   }
 
   useEffect(() => {
@@ -109,8 +102,11 @@ export default function CategoryList() {
     try {
       await categoryService.deleteCategory(id)
       setCategories(categories.filter(c => c.id !== id))
+      showToast('Category deleted', 'The category has been deleted.', 'success')
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to delete category')
+      const message = err instanceof Error ? err.message : 'Failed to delete category'
+      setError(message)
+      showToast('Failed to delete category', message, 'error')
     }
   }
 
@@ -146,8 +142,10 @@ export default function CategoryList() {
 
       if (selectedCategory) {
         await categoryService.updateCategory(selectedCategory.id, categoryData)
+        showToast('Category updated', 'The category has been updated.', 'success')
       } else {
         await categoryService.createCategory(categoryData)
+        showToast('Category created', 'The category has been created.', 'success')
       }
 
       setShowForm(false)
@@ -674,38 +672,6 @@ export default function CategoryList() {
           </div>
         </div>
       )}
-      {/* Toast notifications */}
-      <ToastPrimitive.Provider swipeDirection="right" duration={4000}>
-        <ToastPrimitive.Root
-          open={toastOpen}
-          onOpenChange={setToastOpen}
-          className={cn(
-            'bg-white border border-gray-200 rounded-lg shadow-lg px-4 py-3 flex items-start gap-3 text-sm',
-            toastVariant === 'success' && 'border-green-200',
-            toastVariant === 'error' && 'border-red-200',
-          )}
-        >
-          <div className="flex-1">
-            <ToastPrimitive.Title className="font-semibold text-gray-900">
-              {toastTitle}
-            </ToastPrimitive.Title>
-            {toastDescription && (
-              <ToastPrimitive.Description className="text-gray-600 mt-0.5">
-                {toastDescription}
-              </ToastPrimitive.Description>
-            )}
-          </div>
-          <button
-            type="button"
-            onClick={() => setToastOpen(false)}
-            className="text-gray-400 hover:text-gray-600 ml-2"
-            aria-label="Close"
-          >
-            <X size={14} />
-          </button>
-        </ToastPrimitive.Root>
-        <ToastPrimitive.Viewport className="fixed top-4 right-4 z-[60] flex flex-col gap-2 w-72 max-w-full outline-none" />
-      </ToastPrimitive.Provider>
     </div>
   )
 }

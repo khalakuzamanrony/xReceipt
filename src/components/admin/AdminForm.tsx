@@ -41,13 +41,13 @@ export default function AdminForm({ admin, onClose, canEditEmail = false }: Admi
     can_create_categories: false,
     can_view_receipts: false,
     can_create_receipts: false,
-    can_view_templates: false,
-    can_create_templates: false,
   })
 
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [warning, setWarning] = useState<string | null>(null)
+
+  const [adminVendorId, setAdminVendorId] = useState<string | null>(null)
 
   useEffect(() => {
     if (admin) {
@@ -59,22 +59,36 @@ export default function AdminForm({ admin, onClose, canEditEmail = false }: Admi
         password: '',
       })
       setUserType(admin.role === 'grand_user' ? 'grand_user' : admin.role === 'super_admin' ? 'super_admin' : 'admin')
-      loadPermissions(admin.id)
+      // Load the admin's vendor assignment first, then load permissions
+      loadAdminVendorAndPermissions(admin.id)
     }
   }, [admin, activeVendorId])
 
-  // Admins are single-shop scoped. We always assign them to the currently active shop.
-
-  const loadPermissions = async (adminId: string) => {
+  // Load admin's vendor assignment and permissions consistently
+  const loadAdminVendorAndPermissions = async (adminId: string) => {
     try {
-      const perms = activeVendorId
-        ? await adminService.getAdminVendorPermissions(adminId, activeVendorId)
-        : await adminService.getAdminPermissions(adminId)
-      if (perms) {
-        setPermissions(perms)
+      // First, get the admin's vendor assignment
+      let targetVendorId = activeVendorId
+      
+      if (!targetVendorId) {
+        // If no active vendor, get the admin's assigned vendor from vendor_admins table
+        const vendorAssignments = await vendorAdminService.getVendorsForAdmin(adminId)
+        if (vendorAssignments && vendorAssignments.length > 0) {
+          targetVendorId = vendorAssignments[0].vendor.id
+        }
+      }
+      
+      setAdminVendorId(targetVendorId)
+      
+      // Always load vendor-scoped permissions
+      if (targetVendorId) {
+        const perms = await adminService.getAdminVendorPermissions(adminId, targetVendorId)
+        if (perms) {
+          setPermissions(perms)
+        }
       }
     } catch (err) {
-      console.error('Failed to load permissions:', err)
+      console.error('Failed to load admin vendor/permissions:', err)
     }
   }
 
@@ -224,36 +238,33 @@ export default function AdminForm({ admin, onClose, canEditEmail = false }: Admi
                 can_create_categories: true,
                 can_view_receipts: true,
                 can_create_receipts: true,
-                can_view_templates: true,
-                can_create_templates: true,
               }
             : permissions
 
-        if (activeVendorId) {
-          await adminService.saveAdminVendorPermissions(newAdmin.id, activeVendorId, basePermissions as any)
+        // Always save to vendor-scoped permissions
+        const targetVendorId = activeVendorId || adminVendorId
+        if (targetVendorId) {
+          await adminService.saveAdminVendorPermissions(newAdmin.id, targetVendorId, basePermissions as any)
 
           try {
             await vendorAdminService.setVendorForAdmin(
               newAdmin.id,
-              activeVendorId,
+              targetVendorId,
               userType === 'super_admin',
             )
           } catch (assignError) {
             console.error('Failed to assign admin to shop:', assignError)
           }
-        } else {
-          await adminService.saveAdminPermissions(newAdmin.id, basePermissions as any)
         }
         onClose()
         return
       }
 
-      // Save permissions for existing admin users only
+      // Save permissions for existing admin users only - always vendor-scoped
       if (admin && (admin.role === 'admin' || admin.role === 'super_admin')) {
-        if (activeVendorId) {
-          await adminService.saveAdminVendorPermissions(admin.id, activeVendorId, permissions as any)
-        } else {
-          await adminService.saveAdminPermissions(admin.id, permissions as any)
+        const targetVendorId = activeVendorId || adminVendorId
+        if (targetVendorId) {
+          await adminService.saveAdminVendorPermissions(admin.id, targetVendorId, permissions as any)
         }
       }
 

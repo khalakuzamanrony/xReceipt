@@ -14,10 +14,12 @@ import { useVendor } from '@/contexts/VendorContext'
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
 import * as Select from '@radix-ui/react-select'
 import { cn } from '@/lib/utils'
+import { useToast } from '@/contexts/ToastContext'
 
 export default function ProductList() {
   const { role } = useAuth()
   const { memberships, activeVendorId, permissions, loading: vendorLoading } = useVendor()
+  const { toast } = useToast()
 
   const isGrandUserAllShops = role === 'grand_user' && !activeVendorId
 
@@ -258,8 +260,11 @@ export default function ProductList() {
       setProducts((prev) => prev.filter((p) => p.id !== productToDelete.id))
       setShowDeleteConfirm(false)
       setProductToDelete(null)
+      toast('Product deleted', 'The product has been deleted.', 'success')
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to delete product')
+      const message = err instanceof Error ? err.message : 'Failed to delete product'
+      setError(message)
+      toast('Failed to delete product', message, 'error')
     } finally {
       setIsDeleting(false)
     }
@@ -269,7 +274,9 @@ export default function ProductList() {
     e.preventDefault()
 
     if (!formData.name || !formData.price) {
-      setError('Please fill in all required fields')
+      const message = 'Please fill in all required fields'
+      setError(message)
+      toast('Missing fields', message, 'error')
       return
     }
 
@@ -277,7 +284,9 @@ export default function ProductList() {
 
     // New products must always be tied to a specific vendor
     if (isNew && !activeVendorId) {
-      setError('Please select a shop from the header before creating products.')
+      const message = 'Please select a shop from the header before creating products.'
+      setError(message)
+      toast('Missing shop', message, 'error')
       return
     }
 
@@ -286,7 +295,9 @@ export default function ProductList() {
       const safePrice = Number.isFinite(priceNumber) ? Math.max(0, priceNumber) : 0
 
       if (safePrice <= 0) {
-        setError('Please enter a valid price greater than 0')
+        const message = 'Please enter a valid price greater than 0'
+        setError(message)
+        toast('Invalid price', message, 'error')
         return
       }
 
@@ -323,14 +334,18 @@ export default function ProductList() {
 
       if (selectedProduct) {
         await productService.updateProduct(selectedProduct.id, productData)
+        toast('Product updated', 'The product has been updated.', 'success')
       } else {
         await productService.createProduct(productData)
+        toast('Product created', 'The product has been created.', 'success')
       }
 
       setShowForm(false)
       void loadData(activeVendorId)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to save product')
+      const message = err instanceof Error ? err.message : 'Failed to save product'
+      setError(message)
+      toast('Failed to save product', message, 'error')
     }
   }
 
@@ -345,7 +360,7 @@ export default function ProductList() {
   if (loading || vendorLoading) {
     return (
       <div className="flex flex-col items-center justify-center h-96 gap-4">
-        <div className="animate-spin rounded-full h-16 w-16 border-4 border-blue-200 border-t-blue-600"></div>
+        <div className="animate-spin rounded-full h-16 w-16 border-4 border-violet-200 border-t-violet-600"></div>
         <p className="text-gray-600 font-medium">Loading products...</p>
       </div>
     )
@@ -424,7 +439,7 @@ export default function ProductList() {
                           className={cn(
                             'w-full text-left px-2.5 py-1 rounded-md text-[11px] font-medium cursor-pointer transition-colors',
                             categoryFilter === 'all'
-                              ? 'bg-blue-50 text-blue-700'
+                              ? 'bg-violet-50 text-violet-700'
                               : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900',
                           )}
                         >
@@ -438,7 +453,7 @@ export default function ProductList() {
                             className={cn(
                               'w-full text-left px-2.5 py-1 rounded-md text-[11px] font-medium cursor-pointer transition-colors',
                               categoryFilter === cat.id
-                                ? 'bg-blue-50 text-blue-700'
+                                ? 'bg-violet-50 text-violet-700'
                                 : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900',
                             )}
                           >
@@ -464,7 +479,7 @@ export default function ProductList() {
                             className={cn(
                               'px-2.5 py-1 rounded-full text-[11px] font-medium border cursor-pointer transition-colors',
                               dateRangeFilter === option.id
-                                ? 'bg-blue-50 text-blue-700 border-blue-200'
+                                ? 'bg-violet-50 text-violet-700 border-violet-200'
                                 : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50 hover:text-gray-900',
                             )}
                           >
@@ -560,7 +575,7 @@ export default function ProductList() {
                   <DialogClose asChild>
                     <button
                       type="button"
-                      className="h-8 w-8 inline-flex items-center justify-center rounded-md text-gray-600 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className="h-8 w-8 inline-flex items-center justify-center rounded-md text-gray-600 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-violet-500"
                       aria-label="Close"
                     >
                       <X className="h-4 w-4" />
@@ -612,7 +627,7 @@ export default function ProductList() {
                 <Select.Root value={formData.category_id} onValueChange={(value) => setFormData({ ...formData, category_id: value })}>
                   <Select.Trigger
                     id="category"
-                    className="w-full h-10 px-4 py-2 border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm text-gray-900 flex items-center justify-between"
+                    className="w-full h-10 px-4 py-2 border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-violet-500 text-sm text-gray-900 flex items-center justify-between"
                   >
                     <Select.Value placeholder="Select a category" />
                     <Select.Icon>
@@ -631,7 +646,7 @@ export default function ProductList() {
                           <Select.Item
                             key={cat.id}
                             value={cat.id}
-                            className="px-3 py-2 text-sm text-gray-800 rounded-md cursor-pointer flex items-center gap-2 data-[highlighted]:bg-blue-50 data-[highlighted]:text-blue-700 outline-none"
+                            className="px-3 py-2 text-sm text-gray-800 rounded-md cursor-pointer flex items-center gap-2 data-[highlighted]:bg-violet-50 data-[highlighted]:text-violet-700 outline-none"
                           >
                             <Select.ItemText>{cat.name}</Select.ItemText>
                           </Select.Item>
@@ -740,7 +755,7 @@ export default function ProductList() {
                             }
                             disabled={!formData.discount_enabled}
                           >
-                            <Select.Trigger className="w-full h-8 px-2 border border-gray-200 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 text-xs text-gray-900 flex items-center justify-between disabled:bg-gray-50 disabled:opacity-50">
+                            <Select.Trigger className="w-full h-8 px-2 border border-gray-200 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-violet-500 text-xs text-gray-900 flex items-center justify-between disabled:bg-gray-50 disabled:opacity-50">
                               <Select.Value placeholder="Type" />
                               <Select.Icon>
                                 <ChevronDown className="h-3 w-3 text-gray-500" />
@@ -756,13 +771,13 @@ export default function ProductList() {
                                 <Select.Viewport className="py-1">
                                   <Select.Item
                                     value="percentage"
-                                    className="px-3 py-2 text-xs text-gray-800 rounded-md cursor-pointer flex items-center gap-2 data-[highlighted]:bg-blue-50 data-[highlighted]:text-blue-700 outline-none"
+                                    className="px-3 py-2 text-xs text-gray-800 rounded-md cursor-pointer flex items-center gap-2 data-[highlighted]:bg-violet-50 data-[highlighted]:text-violet-700 outline-none"
                                   >
                                     <Select.ItemText>%</Select.ItemText>
                                   </Select.Item>
                                   <Select.Item
                                     value="flat"
-                                    className="px-3 py-2 text-xs text-gray-800 rounded-md cursor-pointer flex items-center gap-2 data-[highlighted]:bg-blue-50 data-[highlighted]:text-blue-700 outline-none"
+                                    className="px-3 py-2 text-xs text-gray-800 rounded-md cursor-pointer flex items-center gap-2 data-[highlighted]:bg-violet-50 data-[highlighted]:text-violet-700 outline-none"
                                   >
                                     <Select.ItemText>Flat</Select.ItemText>
                                   </Select.Item>
@@ -854,7 +869,7 @@ export default function ProductList() {
                             className="w-7 h-7 rounded-full object-cover"
                           />
                         ) : (
-                          <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-blue-50 text-[10px] font-semibold text-blue-700">
+                          <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-violet-50 text-[10px] font-semibold text-violet-700">
                             {initials}
                           </span>
                         )
@@ -953,7 +968,7 @@ export default function ProductList() {
                                 className="w-6 h-6 rounded-full object-cover"
                               />
                             ) : (
-                              <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-blue-50 text-[10px] font-semibold text-blue-700">
+                              <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-violet-50 text-[10px] font-semibold text-violet-700">
                                 {initials}
                               </span>
                             )
@@ -1020,7 +1035,7 @@ export default function ProductList() {
                     setRowsPerPage(value)
                     setPage(1)
                   }}
-                  className="h-7 border border-gray-300 rounded-md text-xs text-gray-900 px-2 bg-white focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  className="h-7 border border-gray-300 rounded-md text-xs text-gray-900 px-2 bg-white focus:outline-none focus:ring-1 focus:ring-violet-500"
                 >
                   <option value={10}>10</option>
                   <option value={25}>25</option>

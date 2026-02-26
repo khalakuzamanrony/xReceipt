@@ -12,10 +12,9 @@ import VendorList from '@/components/vendors/VendorList'
 import SettingsPage from '@/components/settings/SettingsPage'
 import { useAuth } from '@/contexts/AuthContext'
 import SignInPage from '@/components/auth/SignInPage'
-import { ChevronLeft, ChevronRight } from 'lucide-react'
 
 export default function App() {
-  const { user, loading } = useAuth()
+  const { user, loading, role } = useAuth()
   const [currentPage, setCurrentPage] = useState(() => {
     if (typeof window === 'undefined') return 'dashboard'
     const stored = window.localStorage.getItem('xreceipt.currentPage')
@@ -31,6 +30,13 @@ export default function App() {
   })
 
   const [templateBuilderTemplateId, setTemplateBuilderTemplateId] = useState<string | null>(null)
+
+  // Redirect regular admins (not grand_user or super_admin) from admin page to dashboard
+  useEffect(() => {
+    if (user && role && role === 'admin' && currentPage === 'admin') {
+      setCurrentPage('dashboard')
+    }
+  }, [user, role, currentPage])
 
   useEffect(() => {
     if (typeof window === 'undefined') return
@@ -103,24 +109,11 @@ export default function App() {
         currentPage={currentPage}
         onPageChange={setCurrentPage}
         collapsed={sidebarCollapsed}
+        onCollapsedChange={setSidebarCollapsed}
       />
 
       {/* Sidebar collapse toggle (between sidebar and header) */}
-      <button
-        type="button"
-        onClick={() => setSidebarCollapsed((prev) => !prev)}
-        className={`hidden md:flex items-center justify-center fixed top-4 ${
-          sidebarCollapsed ? 'left-20' : 'left-64'
-        } -translate-x-1/2 h-9 w-9 rounded-lg border border-gray-200 bg-white shadow-sm hover:bg-gray-50 transition-colors cursor-pointer z-40`}
-        aria-label={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-        title={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-      >
-        {sidebarCollapsed ? (
-          <ChevronRight size={18} className="text-gray-700" />
-        ) : (
-          <ChevronLeft size={18} className="text-gray-700" />
-        )}
-      </button>
+      {/* Note: Sidebar has its own collapse button now */}
 
       {/* Main Content */}
       <div className={`${sidebarCollapsed ? 'md:ml-20' : 'md:ml-64'} flex flex-col flex-1 overflow-hidden`}>

@@ -8,6 +8,7 @@
 
 ALTER TABLE users ADD COLUMN IF NOT EXISTS phone VARCHAR(20);
 ALTER TABLE users ADD COLUMN IF NOT EXISTS profile_image_url VARCHAR(500);
+ALTER TABLE users ADD COLUMN IF NOT EXISTS password_hash VARCHAR(255);
 ALTER TABLE users ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP;
 
 ALTER TABLE users DROP CONSTRAINT IF EXISTS users_role_check;
@@ -57,9 +58,6 @@ CREATE TABLE IF NOT EXISTS admin_vendor_permissions (
   can_view_receipts BOOLEAN DEFAULT FALSE,
   can_create_receipts BOOLEAN DEFAULT FALSE,
 
-  can_view_templates BOOLEAN DEFAULT FALSE,
-  can_create_templates BOOLEAN DEFAULT FALSE,
-
   created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
   UNIQUE (admin_id, vendor_id)
@@ -72,7 +70,9 @@ ALTER TABLE IF EXISTS admin_vendor_permissions
   DROP COLUMN IF EXISTS assigned_template_ids,
   DROP COLUMN IF EXISTS assigned_product_ids,
   DROP COLUMN IF EXISTS can_assign_categories,
-  DROP COLUMN IF EXISTS assigned_category_ids;
+  DROP COLUMN IF EXISTS assigned_category_ids,
+  DROP COLUMN IF EXISTS can_view_templates,
+  DROP COLUMN IF EXISTS can_create_templates;
 
 CREATE TABLE IF NOT EXISTS vendor_admins (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -735,9 +735,15 @@ CREATE TRIGGER update_brand_settings_updated_at BEFORE UPDATE ON brand_settings
 -- 10. SEED DEFAULT GRAND USER (OPTIONAL)
 -- ============================================
 
-INSERT INTO users (email, name, role)
-VALUES ('goduser@xreceipt.com', 'System Grand User', 'grand_user')
-ON CONFLICT (email) DO NOTHING;
+-- Ensure password_hash column exists (for existing databases)
+ALTER TABLE users ADD COLUMN IF NOT EXISTS password_hash VARCHAR(255);
+
+INSERT INTO users (email, name, role, password_hash)
+VALUES ('goduser@xreceipt.com', 'System Grand User', 'grand_user', '$2b$10$DkyhpvaaOkOqoe38uZMkw.EVZ2ElUxE85vYv/c.2JMU8qHxG5z1d6')
+ON CONFLICT (email) DO UPDATE SET password_hash = EXCLUDED.password_hash;
+
+-- Drop the old admin_permissions table (no longer used - using admin_vendor_permissions only)
+DROP TABLE IF EXISTS admin_permissions;
 
 -- ============================================
 -- END OF SAFE MIGRATION

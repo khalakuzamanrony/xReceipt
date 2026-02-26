@@ -26,6 +26,7 @@ CREATE TABLE IF NOT EXISTS users (
   phone VARCHAR(20),
   role VARCHAR(50) NOT NULL CHECK (role IN ('grand_user', 'admin', 'super_admin')),
   profile_image_url VARCHAR(500),
+  password_hash VARCHAR(255),
   created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
@@ -196,10 +197,6 @@ CREATE TABLE IF NOT EXISTS admin_permissions (
   can_view_receipts BOOLEAN DEFAULT FALSE,
   can_create_receipts BOOLEAN DEFAULT FALSE,
   
-  -- Template permissions
-  can_view_templates BOOLEAN DEFAULT FALSE,
-  can_create_templates BOOLEAN DEFAULT FALSE,
-  
   created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
@@ -219,9 +216,6 @@ CREATE TABLE IF NOT EXISTS admin_vendor_permissions (
 
   can_view_receipts BOOLEAN DEFAULT FALSE,
   can_create_receipts BOOLEAN DEFAULT FALSE,
-
-  can_view_templates BOOLEAN DEFAULT FALSE,
-  can_create_templates BOOLEAN DEFAULT FALSE,
 
   created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
@@ -665,9 +659,12 @@ CREATE TRIGGER update_brand_settings_updated_at BEFORE UPDATE ON brand_settings
 -- 11. SEED DEFAULT GRAND USER (OPTIONAL)
 -- ============================================
 
-INSERT INTO users (email, name, role)
-VALUES ('granduser@xreceipt.com', 'Grand User', 'grand_user')
-ON CONFLICT (email) DO NOTHING;
+-- Ensure password_hash column exists (for existing databases)
+ALTER TABLE users ADD COLUMN IF NOT EXISTS password_hash VARCHAR(255);
+
+INSERT INTO users (email, name, role, password_hash)
+VALUES ('granduser@xreceipt.com', 'Grand User', 'grand_user', '$2b$10$DkyhpvaaOkOqoe38uZMkw.EVZ2ElUxE85vYv/c.2JMU8qHxG5z1d6')
+ON CONFLICT (email) DO UPDATE SET password_hash = EXCLUDED.password_hash;
 
 -- ============================================
 -- END OF SCHEMA

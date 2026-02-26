@@ -13,6 +13,7 @@ import { useVendor } from '@/contexts/VendorContext'
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
 import * as Select from '@radix-ui/react-select'
 import { cn } from '@/lib/utils'
+import { useToast } from '@/contexts/ToastContext'
 
 interface TemplateListProps {
   onNavigateToBuilder?: (templateId?: string) => void
@@ -21,6 +22,7 @@ interface TemplateListProps {
 export default function TemplateList({ onNavigateToBuilder }: TemplateListProps) {
   const { role } = useAuth()
   const { memberships, activeVendorId, loading: vendorLoading } = useVendor()
+  const { toast } = useToast()
 
   const isGrandUserAllShops = role === 'grand_user' && !activeVendorId
 
@@ -247,9 +249,11 @@ export default function TemplateList({ onNavigateToBuilder }: TemplateListProps)
       setAssignTemplateId(null)
       setAssignSelectedVendorIds([])
       setAssignSearch('')
+      toast('Assignments saved', 'Template shop assignments have been updated.', 'success')
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to assign shops to template'
       setAssignError(message)
+      toast('Failed to save assignments', message, 'error')
     } finally {
       setAssignSaving(false)
     }
@@ -381,8 +385,11 @@ export default function TemplateList({ onNavigateToBuilder }: TemplateListProps)
       setTemplates((prev) => prev.filter((t) => t.id !== templateToDelete.id))
       setShowDeleteConfirm(false)
       setTemplateToDelete(null)
+      toast('Template deleted', 'The template has been deleted.', 'success')
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to delete template')
+      const message = err instanceof Error ? err.message : 'Failed to delete template'
+      setError(message)
+      toast('Failed to delete template', message, 'error')
     } finally {
       setIsDeleting(false)
     }
@@ -391,7 +398,7 @@ export default function TemplateList({ onNavigateToBuilder }: TemplateListProps)
   if (loading || vendorLoading) {
     return (
       <div className="flex flex-col items-center justify-center h-96 gap-4">
-        <div className="animate-spin rounded-full h-16 w-16 border-4 border-blue-200 border-t-blue-600"></div>
+        <div className="animate-spin rounded-full h-16 w-16 border-4 border-violet-200 border-t-violet-600"></div>
         <p className="text-gray-600 font-medium">Loading templates...</p>
       </div>
     )
@@ -470,7 +477,7 @@ export default function TemplateList({ onNavigateToBuilder }: TemplateListProps)
                             className={cn(
                               'px-2.5 py-1 rounded-full text-[11px] font-medium border cursor-pointer transition-colors',
                               assignmentFilter === option.id
-                                ? 'bg-blue-50 text-blue-700 border-blue-200'
+                                ? 'bg-violet-50 text-violet-700 border-violet-200'
                                 : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50 hover:text-gray-900',
                             )}
                           >
@@ -490,7 +497,7 @@ export default function TemplateList({ onNavigateToBuilder }: TemplateListProps)
                             className={cn(
                               'w-full text-left px-2.5 py-1 rounded-md text-[11px] font-medium cursor-pointer transition-colors',
                               vendorFilter === 'all'
-                                ? 'bg-blue-50 text-blue-700'
+                                ? 'bg-violet-50 text-violet-700'
                                 : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900',
                             )}
                           >
@@ -504,7 +511,7 @@ export default function TemplateList({ onNavigateToBuilder }: TemplateListProps)
                               className={cn(
                                 'w-full text-left px-2.5 py-1 rounded-md text-[11px] font-medium cursor-pointer transition-colors',
                                 vendorFilter === vendor.id
-                                  ? 'bg-blue-50 text-blue-700'
+                                  ? 'bg-violet-50 text-violet-700'
                                   : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900',
                               )}
                             >
@@ -531,7 +538,7 @@ export default function TemplateList({ onNavigateToBuilder }: TemplateListProps)
                             className={cn(
                               'px-2.5 py-1 rounded-full text-[11px] font-medium border cursor-pointer transition-colors',
                               dateRangeFilter === option.id
-                                ? 'bg-blue-50 text-blue-700 border-blue-200'
+                                ? 'bg-violet-50 text-violet-700 border-violet-200'
                                 : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50 hover:text-gray-900',
                             )}
                           >
@@ -749,7 +756,7 @@ export default function TemplateList({ onNavigateToBuilder }: TemplateListProps)
                                             )
                                           }
                                         }}
-                                        className="text-[11px] text-blue-600 hover:text-blue-700 font-medium cursor-pointer"
+                                        className="text-[11px] text-violet-600 hover:text-violet-700 font-medium cursor-pointer"
                                       >
                                         {allSelectedForFiltered ? 'Unselect all' : 'Select all'}
                                       </button>
@@ -794,7 +801,7 @@ export default function TemplateList({ onNavigateToBuilder }: TemplateListProps)
                                                   className="w-6 h-6 rounded-full object-cover"
                                                 />
                                               ) : (
-                                                <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-blue-50 text-[10px] font-semibold text-blue-700">
+                                                <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-violet-50 text-[10px] font-semibold text-violet-700">
                                                   {vendorInitials}
                                                 </span>
                                               )}
@@ -843,7 +850,7 @@ export default function TemplateList({ onNavigateToBuilder }: TemplateListProps)
                             {assignedVendors.slice(0, 3).map((v) => (
                               <span
                                 key={v.id}
-                                className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-blue-50 text-xs font-semibold text-blue-700"
+                                className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-violet-50 text-xs font-semibold text-violet-700"
                               >
                                 {buildInitials(v.name)}
                               </span>
@@ -968,7 +975,7 @@ export default function TemplateList({ onNavigateToBuilder }: TemplateListProps)
                                         ) : (
                                           <span
                                             key={v.id}
-                                            className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-blue-50 text-xs font-semibold text-blue-700"
+                                            className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-violet-50 text-xs font-semibold text-violet-700"
                                           >
                                             {buildInitials(v.name)}
                                           </span>
@@ -1017,7 +1024,7 @@ export default function TemplateList({ onNavigateToBuilder }: TemplateListProps)
                                               )
                                             }
                                           }}
-                                          className="text-[11px] text-blue-600 hover:text-blue-700 font-medium cursor-pointer"
+                                          className="text-[11px] text-violet-600 hover:text-violet-700 font-medium cursor-pointer"
                                         >
                                           {allSelectedForFiltered ? 'Unselect all' : 'Select all'}
                                         </button>
@@ -1062,7 +1069,7 @@ export default function TemplateList({ onNavigateToBuilder }: TemplateListProps)
                                                     className="w-6 h-6 rounded-full object-cover"
                                                   />
                                                 ) : (
-                                                  <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-blue-50 text-[10px] font-semibold text-blue-700">
+                                                  <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-violet-50 text-[10px] font-semibold text-violet-700">
                                                     {vendorInitials}
                                                   </span>
                                                 )}
@@ -1111,7 +1118,7 @@ export default function TemplateList({ onNavigateToBuilder }: TemplateListProps)
                               {assignedVendors.slice(0, 3).map((v) => (
                                 <span
                                   key={v.id}
-                                  className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-blue-50 text-xs font-semibold text-blue-700"
+                                  className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-violet-50 text-xs font-semibold text-violet-700"
                                 >
                                   {buildInitials(v.name)}
                                 </span>
@@ -1192,7 +1199,7 @@ export default function TemplateList({ onNavigateToBuilder }: TemplateListProps)
                     setPage(1)
                   }}
                 >
-                  <Select.Trigger className="h-7 px-2 border border-gray-300 rounded-md text-xs text-gray-900 bg-white focus:outline-none focus:ring-1 focus:ring-blue-500 inline-flex items-center justify-between gap-2">
+                  <Select.Trigger className="h-7 px-2 border border-gray-300 rounded-md text-xs text-gray-900 bg-white focus:outline-none focus:ring-1 focus:ring-violet-500 inline-flex items-center justify-between gap-2">
                     <Select.Value />
                     <Select.Icon>
                       <ChevronDown className="h-3 w-3 text-gray-500" />
@@ -1207,19 +1214,19 @@ export default function TemplateList({ onNavigateToBuilder }: TemplateListProps)
                       <Select.Viewport className="py-1">
                         <Select.Item
                           value="10"
-                          className="px-3 py-2 text-xs text-gray-800 rounded-md cursor-pointer flex items-center gap-2 data-[highlighted]:bg-blue-50 data-[highlighted]:text-blue-700 outline-none"
+                          className="px-3 py-2 text-xs text-gray-800 rounded-md cursor-pointer flex items-center gap-2 data-[highlighted]:bg-violet-50 data-[highlighted]:text-violet-700 outline-none"
                         >
                           <Select.ItemText>10</Select.ItemText>
                         </Select.Item>
                         <Select.Item
                           value="25"
-                          className="px-3 py-2 text-xs text-gray-800 rounded-md cursor-pointer flex items-center gap-2 data-[highlighted]:bg-blue-50 data-[highlighted]:text-blue-700 outline-none"
+                          className="px-3 py-2 text-xs text-gray-800 rounded-md cursor-pointer flex items-center gap-2 data-[highlighted]:bg-violet-50 data-[highlighted]:text-violet-700 outline-none"
                         >
                           <Select.ItemText>25</Select.ItemText>
                         </Select.Item>
                         <Select.Item
                           value="50"
-                          className="px-3 py-2 text-xs text-gray-800 rounded-md cursor-pointer flex items-center gap-2 data-[highlighted]:bg-blue-50 data-[highlighted]:text-blue-700 outline-none"
+                          className="px-3 py-2 text-xs text-gray-800 rounded-md cursor-pointer flex items-center gap-2 data-[highlighted]:bg-violet-50 data-[highlighted]:text-violet-700 outline-none"
                         >
                           <Select.ItemText>50</Select.ItemText>
                         </Select.Item>
