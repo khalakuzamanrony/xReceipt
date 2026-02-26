@@ -14,10 +14,12 @@ import { useVendor } from '@/contexts/VendorContext'
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
 import { cn } from '@/lib/utils'
 import { supabase } from '@/lib/supabase'
+import { useToast } from '@/contexts/ToastContext'
 
 export default function VendorList() {
   const { role } = useAuth()
   const { memberships, activeVendorId, refreshMemberships } = useVendor()
+  const { toast } = useToast()
   const [vendors, setVendors] = useState<Vendor[]>([])
   const [admins, setAdmins] = useState<User[]>([])
   const [loading, setLoading] = useState(true)
@@ -250,8 +252,11 @@ export default function VendorList() {
       }))
       setShowAdminsDialog(false)
       setAdminsVendor(null)
+      toast('Shop admins saved', 'Admin assignments have been updated.', 'success')
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to save shop admins')
+      const message = err instanceof Error ? err.message : 'Failed to save shop admins'
+      setError(message)
+      toast('Failed to save shop admins', message, 'error')
     } finally {
       setSavingAdmins(false)
     }
@@ -320,15 +325,20 @@ export default function VendorList() {
       const result = await vendorService.deleteVendorWithImage(vendor.id, vendor.image_url)
       setVendors(vendors.filter(v => v.id !== vendor.id))
 
+      toast('Shop deleted', 'The shop has been deleted.', 'success')
+
       if (!result.storageDeleted) {
-        setError(
+        const message =
           result.storageError
             ? `Shop deleted, but the image could not be deleted from storage: ${result.storageError}`
-            : 'Shop deleted, but the image could not be deleted from storage.',
-        )
+            : 'Shop deleted, but the image could not be deleted from storage.'
+        setError(message)
+        toast('Shop image not deleted', message, 'error')
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to delete shop')
+      const message = err instanceof Error ? err.message : 'Failed to delete shop'
+      setError(message)
+      toast('Failed to delete shop', message, 'error')
     }
   }
 
@@ -353,6 +363,7 @@ export default function VendorList() {
       setFormData((prev) => ({ ...prev, image_url: '' }))
       setImageFile(null)
       setImagePreviewUrl('')
+      toast('Image removed', 'The shop image has been removed.', 'success')
       return
     }
 
@@ -361,11 +372,11 @@ export default function VendorList() {
       setError(null)
       const result = await vendorService.deleteVendorImage(selectedVendor.image_url)
       if (!result.deleted) {
-        setError(
-          result.error
-            ? `Failed to delete shop image from storage: ${result.error}`
-            : 'Failed to delete shop image from storage.',
-        )
+        const message = result.error
+          ? `Failed to delete shop image from storage: ${result.error}`
+          : 'Failed to delete shop image from storage.'
+        setError(message)
+        toast('Failed to delete image', message, 'error')
         return
       }
 
@@ -375,8 +386,11 @@ export default function VendorList() {
       setImageFile(null)
       setImagePreviewUrl('')
       await loadData()
+      toast('Image removed', 'The shop image has been removed.', 'success')
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to remove shop image')
+      const message = err instanceof Error ? err.message : 'Failed to remove shop image'
+      setError(message)
+      toast('Failed to remove image', message, 'error')
     } finally {
       setImageWorking(false)
     }
@@ -386,7 +400,9 @@ export default function VendorList() {
     e.preventDefault()
 
     if (!formData.vendor_id || !formData.name || !formData.url) {
-      setError('Shop ID, name, and url are required')
+      const message = 'Shop ID, name, and url are required'
+      setError(message)
+      toast('Missing fields', message, 'error')
       return
     }
 
@@ -427,6 +443,7 @@ export default function VendorList() {
         }
 
         setSelectedVendor(updatedVendor)
+        toast('Shop updated', 'The shop has been updated.', 'success')
       } else {
         const createdVendor = await vendorService.createVendor({
           ...(payload as any),
@@ -451,11 +468,14 @@ export default function VendorList() {
               image_url: createdVendor.image_url || '',
             })
             setError(`Shop created, but image upload failed: ${message}`)
+            toast('Shop created (image failed)', message, 'error')
             return
           } finally {
             setImageWorking(false)
           }
         }
+
+        toast('Shop created', 'The shop has been created.', 'success')
 
         // User creation is intentionally not performed here.
         // Create users from the Users/Admin page after selecting a shop.
@@ -465,7 +485,9 @@ export default function VendorList() {
       await loadData()
       await refreshMemberships()
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to save shop')
+      const message = err instanceof Error ? err.message : 'Failed to save shop'
+      setError(message)
+      toast('Failed to save shop', message, 'error')
     } finally {
       setImageWorking(false)
       setSaving(false)
@@ -517,9 +539,11 @@ export default function VendorList() {
       setAssignVendorId(null)
       setAssignSelectedAdminIds([])
       setAssignSearch('')
+      toast('Assignments updated', 'Assigned admins have been updated.', 'success')
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to update assigned admins'
       setAssignError(message)
+      toast('Failed to update assignments', message, 'error')
     } finally {
       setAssignSaving(false)
     }
@@ -528,7 +552,7 @@ export default function VendorList() {
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center h-96 gap-4">
-        <div className="animate-spin rounded-full h-16 w-16 border-4 border-blue-200 border-t-blue-600"></div>
+        <div className="animate-spin rounded-full h-16 w-16 border-4 border-violet-200 border-t-violet-600"></div>
         <p className="text-gray-600 font-medium">Loading shops...</p>
       </div>
     )
@@ -639,7 +663,7 @@ export default function VendorList() {
                                 href={vendor.url}
                                 target="_blank"
                                 rel="noreferrer"
-                                className="text-blue-600 hover:underline truncate max-w-[60%]"
+                                className="text-violet-600 hover:underline truncate max-w-[60%]"
                               >
                                 {vendor.url}
                               </a>
@@ -680,7 +704,7 @@ export default function VendorList() {
                             ) : (
                               <div
                                 key={admin.id}
-                                className="h-7 w-7 rounded-full bg-blue-50 ring-2 ring-white flex items-center justify-center text-[10px] font-semibold text-blue-700"
+                                className="h-7 w-7 rounded-full bg-violet-50 ring-2 ring-white flex items-center justify-center text-[10px] font-semibold text-violet-700"
                                 title={admin.name}
                               >
                                 {buildInitials(admin.name || admin.email || 'A')}
@@ -747,7 +771,7 @@ export default function VendorList() {
                               href={vendor.url}
                               target="_blank"
                               rel="noreferrer"
-                              className="text-sm text-blue-600 hover:underline"
+                              className="text-sm text-violet-600 hover:underline"
                             >
                               {vendor.url}
                             </a>
@@ -794,7 +818,7 @@ export default function VendorList() {
                                 ) : (
                                   <div
                                     key={admin.id}
-                                    className="h-7 w-7 rounded-full bg-blue-50 ring-2 ring-white flex items-center justify-center text-[10px] font-semibold text-blue-700"
+                                    className="h-7 w-7 rounded-full bg-violet-50 ring-2 ring-white flex items-center justify-center text-[10px] font-semibold text-violet-700"
                                     title={admin.name}
                                   >
                                     {buildInitials(admin.name || admin.email || 'A')}
@@ -832,7 +856,7 @@ export default function VendorList() {
                       setRowsPerPage(value)
                       setPage(1)
                     }}
-                    className="h-7 border border-gray-300 rounded-md text-xs text-gray-900 px-2 bg-white focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    className="h-7 border border-gray-300 rounded-md text-xs text-gray-900 px-2 bg-white focus:outline-none focus:ring-1 focus:ring-violet-500"
                   >
                     <option value={10}>10</option>
                     <option value={25}>25</option>
@@ -934,7 +958,7 @@ export default function VendorList() {
                   <DialogClose asChild>
                     <button
                       type="button"
-                      className="h-8 w-8 inline-flex items-center justify-center rounded-md text-gray-600 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className="h-8 w-8 inline-flex items-center justify-center rounded-md text-gray-600 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-violet-500"
                       aria-label="Close"
                     >
                       <X className="h-4 w-4" />
@@ -1009,7 +1033,7 @@ export default function VendorList() {
                         id="status"
                         value={formData.status}
                         onChange={(e) => setFormData({ ...formData, status: e.target.value as 'active' | 'inactive' })}
-                        className="w-full h-10 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm text-gray-900"
+                        className="w-full h-10 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500 text-sm text-gray-900"
                       >
                         <option value="active">Active</option>
                         <option value="inactive">Inactive</option>
@@ -1120,7 +1144,7 @@ export default function VendorList() {
                         <label className="flex items-center gap-2 text-sm text-gray-900">
                           <input
                             type="checkbox"
-                            className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                            className="rounded border-gray-300 text-violet-600 focus:ring-violet-500"
                             checked={assigned}
                             onChange={(e) => handleToggleAssignedAdmin(admin.id, e.target.checked)}
                           />
@@ -1131,7 +1155,7 @@ export default function VendorList() {
                       <div className="flex items-center gap-2">
                         <input
                           type="checkbox"
-                          className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                          className="rounded border-gray-300 text-violet-600 focus:ring-violet-500"
                           checked={assigned && isSuper}
                           disabled={!assigned}
                           onChange={(e) => handleToggleSuperAdmin(admin.id, e.target.checked)}
@@ -1159,7 +1183,7 @@ export default function VendorList() {
                   type="button"
                   onClick={handleSaveVendorAdmins}
                   disabled={savingAdmins}
-                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white"
+                  className="px-4 py-2 bg-violet-600 hover:bg-violet-700 text-white"
                 >
                   {savingAdmins ? 'Saving...' : 'Save'}
                 </Button>
@@ -1247,7 +1271,7 @@ export default function VendorList() {
                               href={vendor.url}
                               target="_blank"
                               rel="noreferrer"
-                              className="text-blue-600 hover:underline truncate max-w-[60%]"
+                              className="text-violet-600 hover:underline truncate max-w-[60%]"
                             >
                               {vendor.url}
                             </a>
@@ -1323,7 +1347,7 @@ export default function VendorList() {
                                   setAssignSelectedAdminIds((prev) => Array.from(new Set([...prev, ...filteredIds])))
                                 }
                               }}
-                              className="text-[11px] text-blue-600 hover:text-blue-700 font-medium cursor-pointer"
+                              className="text-[11px] text-violet-600 hover:text-violet-700 font-medium cursor-pointer"
                             >
                               {(() => {
                                 const filteredIds = filteredAdmins.map((a) => a.id)
@@ -1352,7 +1376,7 @@ export default function VendorList() {
                                     key={admin.id}
                                     className={cn(
                                       'flex items-center gap-2 px-2 py-1.5 text-xs text-gray-700 rounded cursor-pointer outline-none hover:bg-gray-50',
-                                      checked && 'bg-blue-50',
+                                      checked && 'bg-violet-50',
                                       assignSaving && 'opacity-60 pointer-events-none',
                                     )}
                                     onSelect={(event) => {
@@ -1373,7 +1397,7 @@ export default function VendorList() {
                                         }}
                                       />
                                     ) : (
-                                      <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-blue-50 text-[10px] font-semibold text-blue-700">
+                                      <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-violet-50 text-[10px] font-semibold text-violet-700">
                                         {buildInitials(admin.name || admin.email || 'A')}
                                       </span>
                                     )}
@@ -1517,7 +1541,7 @@ export default function VendorList() {
                             href={vendor.url}
                             target="_blank"
                             rel="noreferrer"
-                            className="text-sm text-blue-600 hover:underline"
+                            className="text-sm text-violet-600 hover:underline"
                           >
                             {vendor.url}
                           </a>
@@ -1573,7 +1597,7 @@ export default function VendorList() {
                                 {assignedAdmins.slice(0, 3).map((admin) => (
                                   <div
                                     key={admin.id}
-                                    className="h-7 w-7 rounded-full bg-blue-50 ring-2 ring-white flex items-center justify-center text-[10px] font-semibold text-blue-700"
+                                    className="h-7 w-7 rounded-full bg-violet-50 ring-2 ring-white flex items-center justify-center text-[10px] font-semibold text-violet-700"
                                     title={admin.name}
                                   >
                                     {buildInitials(admin.name || admin.email || 'A')}
@@ -1618,7 +1642,7 @@ export default function VendorList() {
                                     )
                                   }
                                 }}
-                                className="text-[11px] text-blue-600 hover:text-blue-700 font-medium cursor-pointer"
+                                className="text-[11px] text-violet-600 hover:text-violet-700 font-medium cursor-pointer"
                               >
                                 {(() => {
                                   const filteredIds = filteredAdmins.map((a) => a.id)
@@ -1641,7 +1665,7 @@ export default function VendorList() {
                                       key={admin.id}
                                       className={cn(
                                         'flex items-center gap-2 px-2 py-1.5 text-xs text-gray-700 rounded cursor-pointer outline-none hover:bg-gray-50',
-                                        checked && 'bg-blue-50',
+                                        checked && 'bg-violet-50',
                                         assignSaving && 'opacity-60 pointer-events-none',
                                       )}
                                       onSelect={(event) => {
@@ -1656,7 +1680,7 @@ export default function VendorList() {
                                         className="h-3.5 w-3.5 rounded-[2px]"
                                         aria-hidden="true"
                                       />
-                                      <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-blue-50 text-[10px] font-semibold text-blue-700">
+                                      <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-violet-50 text-[10px] font-semibold text-violet-700">
                                         {buildInitials(admin.name || admin.email || 'A')}
                                       </span>
                                       <span className="flex-1 truncate">{admin.name}</span>
@@ -1760,7 +1784,7 @@ export default function VendorList() {
                     setRowsPerPage(value)
                     setPage(1)
                   }}
-                  className="h-7 border border-gray-300 rounded-md text-xs text-gray-900 px-2 bg-white focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  className="h-7 border border-gray-300 rounded-md text-xs text-gray-900 px-2 bg-white focus:outline-none focus:ring-1 focus:ring-violet-500"
                 >
                   <option value={10}>10</option>
                   <option value={25}>25</option>

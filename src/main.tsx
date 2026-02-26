@@ -5,16 +5,19 @@ import App from './App.tsx'
 import { AuthProvider } from './contexts/AuthContext'
 import { VendorProvider } from './contexts/VendorContext'
 import { BrandSettingsProvider } from './contexts/BrandSettingsContext'
+import { ToastProvider } from './contexts/ToastContext'
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <AuthProvider>
-      <VendorProvider>
-        <BrandSettingsProvider>
-          <App />
-        </BrandSettingsProvider>
-      </VendorProvider>
-    </AuthProvider>
+    <ToastProvider>
+      <AuthProvider>
+        <VendorProvider>
+          <BrandSettingsProvider>
+            <App />
+          </BrandSettingsProvider>
+        </VendorProvider>
+      </AuthProvider>
+    </ToastProvider>
   </StrictMode>,
 )
 

@@ -1,35 +1,7 @@
 import { supabase } from '@/lib/supabase'
-import { createClient } from '@supabase/supabase-js'
 import type { User, AdminPermissions, AdminVendorPermissions } from '@/types'
+import { hashPassword } from '@/contexts/AuthContext'
 
-const authProvisionClient = createClient(
-  import.meta.env.VITE_SUPABASE_URL!,
-  import.meta.env.VITE_SUPABASE_ANON_KEY!,
-  {
-    auth: {
-      persistSession: false,
-      autoRefreshToken: false,
-      storageKey: 'sb-provision-auth-token',
-    },
-  },
-)
-
-async function ensureAuthUser(email: string, password: string) {
-  if (!email || !password) return
-
-  const { error } = await authProvisionClient.auth.signUp({
-    email,
-    password,
-  })
-
-  if (error) {
-    const message = String(error.message || '').toLowerCase()
-    // Ignore if user already exists; this makes the operation idempotent
-    if (!message.includes('already registered') && !message.includes('user already exists')) {
-      throw error
-    }
-  }
-}
 
 function resolveAdminProfileStoragePath(value: string): string {
   if (!value) return ''
@@ -91,12 +63,10 @@ export const adminService = {
     return data || null
   },
 
-  async sendPasswordResetEmail(email: string): Promise<void> {
-    const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: window.location.origin,
-    })
-
-    if (error) throw error
+  async sendPasswordResetEmail(): Promise<void> {
+    // Custom auth doesn't support password reset email
+    // This would need a custom implementation with email service
+    throw new Error('Password reset not implemented for custom authentication')
   },
 
   // Get admin by email (used for auth mapping)
@@ -111,17 +81,6 @@ export const adminService = {
     return data || null
   },
 
-  // Get admin permissions
-  async getAdminPermissions(adminId: string): Promise<AdminPermissions | null> {
-    const { data, error } = await supabase
-      .from('admin_permissions')
-      .select('*')
-      .eq('admin_id', adminId)
-      .maybeSingle()
-
-    if (error && error.code !== 'PGRST116') throw error
-    return data || null
-  },
 
   async getAdminVendorPermissions(adminId: string, vendorId: string): Promise<AdminVendorPermissions | null> {
     const { data, error } = await supabase
@@ -144,24 +103,7 @@ export const adminService = {
     password?: string,
     role: 'admin' | 'super_admin' = 'admin',
   ): Promise<User> {
-    if (password) {
-      await ensureAuthUser(email, password)
-
-      const { data, error } = await supabase
-        .from('users')
-        .insert({
-          name,
-          email,
-          phone,
-          profile_image_url: profileImageUrl,
-          role,
-        })
-        .select()
-        .single()
-
-      if (error) throw error
-      return data
-    }
+    const passwordHash = password ? await hashPassword(password) : undefined
 
     const { data, error } = await supabase
       .from('users')
@@ -171,6 +113,7 @@ export const adminService = {
         phone,
         profile_image_url: profileImageUrl,
         role,
+        password_hash: passwordHash,
       })
       .select()
       .single()
@@ -187,6 +130,8 @@ export const adminService = {
     profileImageUrl?: string,
     password?: string,
   ): Promise<User> {
+    const passwordHash = password ? await hashPassword(password) : undefined
+
     const { data, error } = await supabase
       .from('users')
       .insert({
@@ -195,25 +140,12 @@ export const adminService = {
         phone,
         profile_image_url: profileImageUrl,
         role: 'grand_user',
+        password_hash: passwordHash,
       })
       .select()
       .single()
 
     if (error) throw error
-
-    if (password) {
-      try {
-        await ensureAuthUser(email, password)
-      } catch (authError) {
-        console.error('Failed to create Supabase Auth user for grand user:', authError)
-        const message =
-          authError instanceof Error
-            ? authError.message
-            : 'Failed to create Supabase Auth user for grand user'
-        throw new Error(message)
-      }
-    }
-
     return data
   },
 
@@ -233,59 +165,29 @@ export const adminService = {
     return data
   },
 
-  // Delete admin (blocked if admin is vendor super admin for any vendor)
+  // Delete admin (simple deletion from users table only)
   async deleteAdmin(
     id: string,
-  ): Promise<{ storageDeleted: boolean; storageError: string | null; authDeleted: boolean }> {
+  ): Promise<{ storageDeleted: boolean; storageError: string | null; dbDeleted: boolean }> {
     try {
-      const { data, error } = await supabase.functions.invoke('delete-user', {
-        body: { userId: id },
-      })
-
-      if (error) throw error
-
-      const payload = (data || {}) as any
-      if (payload?.error) {
-        throw new Error(String(payload.error))
-      }
-
-      return {
-        storageDeleted: payload?.storageDeleted ?? true,
-        storageError: payload?.storageError ?? null,
-        authDeleted: payload?.authDeleted ?? false,
-      }
-    } catch (err) {
-      // If the edge function is not deployed / blocked by CORS / network error,
-      // still allow deletion of the app DB row as a fallback.
-      const msg = err instanceof Error ? err.message : String(err)
-      const lower = msg.toLowerCase()
-
-      const isInvokeTransportError =
-        lower.includes('failed to send request') ||
-        lower.includes('functionsfetcherror') ||
-        lower.includes('fetch')
-
-      if (!isInvokeTransportError) {
-        throw err
-      }
-
       let storageDeleted = true
       let storageError: string | null = null
 
+      // Try to delete profile image from storage if exists
       try {
         const { data: userRow, error: userError } = await supabase
           .from('users')
           .select('profile_image_url')
           .eq('id', id)
           .maybeSingle()
-        if (userError) throw userError
-
-        const path = resolveAdminProfileStoragePath(userRow?.profile_image_url || '')
-        if (path) {
-          const { error: removeError } = await supabase.storage.from('admin-profiles').remove([path])
-          if (removeError) {
-            storageDeleted = false
-            storageError = removeError.message || String(removeError)
+        if (!userError && userRow?.profile_image_url) {
+          const path = resolveAdminProfileStoragePath(userRow.profile_image_url)
+          if (path) {
+            const { error: removeError } = await supabase.storage.from('admin-profiles').remove([path])
+            if (removeError) {
+              storageDeleted = false
+              storageError = removeError.message || String(removeError)
+            }
           }
         }
       } catch (storageErr) {
@@ -293,15 +195,15 @@ export const adminService = {
         storageError = storageErr instanceof Error ? storageErr.message : String(storageErr)
       }
 
+      // Delete from users table
       const { error: deleteDbError } = await supabase.from('users').delete().eq('id', id)
       if (deleteDbError) {
-        const fallbackMessage =
-          'Delete failed because the delete-user edge function is unreachable (CORS / not deployed) and direct database deletion is blocked (likely by RLS). Deploy the Supabase Edge Function "delete-user" and ensure its OPTIONS preflight returns 200 with Access-Control-Allow-Origin for your app origin (e.g. http://localhost:5173), then try again.'
-        throw new Error(fallbackMessage)
+        throw new Error(`Failed to delete user from database: ${deleteDbError.message}`)
       }
 
-      // authDeleted is unknown in fallback mode (edge function not executed).
-      return { storageDeleted, storageError, authDeleted: false }
+      return { storageDeleted, storageError, dbDeleted: true }
+    } catch (err) {
+      throw err
     }
   },
 
@@ -315,42 +217,6 @@ export const adminService = {
     if (error) throw error
   },
 
-  // Create or update admin permissions
-  async saveAdminPermissions(
-    adminId: string,
-    permissions: Omit<AdminPermissions, 'id' | 'admin_id' | 'created_at' | 'updated_at'>
-  ): Promise<AdminPermissions> {
-    const existingPermissions = await this.getAdminPermissions(adminId)
-
-    if (existingPermissions) {
-      // Update existing
-      const { data, error } = await supabase
-        .from('admin_permissions')
-        .update({
-          ...permissions,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('admin_id', adminId)
-        .select()
-        .single()
-
-      if (error) throw error
-      return data
-    } else {
-      // Create new
-      const { data, error } = await supabase
-        .from('admin_permissions')
-        .insert({
-          admin_id: adminId,
-          ...permissions,
-        })
-        .select()
-        .single()
-
-      if (error) throw error
-      return data
-    }
-  },
 
   async saveAdminVendorPermissions(
     adminId: string,

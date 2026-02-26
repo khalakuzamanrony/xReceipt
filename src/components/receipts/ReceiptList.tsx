@@ -15,14 +15,15 @@ import ReceiptPreviewModal from './ReceiptPreviewModal'
 import ReceiptDetailsPage from './ReceiptDetailsPage'
 import html2canvas from 'html2canvas'
 import jsPDF from 'jspdf'
-import * as ToastPrimitive from '@radix-ui/react-toast'
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
 import * as Select from '@radix-ui/react-select'
 import { cn } from '@/lib/utils'
+import { useToast } from '@/contexts/ToastContext'
 
 export default function ReceiptList() {
   const { role } = useAuth()
   const { memberships, activeVendorId, permissions, loading: vendorLoading } = useVendor()
+  const { toast } = useToast()
 
   const isGrandUserAllShops = role === 'grand_user' && !activeVendorId
 
@@ -98,10 +99,9 @@ export default function ReceiptList() {
     discount_type: 'none' as 'none' | 'percentage' | 'flat',
     discount_value: '0',
   })
-  const [toastOpen, setToastOpen] = useState(false)
-  const [toastTitle, setToastTitle] = useState('')
-  const [toastDescription, setToastDescription] = useState('')
-  const [toastVariant, setToastVariant] = useState<'success' | 'error'>('success')
+  const showToast = (title: string, description = '', variant: 'success' | 'error' = 'success') => {
+    toast(title, description, variant)
+  }
   const [quickProductName, setQuickProductName] = useState('')
   const [quickProductPrice, setQuickProductPrice] = useState('')
   const [quickProductDescription, setQuickProductDescription] = useState('')
@@ -328,6 +328,7 @@ export default function ReceiptList() {
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to load data'
       setError(errorMessage)
+      showToast('Failed to load receipts', errorMessage, 'error')
       setReceipts([])
     } finally {
       setLoading(false)
@@ -422,7 +423,9 @@ export default function ReceiptList() {
   const handleAddNew = () => {
     // Require a vendor selection before creating receipts
     if (!activeVendorId) {
-      setError('Please select a shop from the header before creating receipts.')
+      const message = 'Please select a shop from the header before creating receipts.'
+      setError(message)
+      showToast('Missing shop', message, 'error')
       return
     }
 
@@ -451,6 +454,7 @@ export default function ReceiptList() {
       const fullReceipt = await receiptService.getReceiptById(receipt.id)
       if (!fullReceipt) {
         setError('Receipt not found')
+        showToast('Receipt not found', 'The selected receipt could not be loaded.', 'error')
         return
       }
       
@@ -491,7 +495,9 @@ export default function ReceiptList() {
       setItemQuantity('1')
       setShowForm(true)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load receipt')
+      const message = err instanceof Error ? err.message : 'Failed to load receipt'
+      setError(message)
+      showToast('Failed to load receipt', message, 'error')
     }
   }
 
@@ -678,13 +684,6 @@ export default function ReceiptList() {
 
   const removeItem = (itemId: string) => {
     setItems(items.filter(item => item.id !== itemId))
-  }
-
-  const showToast = (title: string, description = '', variant: 'success' | 'error' = 'success') => {
-    setToastTitle(title)
-    setToastDescription(description)
-    setToastVariant(variant)
-    setToastOpen(true)
   }
 
   const handleRequestDelete = (receipt: Receipt) => {
@@ -1211,7 +1210,7 @@ export default function ReceiptList() {
   if (loading || vendorLoading) {
     return (
       <div className="flex flex-col items-center justify-center h-96 gap-4">
-        <div className="animate-spin rounded-full h-16 w-16 border-4 border-blue-200 border-t-blue-600"></div>
+        <div className="animate-spin rounded-full h-16 w-16 border-4 border-violet-200 border-t-violet-600"></div>
         <p className="text-gray-600 font-medium">Loading receipts...</p>
       </div>
     )
@@ -1299,7 +1298,7 @@ export default function ReceiptList() {
                             className={cn(
                               'px-2.5 py-1 rounded-full text-[11px] font-medium border cursor-pointer transition-colors',
                               statusFilter === option.id
-                                ? 'bg-blue-50 text-blue-700 border-blue-200'
+                                ? 'bg-violet-50 text-violet-700 border-violet-200'
                                 : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50 hover:text-gray-900'
                             )}
                           >
@@ -1318,7 +1317,7 @@ export default function ReceiptList() {
                           className={cn(
                             'w-full text-left px-2.5 py-1 rounded-md text-[11px] font-medium cursor-pointer transition-colors',
                             templateFilter === 'all'
-                              ? 'bg-blue-50 text-blue-700'
+                              ? 'bg-violet-50 text-violet-700'
                               : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
                           )}
                         >
@@ -1358,7 +1357,7 @@ export default function ReceiptList() {
                             className={cn(
                               'px-2.5 py-1 rounded-full text-[11px] font-medium border cursor-pointer transition-colors',
                               dateRangeFilter === option.id
-                                ? 'bg-blue-50 text-blue-700 border-blue-200'
+                                ? 'bg-violet-50 text-violet-700 border-violet-200'
                                 : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50 hover:text-gray-900'
                             )}
                           >
@@ -1456,7 +1455,7 @@ export default function ReceiptList() {
                   <DialogClose asChild>
                     <button
                       type="button"
-                      className="h-8 w-8 inline-flex items-center justify-center rounded-md text-gray-600 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className="h-8 w-8 inline-flex items-center justify-center rounded-md text-gray-600 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-violet-500"
                       aria-label="Close"
                     >
                       <X className="h-4 w-4" />
@@ -1559,7 +1558,7 @@ export default function ReceiptList() {
                     >
                       <Select.Trigger
                         id="template"
-                        className="w-full mt-1 px-3 py-2 border-0 bg-gray-50 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm text-gray-900 flex items-center justify-between"
+                        className="w-full mt-1 px-3 py-2 border-0 bg-gray-50 rounded-md focus:outline-none focus:ring-2 focus:ring-violet-500 text-sm text-gray-900 flex items-center justify-between"
                         aria-required
                       >
                         <Select.Value placeholder="Select a template" />
@@ -1614,7 +1613,7 @@ export default function ReceiptList() {
                           className={cn(
                             'px-2.5 py-1 text-[11px] font-semibold rounded-md cursor-pointer transition-colors',
                             taxMode === 'individual'
-                              ? 'bg-white text-blue-700 shadow-sm'
+                              ? 'bg-white text-violet-700 shadow-sm'
                               : 'text-gray-600 hover:text-gray-900',
                           )}
                         >
@@ -1626,7 +1625,7 @@ export default function ReceiptList() {
                           className={cn(
                             'px-2.5 py-1 text-[11px] font-semibold rounded-md cursor-pointer transition-colors',
                             taxMode === 'collective'
-                              ? 'bg-white text-blue-700 shadow-sm'
+                              ? 'bg-white text-violet-700 shadow-sm'
                               : 'text-gray-600 hover:text-gray-900',
                           )}
                         >
@@ -1651,7 +1650,7 @@ export default function ReceiptList() {
                           className={cn(
                             'px-2.5 py-1 text-[11px] font-semibold rounded-md cursor-pointer transition-colors',
                             discountMode === 'individual'
-                              ? 'bg-white text-blue-700 shadow-sm'
+                              ? 'bg-white text-violet-700 shadow-sm'
                               : 'text-gray-600 hover:text-gray-900',
                           )}
                         >
@@ -1663,7 +1662,7 @@ export default function ReceiptList() {
                           className={cn(
                             'px-2.5 py-1 text-[11px] font-semibold rounded-md cursor-pointer transition-colors',
                             discountMode === 'collective'
-                              ? 'bg-white text-blue-700 shadow-sm'
+                              ? 'bg-white text-violet-700 shadow-sm'
                               : 'text-gray-600 hover:text-gray-900',
                           )}
                         >
@@ -1951,7 +1950,7 @@ export default function ReceiptList() {
                                           }}
                                           disabled={!item.discount_enabled}
                                         >
-                                          <Select.Trigger className="w-full h-8 px-2 border border-gray-200 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 text-xs text-gray-900 flex items-center justify-between disabled:bg-gray-50 disabled:opacity-50">
+                                          <Select.Trigger className="w-full h-8 px-2 border border-gray-200 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-violet-500 text-xs text-gray-900 flex items-center justify-between disabled:bg-gray-50 disabled:opacity-50">
                                             <Select.Value placeholder="Type" />
                                             <Select.Icon>
                                               <ChevronDown className="h-3 w-3 text-gray-500" />
@@ -1967,13 +1966,13 @@ export default function ReceiptList() {
                                               <Select.Viewport className="py-1">
                                                 <Select.Item
                                                   value="percentage"
-                                                  className="px-3 py-2 text-xs text-gray-800 rounded-md cursor-pointer flex items-center gap-2 data-[highlighted]:bg-blue-50 data-[highlighted]:text-blue-700 outline-none"
+                                                  className="px-3 py-2 text-xs text-gray-800 rounded-md cursor-pointer flex items-center gap-2 data-[highlighted]:bg-violet-50 data-[highlighted]:text-violet-700 outline-none"
                                                 >
                                                   <Select.ItemText>%</Select.ItemText>
                                                 </Select.Item>
                                                 <Select.Item
                                                   value="flat"
-                                                  className="px-3 py-2 text-xs text-gray-800 rounded-md cursor-pointer flex items-center gap-2 data-[highlighted]:bg-blue-50 data-[highlighted]:text-blue-700 outline-none"
+                                                  className="px-3 py-2 text-xs text-gray-800 rounded-md cursor-pointer flex items-center gap-2 data-[highlighted]:bg-violet-50 data-[highlighted]:text-violet-700 outline-none"
                                                 >
                                                   <Select.ItemText>Flat</Select.ItemText>
                                                 </Select.Item>
@@ -2029,7 +2028,7 @@ export default function ReceiptList() {
                   <div className="grid grid-cols-12 gap-2">
                     <div className="col-span-6">
                       <Select.Root value={selectedProductId} onValueChange={(value) => setSelectedProductId(value)}>
-                        <Select.Trigger className="w-full h-9 px-3 border-0 bg-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm text-gray-900 flex items-center justify-between">
+                        <Select.Trigger className="w-full h-9 px-3 border-0 bg-white rounded-md focus:outline-none focus:ring-2 focus:ring-violet-500 text-sm text-gray-900 flex items-center justify-between">
                           <Select.Value placeholder="Select product" />
                           <Select.Icon>
                             <ChevronDown className="h-4 w-4 text-gray-500" />
@@ -3070,28 +3069,6 @@ export default function ReceiptList() {
         }}
       />
 
-      {/* Toast notifications */}
-      <ToastPrimitive.Provider swipeDirection="right">
-        <ToastPrimitive.Root
-          open={toastOpen}
-          onOpenChange={setToastOpen}
-          className={cn(
-            'rounded-lg border px-4 py-3 shadow-lg bg-white text-sm flex flex-col gap-1',
-            toastVariant === 'success' && 'border-green-200',
-            toastVariant === 'error' && 'border-red-200',
-          )}
-        >
-          <ToastPrimitive.Title className="font-semibold text-gray-900">
-            {toastTitle}
-          </ToastPrimitive.Title>
-          {toastDescription && (
-            <ToastPrimitive.Description className="text-gray-600">
-              {toastDescription}
-            </ToastPrimitive.Description>
-          )}
-        </ToastPrimitive.Root>
-        <ToastPrimitive.Viewport className="fixed top-4 right-4 z-[60] flex flex-col gap-2 w-72 max-w-full outline-none" />
-      </ToastPrimitive.Provider>
     </div>
   )
 }

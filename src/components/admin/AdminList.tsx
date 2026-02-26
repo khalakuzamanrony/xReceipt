@@ -10,10 +10,12 @@ import { Plus, Edit, Trash2, AlertCircle, Users, Search, Mail } from 'lucide-rea
 import { useAuth } from '@/contexts/AuthContext'
 import { useVendor } from '@/contexts/VendorContext'
 import { supabase } from '@/lib/supabase'
+import { useToast } from '@/contexts/ToastContext'
 
 export default function AdminList() {
   const { role, user } = useAuth()
   const { activeVendorId } = useVendor()
+  const { toast } = useToast()
   const [admins, setAdmins] = useState<User[]>([])
   const [nonDeletableAdminIds, setNonDeletableAdminIds] = useState<string[]>([])
   const [loading, setLoading] = useState(true)
@@ -166,7 +168,9 @@ export default function AdminList() {
 
   const handleAddNew = () => {
     if (!activeVendorId) {
-      setError('Please select a shop from the left sidebar before creating an admin.')
+      const message = 'Please select a shop from the left sidebar before creating an admin.'
+      setError(message)
+      toast('Missing shop', message, 'error')
       return
     }
     setSelectedAdmin(null)
@@ -180,7 +184,9 @@ export default function AdminList() {
 
   const handleRequestDelete = (admin: User) => {
     if (nonDeletableAdminIds.includes(admin.id)) {
-      setError('This admin is a shop super user and cannot be deleted. Reassign shop super admins first.')
+      const message = 'This admin is a shop super user and cannot be deleted. Reassign shop super admins first.'
+      setError(message)
+      toast('Cannot delete admin', message, 'error')
       return
     }
     setAdminToDelete(admin)
@@ -191,7 +197,9 @@ export default function AdminList() {
     if (!adminToDelete) return
 
     if (nonDeletableAdminIds.includes(adminToDelete.id)) {
-      setError('This admin is a shop super user and cannot be deleted. Reassign shop super admins first.')
+      const message = 'This admin is a shop super user and cannot be deleted. Reassign shop super admins first.'
+      setError(message)
+      toast('Cannot delete admin', message, 'error')
       setShowDeleteConfirm(false)
       setAdminToDelete(null)
       return
@@ -204,11 +212,7 @@ export default function AdminList() {
       setShowDeleteConfirm(false)
       setAdminToDelete(null)
 
-      if (!result.authDeleted) {
-        setWarning(
-          'User deleted from the app database, but the Supabase Auth account could not be deleted. You may need to deploy the Supabase Edge Function "delete-user" with a service role key, then try again, or delete the Auth user manually from the Supabase dashboard.',
-        )
-      }
+      toast('Admin deleted', 'The user has been deleted.', 'success')
 
       if (!result.storageDeleted) {
         const msg = (result.storageError || '').toLowerCase()
@@ -219,7 +223,9 @@ export default function AdminList() {
         )
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to delete admin')
+      const message = err instanceof Error ? err.message : 'Failed to delete admin'
+      setError(message)
+      toast('Failed to delete admin', message, 'error')
     } finally {
       setIsDeleting(false)
     }
@@ -231,15 +237,10 @@ export default function AdminList() {
     loadAdmins()
   }
 
-  const handleSendResetEmailForAdmin = async (admin: User) => {
-    try {
-      setError(null)
-      setInfo(null)
-      await adminService.sendPasswordResetEmail(admin.email)
-      setInfo(`Password reset email sent to ${admin.email}`)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to send password reset email')
-    }
+  const handleSendResetEmailForAdmin = async (_admin: User) => {
+    const message = 'Password reset is not available with custom authentication.'
+    setError(message)
+    toast('Not available', message, 'info')
   }
 
   const isVendorSuperAdmin = user ? nonDeletableAdminIds.includes(user.id) : false

@@ -5,40 +5,26 @@ import { Label } from '@/components/ui/Label'
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from '@/components/ui/Card'
 import { useAuth } from '@/contexts/AuthContext'
 import { Eye, EyeOff } from 'lucide-react'
-import { adminService } from '@/services/adminService'
+import { useToast } from '@/contexts/ToastContext'
 
 export default function SignInPage() {
   const { signIn, loading, error } = useAuth()
+  const { toast } = useToast()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
-  const [resetLoading, setResetLoading] = useState(false)
-  const [resetMessage, setResetMessage] = useState<string | null>(null)
-  const [resetError, setResetError] = useState<string | null>(null)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    await signIn(email, password)
-  }
 
-  const handleForgotPassword = async () => {
-    if (!email) {
-      setResetError('Please enter your email first.')
-      setResetMessage(null)
+    if (!email.trim() || !password) {
+      toast('Missing credentials', 'Please enter your email and password.', 'error')
       return
     }
 
-    setResetLoading(true)
-    setResetMessage(null)
-    setResetError(null)
-
-    try {
-      await adminService.sendPasswordResetEmail(email)
-      setResetMessage('If an account exists for this email, a reset link has been sent.')
-    } catch (err) {
-      setResetError(err instanceof Error ? err.message : 'Failed to send reset email')
-    } finally {
-      setResetLoading(false)
+    const ok = await signIn(email, password)
+    if (ok) {
+      toast('Signed in', 'Welcome back!', 'success')
     }
   }
 
@@ -97,30 +83,14 @@ export default function SignInPage() {
           </CardContent>
 
           <CardFooter className="flex flex-col gap-3 pt-0 pb-4 px-6">
-            <div className="flex flex-col items-stretch gap-2 w-full">
-              <Button
-                type="submit"
-                size="sm"
-                className="w-full h-9 text-xs font-semibold"
-                disabled={loading}
-              >
-                {loading ? 'Signing in...' : 'Sign in'}
-              </Button>
-              <button
-                type="button"
-                onClick={handleForgotPassword}
-                disabled={resetLoading}
-                className="text-[11px] text-blue-600 hover:text-blue-700 hover:underline self-center"
-              >
-                {resetLoading ? 'Sending reset email...' : 'Forgot password?'}
-              </button>
-              {resetMessage && (
-                <p className="text-[11px] text-green-600 text-center">{resetMessage}</p>
-              )}
-              {resetError && (
-                <p className="text-[11px] text-red-600 text-center">{resetError}</p>
-              )}
-            </div>
+            <Button
+              type="submit"
+              size="sm"
+              className="w-full h-9 text-xs font-semibold"
+              disabled={loading}
+            >
+              {loading ? 'Signing in...' : 'Sign in'}
+            </Button>
           </CardFooter>
         </form>
       </Card>

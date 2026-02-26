@@ -8,6 +8,7 @@ export interface User {
   phone?: string
   role: UserRole
   profile_image_url?: string
+  password_hash?: string
   created_at: string
   updated_at: string
 }
@@ -31,10 +32,6 @@ export interface AdminPermissions {
   // Receipt permissions
   can_view_receipts: boolean
   can_create_receipts: boolean
-  
-  // Template permissions
-  can_view_templates: boolean
-  can_create_templates: boolean
   
   created_at: string
   updated_at: string

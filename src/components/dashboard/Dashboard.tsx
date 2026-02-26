@@ -65,7 +65,7 @@ export default function Dashboard() {
   const canViewReceipts = role === 'grand_user' || isAdmin || permissions?.can_view_receipts || adminPermissionFallback
   const canViewProducts = role === 'grand_user' || isAdmin || permissions?.can_view_products || adminPermissionFallback
   const canViewCategories = role === 'grand_user' || isAdmin || permissions?.can_view_categories || adminPermissionFallback
-  const canViewTemplates = role === 'grand_user' || isAdmin || permissions?.can_view_templates || adminPermissionFallback
+  const canViewTemplates = role === 'grand_user' || isAdmin || adminPermissionFallback
 
   useEffect(() => {
     void loadDashboard()
@@ -239,7 +239,7 @@ export default function Dashboard() {
   if (vendorLoading || loading) {
     return (
       <div className="flex flex-col items-center justify-center h-96 gap-4">
-        <div className="animate-spin rounded-full h-16 w-16 border-4 border-blue-200 border-t-blue-600"></div>
+        <div className="animate-spin rounded-full h-16 w-16 border-4 border-violet-200 border-t-violet-600"></div>
         <p className="text-gray-600 font-medium">Loading dashboard...</p>
       </div>
     )
@@ -272,7 +272,7 @@ export default function Dashboard() {
               className={cn(
                 'h-9',
                 dateRange === opt.id
-                  ? 'bg-blue-600 hover:bg-blue-700 text-white'
+                  ? 'bg-violet-600 hover:bg-violet-700 text-white'
                   : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-50',
               )}
             >
@@ -291,7 +291,7 @@ export default function Dashboard() {
       )}
 
       {!activeVendorId && (
-        <div className="bg-blue-50 border border-blue-200 text-blue-800 px-4 py-4 rounded-lg">
+        <div className="bg-violet-50 border border-violet-200 text-violet-800 px-4 py-4 rounded-lg">
           <p className="font-semibold">Choose a shop</p>
           <p className="text-sm mt-1">
             Select a shop from the header to view receipts, revenue, and catalog metrics for that shop.
@@ -304,7 +304,7 @@ export default function Dashboard() {
         <Card className="hover:shadow-lg transition-shadow">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Receipts</CardTitle>
-            <FileText className="h-4 w-4 text-blue-600" />
+            <FileText className="h-4 w-4 text-violet-600" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{canViewReceipts ? stats.receipts : '—'}</div>
@@ -372,8 +372,8 @@ export default function Dashboard() {
                   id: 'sent' as const,
                   label: 'Sent',
                   icon: Send,
-                  color: 'bg-blue-200',
-                  text: 'text-blue-700',
+                  color: 'bg-violet-200',
+                  text: 'text-violet-700',
                 }, {
                   id: 'paid' as const,
                   label: 'Paid',
@@ -426,7 +426,7 @@ export default function Dashboard() {
                       st === 'paid'
                         ? 'bg-green-50 text-green-700 border-green-200'
                         : st === 'sent'
-                          ? 'bg-blue-50 text-blue-700 border-blue-200'
+                          ? 'bg-violet-50 text-violet-700 border-violet-200'
                           : 'bg-gray-50 text-gray-700 border-gray-200'
 
                     return (
@@ -448,7 +448,7 @@ export default function Dashboard() {
                           </div>
                         </div>
                         <div className="flex items-center justify-between">
-                          <span className={cn('inline-flex items-center px-2 py-0.5 rounded-full border text-xs font-semibold', badge)}>
+                          <span className={cn('inline-flex items-center px-2.5 py-0.5 rounded-full border text-xs font-semibold', badge)}>
                             {st.charAt(0).toUpperCase() + st.slice(1)}
                           </span>
                         </div>
@@ -476,7 +476,7 @@ export default function Dashboard() {
                           st === 'paid'
                             ? 'bg-green-50 text-green-700 border-green-200'
                             : st === 'sent'
-                              ? 'bg-blue-50 text-blue-700 border-blue-200'
+                              ? 'bg-violet-50 text-violet-700 border-violet-200'
                               : 'bg-gray-50 text-gray-700 border-gray-200'
 
                         return (
@@ -560,7 +560,7 @@ export default function Dashboard() {
             </div>
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <FileText className="h-4 w-4 text-blue-600" />
+                <FileText className="h-4 w-4 text-violet-600" />
                 <span className="text-sm text-gray-700">Categories</span>
               </div>
               <span className="text-sm font-semibold text-gray-900">{canViewCategories ? stats.categories : '—'}</span>

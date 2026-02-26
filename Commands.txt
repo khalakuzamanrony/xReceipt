@@ -35,3 +35,5 @@
 16. redefine user permisssion
 17. permission a assign template drkr nav, only view and create thakbe
 18. permisiion not reflection other portal
+on sidebar collapse, the shop seletion dropdown is not showing, unable to select shop when sidbear is in collapsed mode state
+when ther is only one show, no need to show shop selection dropdown, specially for super user and admin, they can have one shop sho no need to show dropdown for them

@@ -1,8 +1,13 @@
-import { createContext, useContext, useEffect, useState } from 'react'
+import { createContext, useContext, useEffect, useState, useCallback } from 'react'
 import type { ReactNode } from 'react'
+import bcrypt from 'bcryptjs'
 import { supabase } from '@/lib/supabase'
 import type { User, UserRole, AdminPermissions } from '@/types'
 import { adminService } from '@/services/adminService'
+
+// JWT token helpers
+const TOKEN_KEY = 'xreceipt_auth_token'
+const USER_ID_KEY = 'xreceipt_user_id'
 
 interface AuthContextValue {
   user: User | null
@@ -10,11 +15,32 @@ interface AuthContextValue {
   permissions: AdminPermissions | null
   loading: boolean
   error: string | null
-  signIn: (email: string, password: string) => Promise<void>
+  signIn: (email: string, password: string) => Promise<boolean>
   signOut: () => Promise<void>
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined)
+
+// Generate a simple JWT-like token (base64 encoded JSON)
+function generateToken(userId: string, email: string): string {
+  const payload = {
+    sub: userId,
+    email,
+    iat: Date.now(),
+    exp: Date.now() + 7 * 24 * 60 * 60 * 1000, // 7 days
+  }
+  return btoa(JSON.stringify(payload))
+}
+
+function verifyToken(token: string): { sub: string; email: string } | null {
+  try {
+    const payload = JSON.parse(atob(token))
+    if (payload.exp < Date.now()) return null
+    return { sub: payload.sub, email: payload.email }
+  } catch {
+    return null
+  }
+}
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
@@ -23,97 +49,110 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  const loadUserAndPermissions = async (options?: { showLoading?: boolean }) => {
-    const showLoading = options?.showLoading ?? true
-    if (showLoading) {
-      setLoading(true)
-    }
+  const loadUserAndPermissions = useCallback(async (userId?: string) => {
     setError(null)
     try {
-      const { data } = await supabase.auth.getUser()
-      const authUser = data.user
-
-      if (!authUser) {
-        setUser(null)
-        setRole(null)
-        setPermissions(null)
-        return
+      if (!userId) {
+        const token = localStorage.getItem(TOKEN_KEY)
+        if (!token) {
+          setUser(null)
+          setRole(null)
+          setPermissions(null)
+          setLoading(false)
+          return
+        }
+        const payload = verifyToken(token)
+        if (!payload) {
+          localStorage.removeItem(TOKEN_KEY)
+          localStorage.removeItem(USER_ID_KEY)
+          setUser(null)
+          setRole(null)
+          setPermissions(null)
+          setLoading(false)
+          return
+        }
+        userId = payload.sub
       }
 
-      if (!authUser.email) {
-        setError('Authenticated user has no email address.')
-        setUser(null)
-        setRole(null)
-        setPermissions(null)
-        return
-      }
-
-      const dbUser = await adminService.getAdminByEmail(authUser.email)
+      const dbUser = await adminService.getAdminById(userId)
       if (!dbUser) {
-        setError('No matching admin/user record found for this account.')
+        setError('User not found.')
         setUser(null)
         setRole(null)
         setPermissions(null)
+        localStorage.removeItem(TOKEN_KEY)
+        localStorage.removeItem(USER_ID_KEY)
+        setLoading(false)
         return
       }
 
       setUser(dbUser)
       setRole(dbUser.role)
-
-      if (dbUser.role === 'admin' || dbUser.role === 'super_admin') {
-        const perms = await adminService.getAdminPermissions(dbUser.id)
-        setPermissions(perms)
-      } else {
-        // Grand User has full access; permissions not strictly needed
-        setPermissions(null)
-      }
+      // Permissions are loaded in VendorContext with vendor scope
+      setPermissions(null)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load auth state')
       setUser(null)
       setRole(null)
       setPermissions(null)
     } finally {
-      if (showLoading) {
-        setLoading(false)
-      }
-    }
-  }
-
-  useEffect(() => {
-    void loadUserAndPermissions({ showLoading: true })
-
-    const { data: subscription } = supabase.auth.onAuthStateChange((event) => {
-      // Supabase may refresh tokens when a tab regains focus.
-      // Avoid turning on the full-screen loader for token refresh events.
-      if (event === 'TOKEN_REFRESHED') return
-
-      // These events should update the in-memory user/role/permissions, but should not
-      // present as a full page reload when the user switches tabs or minimizes.
-      void loadUserAndPermissions({ showLoading: false })
-    })
-
-    return () => {
-      subscription.subscription.unsubscribe()
+      setLoading(false)
     }
   }, [])
 
-  const signIn = async (email: string, password: string) => {
+  useEffect(() => {
+    void loadUserAndPermissions()
+  }, [loadUserAndPermissions])
+
+  const signIn = async (email: string, password: string): Promise<boolean> => {
     setLoading(true)
     setError(null)
     try {
-      const { error: signInError } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      })
-      if (signInError) throw signInError
-      await loadUserAndPermissions({ showLoading: false })
+      // Fetch user by email with password hash
+      const { data, error: fetchError } = await supabase
+        .from('users')
+        .select('*')
+        .eq('email', email)
+        .single()
+
+      if (fetchError || !data) {
+        throw new Error('Invalid email or password')
+      }
+
+      const dbUser = data as User
+
+      // Check if user has password hash
+      if (!dbUser.password_hash) {
+        throw new Error('Account has no password set. Please contact administrator.')
+      }
+
+      // Verify password
+      const isValidPassword = await bcrypt.compare(password, dbUser.password_hash)
+      
+      if (!isValidPassword) {
+        throw new Error('Invalid email or password')
+      }
+
+      // Generate and store token
+      const token = generateToken(dbUser.id, dbUser.email)
+      localStorage.setItem(TOKEN_KEY, token)
+      localStorage.setItem(USER_ID_KEY, dbUser.id)
+
+      // Set user state
+      setUser(dbUser)
+      setRole(dbUser.role)
+      // Permissions are loaded in VendorContext with vendor scope
+      setPermissions(null)
+
       setLoading(false)
+      return true
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to sign in')
       setUser(null)
       setRole(null)
       setPermissions(null)
       setLoading(false)
+      return false
     }
   }
 
@@ -121,7 +160,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setLoading(true)
     setError(null)
     try {
-      await supabase.auth.signOut()
+      localStorage.removeItem(TOKEN_KEY)
+      localStorage.removeItem(USER_ID_KEY)
       setUser(null)
       setRole(null)
       setPermissions(null)
@@ -149,4 +189,17 @@ export function useAuth() {
   const ctx = useContext(AuthContext)
   if (!ctx) throw new Error('useAuth must be used within an AuthProvider')
   return ctx
+}
+
+// Helper function to hash passwords (for admin service)
+export async function hashPassword(password: string): Promise<string> {
+  return bcrypt.hash(password, 10)
+}
+
+// Helper to check if token exists
+export function hasAuthToken(): boolean {
+  if (typeof window === 'undefined') return false
+  const token = localStorage.getItem(TOKEN_KEY)
+  if (!token) return false
+  return verifyToken(token) !== null
 }

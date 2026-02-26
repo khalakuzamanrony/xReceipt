@@ -100,6 +100,8 @@ export function VendorProvider({ children }: { children: ReactNode }) {
     if (!activeVendorId) {
       setPermissions(null)
       setPermissionsLoading(false)
+      // Ensure main loading is also false for admins without vendor
+      setLoading(false)
       return
     }
 
