@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase'
+import { hasAuthToken } from '@/contexts/AuthContext'
 import type { BrandSettings } from '@/types'
 
 const BRAND_ASSETS_BUCKET = import.meta.env.VITE_BRAND_ASSETS_BUCKET || 'brand-assets'
@@ -36,6 +37,46 @@ export const brandSettingsService = {
     return data || null
   },
 
+  async upsertBrandInfoForVendor(
+    vendorId: string,
+    updates: Pick<BrandSettings, 'app_name' | 'tagline'>,
+  ): Promise<BrandSettings> {
+    const payload = {
+      vendor_id: vendorId,
+      app_name: updates.app_name,
+      tagline: updates.tagline,
+    }
+
+    const { data, error } = await supabase
+      .from('brand_settings')
+      .upsert(payload, { onConflict: 'vendor_id' })
+      .select('*')
+      .single()
+
+    if (error) throw error
+    return data
+  },
+
+  async upsertBrandIconForVendor(
+    vendorId: string,
+    updates: Pick<BrandSettings, 'icon_url' | 'icon_path'>,
+  ): Promise<BrandSettings> {
+    const payload = {
+      vendor_id: vendorId,
+      icon_url: updates.icon_url,
+      icon_path: updates.icon_path,
+    }
+
+    const { data, error } = await supabase
+      .from('brand_settings')
+      .upsert(payload, { onConflict: 'vendor_id' })
+      .select('*')
+      .single()
+
+    if (error) throw error
+    return data
+  },
+
   async upsertForVendor(
     vendorId: string,
     updates: Pick<BrandSettings, 'app_name' | 'tagline' | 'icon_url' | 'icon_path'>,
@@ -58,16 +99,17 @@ export const brandSettingsService = {
     return data
   },
 
-  async uploadBrandIcon(vendorId: string, file: File): Promise<{ publicUrl: string; path: string }> {
-    const { data: userData, error: userError } = await supabase.auth.getUser()
-    if (userError || !userData?.user) {
+  async uploadBrandIcon(
+    vendorId: string,
+    file: File,
+  ): Promise<{ publicUrl: string; path: string }> {
+    if (!hasAuthToken()) {
       throw new Error('You must be logged in to upload an app icon.')
     }
 
-    const ext = (file.name.split('.').pop() || 'png').toLowerCase()
-    const safeExt = ext.replace(/[^a-z0-9]/g, '') || 'png'
-    const fileName = `app-icon-${Date.now()}-${Math.random().toString(36).slice(2)}.${safeExt}`
-    const path = `${vendorId}/${fileName}`
+    // Always upload to a deterministic path so it truly replaces the previous icon.
+    // This matches the behavior you have in other modules (single stable path per entity).
+    const path = `${vendorId}/app-icon`
 
     const { error: uploadError } = await supabase.storage.from(BRAND_ASSETS_BUCKET).upload(path, file, {
       upsert: true,
@@ -91,7 +133,9 @@ export const brandSettingsService = {
     }
 
     const { data } = supabase.storage.from(BRAND_ASSETS_BUCKET).getPublicUrl(path)
-    return { publicUrl: data.publicUrl, path }
+    // Add cache-busting timestamp to prevent browser caching
+    const cacheBustedUrl = `${data.publicUrl}?t=${Date.now()}`
+    return { publicUrl: cacheBustedUrl, path }
   },
 
   async deleteBrandIcon(iconUrlOrPath: string): Promise<{ deleted: boolean; error: string | null }> {

@@ -18,12 +18,19 @@ export default function SettingsPage() {
   const [appName, setAppName] = useState('')
   const [tagline, setTagline] = useState('')
   const [localError, setLocalError] = useState<string | null>(null)
+  const [pendingIconFile, setPendingIconFile] = useState<File | null>(null)
+  const [pendingIconPreview, setPendingIconPreview] = useState<string | null>(null)
+  const [iconToDelete, setIconToDelete] = useState(false)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
 
   useEffect(() => {
     setAppName(settings?.app_name ?? '')
     setTagline(settings?.tagline ?? '')
-  }, [settings?.app_name, settings?.tagline])
+    // Clear pending changes when settings refresh
+    setPendingIconFile(null)
+    setPendingIconPreview(null)
+    setIconToDelete(false)
+  }, [settings?.app_name, settings?.tagline, settings?.icon_url])
 
   const canEdit = !!activeVendorId
 
@@ -31,28 +38,60 @@ export default function SettingsPage() {
     setLocalError(null)
     try {
       await updateBrandInfo({ appName, tagline })
+
+      // Then handle icon changes (so brand info upsert cannot overwrite icon fields)
+      if (iconToDelete && !pendingIconFile) {
+        await deleteIcon()
+      } else if (pendingIconFile) {
+        await uploadIcon(pendingIconFile)
+      }
+
+      // Clear pending states after successful save
+      if (pendingIconPreview) {
+        URL.revokeObjectURL(pendingIconPreview)
+      }
+      setPendingIconFile(null)
+      setPendingIconPreview(null)
+      setIconToDelete(false)
+      if (fileInputRef.current) fileInputRef.current.value = ''
     } catch (err) {
       setLocalError(err instanceof Error ? err.message : 'Failed to save settings')
     }
   }
 
-  const handleIconUpload = async (file: File) => {
+  const handleIconSelect = (file: File) => {
     setLocalError(null)
-    try {
-      await uploadIcon(file)
-      if (fileInputRef.current) fileInputRef.current.value = ''
-    } catch (err) {
-      setLocalError(err instanceof Error ? err.message : 'Failed to upload icon')
+    // Create preview URL
+    if (pendingIconPreview) {
+      URL.revokeObjectURL(pendingIconPreview)
     }
+    const previewUrl = URL.createObjectURL(file)
+    setPendingIconFile(file)
+    setPendingIconPreview(previewUrl)
+    setIconToDelete(false)
   }
 
-  const handleIconDelete = async () => {
-    setLocalError(null)
-    try {
-      await deleteIcon()
-    } catch (err) {
-      setLocalError(err instanceof Error ? err.message : 'Failed to delete icon')
+  const handleCancelPendingIcon = () => {
+    if (pendingIconPreview) {
+      URL.revokeObjectURL(pendingIconPreview)
     }
+    setPendingIconFile(null)
+    setPendingIconPreview(null)
+    if (fileInputRef.current) fileInputRef.current.value = ''
+  }
+
+  const handleIconDeleteRequest = () => {
+    setIconToDelete(true)
+    setPendingIconFile(null)
+    if (pendingIconPreview) {
+      URL.revokeObjectURL(pendingIconPreview)
+      setPendingIconPreview(null)
+    }
+    if (fileInputRef.current) fileInputRef.current.value = ''
+  }
+
+  const handleIconDeleteCancel = () => {
+    setIconToDelete(false)
   }
 
   return (
@@ -119,44 +158,81 @@ export default function SettingsPage() {
               </div>
 
               <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
-                <div className="flex items-start justify-between gap-4">
-                  <div className="flex items-start gap-4">
-                    {settings?.icon_url ? (
+                <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+                  <div className="flex items-start gap-4 min-w-0">
+                    {/* Show pending preview if available, otherwise show saved icon */}
+                    {pendingIconPreview ? (
+                      <img
+                        src={pendingIconPreview}
+                        alt="App icon preview"
+                        className="h-12 w-12 rounded-xl object-cover border-2 border-dashed border-purple-400 bg-white flex-shrink-0"
+                      />
+                    ) : iconToDelete ? (
+                      <div className="h-12 w-12 rounded-xl border-2 border-dashed border-red-300 bg-red-50 flex items-center justify-center text-xs font-semibold text-red-500 flex-shrink-0">
+                        Delete
+                      </div>
+                    ) : settings?.icon_url ? (
                       <img
                         src={settings.icon_url}
                         alt="App icon"
-                        className="h-12 w-12 rounded-xl object-cover border border-gray-200 bg-white"
+                        className="h-12 w-12 rounded-xl object-cover border border-gray-200 bg-white flex-shrink-0"
                       />
                     ) : (
-                      <div className="h-12 w-12 rounded-xl border border-gray-200 bg-white flex items-center justify-center text-xs font-semibold text-gray-500">
+                      <div className="h-12 w-12 rounded-xl border border-gray-200 bg-white flex items-center justify-center text-xs font-semibold text-gray-500 flex-shrink-0">
                         No icon
                       </div>
                     )}
-                    <div className="min-w-0">
+                    <div className="min-w-0 flex-1">
                       <p className="text-sm font-semibold text-gray-900">App icon</p>
-                      <p className="text-xs text-gray-600 mt-0.5">
-                        Upload a square image (PNG/JPG). It will be stored in Supabase Storage.
+                      <p className="text-xs text-gray-600 mt-0.5 break-words">
+                        {pendingIconPreview
+                          ? 'New icon selected. Click "Save changes" to upload.'
+                          : iconToDelete
+                            ? 'Icon will be deleted on save. Click "Cancel delete" to keep it.'
+                            : 'Upload a square image (PNG/JPG). Changes apply on save.'}
                       </p>
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-2">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={() => fileInputRef.current?.click()}
-                      disabled={!canEdit || loading || saving}
-                    >
-                      Upload
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="destructive"
-                      onClick={handleIconDelete}
-                      disabled={!settings?.icon_url || !canEdit || loading || saving}
-                    >
-                      Delete
-                    </Button>
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    {pendingIconPreview ? (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={handleCancelPendingIcon}
+                        disabled={!canEdit || loading || saving}
+                      >
+                        Cancel
+                      </Button>
+                    ) : iconToDelete ? (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={handleIconDeleteCancel}
+                        disabled={!canEdit || loading || saving}
+                      >
+                        Cancel delete
+                      </Button>
+                    ) : (
+                      <>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={() => fileInputRef.current?.click()}
+                          disabled={!canEdit || loading || saving}
+                        >
+                          {settings?.icon_url ? 'Change' : 'Upload'}
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="destructive"
+                          onClick={handleIconDeleteRequest}
+                          disabled={!settings?.icon_url || !canEdit || loading || saving}
+                        >
+                          Delete
+                        </Button>
+                      </>
+                    )}
                   </div>
                 </div>
 
@@ -168,14 +244,22 @@ export default function SettingsPage() {
                   onChange={(e) => {
                     const file = e.target.files?.[0]
                     if (!file) return
-                    void handleIconUpload(file)
+                    handleIconSelect(file)
                   }}
                 />
               </div>
 
               <div className="flex justify-end">
-                <Button type="button" onClick={handleSave} disabled={!canEdit || loading || saving}>
-                  {saving ? 'Saving…' : 'Save changes'}
+                <Button
+                  type="button"
+                  onClick={handleSave}
+                  disabled={!canEdit || loading || saving}
+                >
+                  {saving
+                    ? 'Saving…'
+                    : pendingIconFile || iconToDelete
+                      ? 'Save changes (with icon)'
+                      : 'Save changes'}
                 </Button>
               </div>
             </div>

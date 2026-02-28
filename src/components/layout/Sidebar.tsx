@@ -15,6 +15,7 @@ import {
 } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { useVendor } from '@/contexts/VendorContext'
+import { useBrandSettings } from '@/contexts/BrandSettingsContext'
 import { Input } from '@/components/ui/Input'
 import * as Select from '@radix-ui/react-select'
 import { cn } from '@/lib/utils'
@@ -37,11 +38,28 @@ function LogoIcon({ className }: { className?: string }) {
   )
 }
 
+// Brand icon component - shows uploaded brand icon or fallback
+function BrandLogoIcon({ iconUrl, className }: { iconUrl?: string | null; className?: string }) {
+  if (iconUrl) {
+    return (
+      <img
+        src={iconUrl}
+        alt="Brand icon"
+        className={cn('w-6 h-6 rounded-lg object-cover', className)}
+      />
+    )
+  }
+  return <LogoIcon className={className} />
+}
+
 export default function Sidebar({ currentPage, onPageChange, collapsed, onCollapsedChange }: SidebarProps) {
   const [isOpen, setIsOpen] = useState(false)
   const { user, role, loading: authLoading } = useAuth()
   const { memberships, activeVendorId, setActiveVendorId, permissions, permissionsLoading } = useVendor()
+  const { settings } = useBrandSettings()
   const [vendorSearch, setVendorSearch] = useState('')
+
+  const showLabels = !collapsed || isOpen
 
   const baseMenuItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -125,37 +143,62 @@ export default function Sidebar({ currentPage, onPageChange, collapsed, onCollap
 
   return (
     <>
-      {/* Mobile Hamburger */}
-      <button
-        onClick={() => setIsOpen(true)}
-        className="fixed top-4 left-4 z-50 md:hidden p-2 hover:bg-gray-100 rounded-lg transition-colors"
-        aria-label="Open menu"
-      >
-        <Menu size={20} className="text-gray-700" />
-      </button>
+      {/* Mobile Hamburger - only show when sidebar is closed */}
+      {!isOpen && (
+        <button
+          onClick={() => setIsOpen(true)}
+          className="fixed top-4 left-4 z-50 md:hidden p-2 hover:bg-gray-100 rounded-lg transition-colors"
+          aria-label="Open menu"
+        >
+          <Menu size={20} className="text-gray-700" />
+        </button>
+      )}
 
       {/* Sidebar */}
       <aside
         className={cn(
           'fixed left-0 top-0 h-screen bg-[#fafafa] border-r border-gray-100 transition-all duration-300 z-40',
-          collapsed ? 'w-20' : 'w-64',
+          // Mobile: always w-64 when open; Desktop: use collapsed prop
+          isOpen ? 'w-64' : (collapsed ? 'w-20' : 'w-64'),
           isOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0',
         )}
       >
         <div className="flex flex-col h-full">
-          {/* Header with Logo and Collapse Button */}
-          <div className="flex items-center justify-between px-4 py-4">
+          {/* Mobile Header - App Name on left, X on right */}
+          {isOpen && (
+            <div className="md:hidden flex items-center justify-between px-4 py-3 border-b border-gray-200">
+              <div className="flex items-center gap-2">
+                <BrandLogoIcon iconUrl={settings?.icon_url} className="w-5 h-5" />
+                <span className="font-semibold text-gray-900 truncate">
+                  {activeVendor?.name || 'xReceipt'}
+                </span>
+              </div>
+              <button
+                onClick={() => setIsOpen(false)}
+                className="p-2 hover:bg-gray-200 rounded-lg transition-colors"
+                aria-label="Close menu"
+              >
+                <X size={20} className="text-gray-700" />
+              </button>
+            </div>
+          )}
+
+          {/* Desktop Header with Logo and Collapse Button */}
+          <div className="hidden md:flex items-center justify-between px-4 py-4">
             <button
               onClick={() => onPageChange('dashboard')}
-              className={cn('flex items-center hover:bg-gray-100 rounded-lg p-1.5 -m-1.5 transition-colors cursor-pointer', collapsed && 'justify-center w-full')}
+              className={cn(
+                'flex items-center hover:bg-gray-100 rounded-lg p-1.5 -m-1.5 transition-colors cursor-pointer',
+                collapsed && 'justify-center w-full',
+              )}
               title="Go to Dashboard"
             >
-              <LogoIcon className="w-6 h-6" />
+              <BrandLogoIcon iconUrl={settings?.icon_url} className="w-6 h-6" />
             </button>
             {!collapsed && (
               <button
                 onClick={() => onCollapsedChange(true)}
-                className="hidden md:flex p-1.5 hover:bg-gray-200 rounded-md transition-colors"
+                className="p-1.5 hover:bg-gray-200 rounded-md transition-colors"
                 aria-label="Collapse sidebar"
               >
                 <ChevronLeft size={16} className="text-gray-500" />
@@ -164,7 +207,7 @@ export default function Sidebar({ currentPage, onPageChange, collapsed, onCollap
             {collapsed && (
               <button
                 onClick={() => onCollapsedChange(false)}
-                className="hidden md:flex p-1.5 hover:bg-gray-200 rounded-md transition-colors absolute -right-3 top-4 bg-white border border-gray-200 shadow-sm"
+                className="p-1.5 hover:bg-gray-200 rounded-md transition-colors absolute -right-3 top-4 bg-white border border-gray-200 shadow-sm"
                 aria-label="Expand sidebar"
               >
                 <ChevronRight size={14} className="text-gray-500" />
@@ -172,20 +215,9 @@ export default function Sidebar({ currentPage, onPageChange, collapsed, onCollap
             )}
           </div>
 
-          {/* Mobile Close Button */}
-          <div className="md:hidden flex justify-end px-4 pb-2">
-            <button
-              onClick={() => setIsOpen(false)}
-              className="p-2 hover:bg-gray-200 rounded-lg transition-colors"
-              aria-label="Close menu"
-            >
-              <X size={20} className="text-gray-700" />
-            </button>
-          </div>
-
-          {/* Workspace Selector */}
-          {showVendorSelector && !collapsed && (
-            <div className="px-4 pb-4">
+          {/* Workspace Selector - Full dropdown (desktop expanded + mobile) */}
+          {showVendorSelector && showLabels && (
+            <div className={cn('px-4', isOpen ? 'pb-2' : 'pb-4')}>
               <Select.Root
                 value={selectValue}
                 onValueChange={(value) => {
@@ -253,7 +285,8 @@ export default function Sidebar({ currentPage, onPageChange, collapsed, onCollap
             </div>
           )}
 
-          {collapsed && showVendorSelector && (
+          {/* Workspace Selector - Collapsed avatar (desktop only) */}
+          {collapsed && !isOpen && showVendorSelector && (
             <div className="px-4 pb-4 flex justify-center">
               <div className="w-8 h-8 rounded-md bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center text-white text-xs font-medium">
                 {(activeVendor?.name || 'W').charAt(0).toUpperCase()}
@@ -262,7 +295,7 @@ export default function Sidebar({ currentPage, onPageChange, collapsed, onCollap
           )}
 
           {/* Navigation Menu */}
-          <nav className="flex-1 px-3 py-2 space-y-2">
+          <nav className="flex-1 px-3 py-2 space-y-2 overflow-y-auto min-h-0">
             {menuItems.map((item) => {
               const Icon = item.icon
               const isActive = currentPage === item.id
@@ -274,22 +307,19 @@ export default function Sidebar({ currentPage, onPageChange, collapsed, onCollap
                   onClick={() => handleMenuClick(item.id)}
                   className={cn(
                     'w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-200 text-sm font-medium',
-                    collapsed ? 'justify-center' : '',
+                    showLabels ? 'justify-start' : 'justify-center',
                     isActive
                       ? 'bg-violet-100/80 text-violet-700'
                       : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900',
                   )}
-                  title={collapsed ? label : undefined}
+                  title={!showLabels ? label : undefined}
                 >
                   <Icon size={18} className={cn('flex-shrink-0', isActive ? 'text-violet-600' : 'text-gray-500')} />
-                  {!collapsed && <span className="truncate">{label}</span>}
+                  {showLabels ? <span className="truncate">{label}</span> : null}
                 </button>
               )
             })}
           </nav>
-
-          {/* Spacer at bottom */}
-          <div className="flex-1" />
         </div>
       </aside>
 
