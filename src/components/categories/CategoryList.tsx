@@ -40,6 +40,9 @@ export default function CategoryList() {
   const [page, setPage] = useState(1)
   const [rowsPerPage, setRowsPerPage] = useState(10)
   const [typeFilter, setTypeFilter] = useState<'all' | 'root' | 'child'>('all')
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [categoryToDelete, setCategoryToDelete] = useState<Category | null>(null)
+  const [isDeleting, setIsDeleting] = useState(false)
   const showToast = (title: string, description = '', variant: 'success' | 'error' = 'success') => {
     toast(title, description, variant)
   }
@@ -96,17 +99,27 @@ export default function CategoryList() {
     setShowForm(true)
   }
 
-  const handleDelete = async (id: string) => {
-    if (!confirm('Are you sure you want to delete this category?')) return
+  const handleRequestDelete = (category: Category) => {
+    setCategoryToDelete(category)
+    setShowDeleteConfirm(true)
+  }
+
+  const handleConfirmDelete = async () => {
+    if (!categoryToDelete) return
 
     try {
-      await categoryService.deleteCategory(id)
-      setCategories(categories.filter(c => c.id !== id))
+      setIsDeleting(true)
+      await categoryService.deleteCategory(categoryToDelete.id)
+      setCategories(categories.filter(c => c.id !== categoryToDelete.id))
+      setShowDeleteConfirm(false)
+      setCategoryToDelete(null)
       showToast('Category deleted', 'The category has been deleted.', 'success')
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to delete category'
       setError(message)
       showToast('Failed to delete category', message, 'error')
+    } finally {
+      setIsDeleting(false)
     }
   }
 
@@ -361,6 +374,46 @@ export default function CategoryList() {
         </div>
       )}
 
+      {/* Delete Confirm Modal */}
+      {showDeleteConfirm && categoryToDelete && (
+        <Dialog open={true} onOpenChange={setShowDeleteConfirm}>
+          <DialogContent className="max-w-md bg-white" showCloseButton={false}>
+            <DialogHeader className="border-b border-gray-200 pb-4">
+              <DialogTitle className="text-lg font-semibold text-gray-900">Delete Category</DialogTitle>
+            </DialogHeader>
+            <div className="py-4">
+              <p className="text-sm text-gray-600">
+                Are you sure you want to delete <strong className="text-gray-900">{categoryToDelete.name}</strong>?
+              </p>
+              <p className="text-xs text-gray-500 mt-2">
+                This action cannot be undone. The category will be permanently deleted.
+              </p>
+            </div>
+            <DialogFooter className="border-t border-gray-200 pt-4 flex justify-end gap-3">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  setShowDeleteConfirm(false)
+                  setCategoryToDelete(null)
+                }}
+                disabled={isDeleting}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                variant="destructive"
+                onClick={handleConfirmDelete}
+                disabled={isDeleting}
+              >
+                {isDeleting ? 'Deleting...' : 'Delete Category'}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+
       {/* Category Form Modal */}
       {showForm && (
         <Dialog open={true} onOpenChange={setShowForm}>
@@ -489,7 +542,7 @@ export default function CategoryList() {
                       <Button
                         variant="ghost"
                         size="sm"
-                        onClick={() => handleDelete(category.id)}
+                        onClick={() => handleRequestDelete(category)}
                         className="h-9 w-9 p-0 text-red-500 hover:text-red-600 hover:bg-red-50 rounded-full"
                         title="Delete"
                       >
@@ -609,7 +662,7 @@ export default function CategoryList() {
                           <Button
                             variant="ghost"
                             size="sm"
-                            onClick={() => handleDelete(category.id)}
+                            onClick={() => handleRequestDelete(category)}
                             className="h-8 w-8 p-0 text-red-500 hover:text-red-600 hover:bg-red-50 rounded-full"
                             title="Delete"
                           >

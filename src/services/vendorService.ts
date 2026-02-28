@@ -1,7 +1,8 @@
 import { supabase } from '@/lib/supabase'
+import { hasAuthToken } from '@/contexts/AuthContext'
 import type { Vendor } from '@/types'
 
-const VENDOR_IMAGES_BUCKET = import.meta.env.VITE_VENDOR_IMAGES_BUCKET || 'vendor-images'
+const VENDOR_IMAGES_BUCKET = import.meta.env.VITE_VENDOR_IMAGES_BUCKET || 'vendor-image'
 
 const resolveVendorImageStoragePath = (value: string): string => {
   if (!value) return ''
@@ -80,8 +81,7 @@ export const vendorService = {
   },
 
   async uploadVendorImage(vendorId: string, file: File): Promise<{ publicUrl: string; path: string }> {
-    const { data: userData, error: userError } = await supabase.auth.getUser()
-    if (userError || !userData?.user) {
+    if (!hasAuthToken()) {
       throw new Error('You must be logged in to upload a shop image.')
     }
 
@@ -106,8 +106,8 @@ export const vendorService = {
       const enriched = message.includes('Bucket not found')
         ? `Bucket not found: "${VENDOR_IMAGES_BUCKET}". Supabase URL: "${supabaseUrl}". Confirm this app is pointing to the Supabase project where the bucket exists, and that the bucket name matches exactly. If needed, set VITE_VENDOR_IMAGES_BUCKET to the correct bucket name.`
         : isRls
-          ? `Storage upload blocked by RLS for bucket "${VENDOR_IMAGES_BUCKET}". Supabase URL: "${supabaseUrl}". Ensure you ran the storage policies for vendor-images (see sql/safe_master_with_rls.sql section "Storage object policies") and that you are logged in.`
-        : message
+          ? `Storage upload blocked by RLS for bucket "${VENDOR_IMAGES_BUCKET}". Supabase URL: "${supabaseUrl}". Ensure you created the bucket and ran the storage object policies for "${VENDOR_IMAGES_BUCKET}" (see sql/master_with_rls.sql and sql/safe_master_with_rls.sql section "Storage object policies").`
+          : message
       throw new Error(enriched)
     }
 

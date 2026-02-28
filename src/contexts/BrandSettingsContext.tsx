@@ -86,11 +86,9 @@ export function BrandSettingsProvider({ children }: { children: ReactNode }) {
     setSaving(true)
     setError(null)
     try {
-      const next = await brandSettingsService.upsertForVendor(activeVendorId, {
+      const next = await brandSettingsService.upsertBrandInfoForVendor(activeVendorId, {
         app_name: appName.trim() || DEFAULT_APP_NAME,
         tagline: tagline.trim() || null,
-        icon_url: settings?.icon_url ?? null,
-        icon_path: settings?.icon_path ?? null,
       })
       setSettings(next)
       applyBrowserBranding(next)
@@ -108,14 +106,8 @@ export function BrandSettingsProvider({ children }: { children: ReactNode }) {
     setSaving(true)
     setError(null)
     try {
-      if (settings?.icon_path || settings?.icon_url) {
-        await brandSettingsService.deleteBrandIcon(settings.icon_path || settings.icon_url || '')
-      }
-
       const { publicUrl, path } = await brandSettingsService.uploadBrandIcon(activeVendorId, file)
-      const next = await brandSettingsService.upsertForVendor(activeVendorId, {
-        app_name: settings?.app_name?.trim() || DEFAULT_APP_NAME,
-        tagline: settings?.tagline?.trim() || null,
+      const next = await brandSettingsService.upsertBrandIconForVendor(activeVendorId, {
         icon_url: publicUrl,
         icon_path: path,
       })
@@ -139,9 +131,7 @@ export function BrandSettingsProvider({ children }: { children: ReactNode }) {
         await brandSettingsService.deleteBrandIcon(settings.icon_path || settings.icon_url || '')
       }
 
-      const next = await brandSettingsService.upsertForVendor(activeVendorId, {
-        app_name: settings?.app_name?.trim() || DEFAULT_APP_NAME,
-        tagline: settings?.tagline?.trim() || null,
+      const next = await brandSettingsService.upsertBrandIconForVendor(activeVendorId, {
         icon_url: null,
         icon_path: null,
       })

@@ -57,6 +57,9 @@ export default function VendorList() {
   const [imagePreviewUrl, setImagePreviewUrl] = useState<string>('')
   const [imageWorking, setImageWorking] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [vendorToDelete, setVendorToDelete] = useState<Vendor | null>(null)
+  const [isDeleting, setIsDeleting] = useState(false)
 
   useEffect(() => {
     return () => {
@@ -318,12 +321,20 @@ export default function VendorList() {
     setShowForm(true)
   }
 
-  const handleDelete = async (vendor: Vendor) => {
-    if (!confirm('Are you sure you want to delete this shop?')) return
+  const handleRequestDelete = (vendor: Vendor) => {
+    setVendorToDelete(vendor)
+    setShowDeleteConfirm(true)
+  }
+
+  const handleConfirmDelete = async () => {
+    if (!vendorToDelete) return
 
     try {
-      const result = await vendorService.deleteVendorWithImage(vendor.id, vendor.image_url)
-      setVendors(vendors.filter(v => v.id !== vendor.id))
+      setIsDeleting(true)
+      const result = await vendorService.deleteVendorWithImage(vendorToDelete.id, vendorToDelete.image_url)
+      setVendors(vendors.filter(v => v.id !== vendorToDelete.id))
+      setShowDeleteConfirm(false)
+      setVendorToDelete(null)
 
       toast('Shop deleted', 'The shop has been deleted.', 'success')
 
@@ -339,6 +350,8 @@ export default function VendorList() {
       const message = err instanceof Error ? err.message : 'Failed to delete shop'
       setError(message)
       toast('Failed to delete shop', message, 'error')
+    } finally {
+      setIsDeleting(false)
     }
   }
 
@@ -942,6 +955,46 @@ export default function VendorList() {
         </div>
       )}
 
+      {/* Delete Confirm Modal */}
+      {showDeleteConfirm && vendorToDelete && (
+        <Dialog open={true} onOpenChange={setShowDeleteConfirm}>
+          <DialogContent className="max-w-md bg-white" showCloseButton={false}>
+            <DialogHeader className="border-b border-gray-200 pb-4">
+              <DialogTitle className="text-lg font-semibold text-gray-900">Delete Shop</DialogTitle>
+            </DialogHeader>
+            <div className="py-4">
+              <p className="text-sm text-gray-600">
+                Are you sure you want to delete <strong className="text-gray-900">{vendorToDelete.name}</strong>?
+              </p>
+              <p className="text-xs text-gray-500 mt-2">
+                This action cannot be undone. The shop and its associated image will be permanently deleted.
+              </p>
+            </div>
+            <DialogFooter className="border-t border-gray-200 pt-4 flex justify-end gap-3">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  setShowDeleteConfirm(false)
+                  setVendorToDelete(null)
+                }}
+                disabled={isDeleting}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                variant="destructive"
+                onClick={handleConfirmDelete}
+                disabled={isDeleting}
+              >
+                {isDeleting ? 'Deleting...' : 'Delete Shop'}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+
       {/* Vendor Form Modal */}
       {showForm && (
         <Dialog open={true} onOpenChange={setShowForm}>
@@ -1469,7 +1522,7 @@ export default function VendorList() {
                         <Button
                           variant="ghost"
                           size="sm"
-                          onClick={() => handleDelete(vendor)}
+                          onClick={() => handleRequestDelete(vendor)}
                           className="h-9 w-9 p-0 text-red-500 hover:text-red-600 hover:bg-red-50 rounded-full"
                           title="Delete"
                         >
@@ -1752,7 +1805,7 @@ export default function VendorList() {
                           <Button
                             variant="ghost"
                             size="sm"
-                            onClick={() => handleDelete(vendor)}
+                            onClick={() => handleRequestDelete(vendor)}
                             className="h-8 w-8 p-0 text-red-500 hover:text-red-600 hover:bg-red-50 rounded-full"
                             title="Delete"
                           >
