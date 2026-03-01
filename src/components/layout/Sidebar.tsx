@@ -285,12 +285,67 @@ export default function Sidebar({ currentPage, onPageChange, collapsed, onCollap
             </div>
           )}
 
-          {/* Workspace Selector - Collapsed avatar (desktop only) */}
+          {/* Workspace Selector - Collapsed: clickable avatar dropdown (desktop only) */}
           {collapsed && !isOpen && showVendorSelector && (
             <div className="px-4 pb-4 flex justify-center">
-              <div className="w-8 h-8 rounded-md bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center text-white text-xs font-medium">
-                {(activeVendor?.name || 'W').charAt(0).toUpperCase()}
-              </div>
+              <Select.Root
+                value={selectValue}
+                onValueChange={(value) => {
+                  if (value === '__all__') {
+                    setActiveVendorId(null)
+                  } else {
+                    setActiveVendorId(value || null)
+                  }
+                }}
+              >
+                <Select.Trigger
+                  className="w-8 h-8 rounded-md bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center text-white text-xs font-medium hover:from-violet-600 hover:to-purple-700 transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-violet-500/30"
+                  aria-label="Select workspace"
+                >
+                  {(activeVendor?.name || 'W').charAt(0).toUpperCase()}
+                </Select.Trigger>
+                <Select.Portal>
+                  <Select.Content
+                    position="popper"
+                    sideOffset={8}
+                    align="start"
+                    className="z-50 min-w-[180px] rounded-lg border border-gray-200 bg-white shadow-lg overflow-hidden"
+                  >
+                    <div className="px-3 py-2 border-b border-gray-100 bg-gray-50/50">
+                      <Input
+                        type="text"
+                        value={vendorSearch}
+                        onChange={(e) => setVendorSearch(e.target.value)}
+                        placeholder="Search workspaces..."
+                        className="h-8 text-xs"
+                      />
+                    </div>
+                    <Select.Viewport className="py-1 max-h-60 overflow-y-auto">
+                      {isGrandUser && (
+                        <Select.Item
+                          value="__all__"
+                          className="px-3 py-2 text-sm text-gray-700 cursor-pointer flex items-center gap-2 hover:bg-violet-50 hover:text-violet-700 outline-none data-[state=checked]:bg-violet-50 data-[state=checked]:text-violet-700"
+                        >
+                          <div className="w-5 h-5 rounded bg-gray-100 flex items-center justify-center text-xs">A</div>
+                          <Select.ItemText>All workspaces</Select.ItemText>
+                        </Select.Item>
+                      )}
+                      {filteredMemberships.map(({ vendor }) => (
+                        <Select.Item
+                          key={vendor.id}
+                          value={vendor.id}
+                          className="px-3 py-2 text-sm text-gray-700 cursor-pointer flex items-center gap-2 hover:bg-violet-50 hover:text-violet-700 outline-none data-[state=checked]:bg-violet-50 data-[state=checked]:text-violet-700"
+                        >
+                          <div className="w-5 h-5 rounded bg-gradient-to-br from-violet-400 to-purple-500 flex items-center justify-center text-white text-xs font-medium">
+                            {vendor.name.charAt(0).toUpperCase()}
+                          </div>
+                          <Select.ItemText>{vendor.name}</Select.ItemText>
+                        </Select.Item>
+                      ))}
+                    </Select.Viewport>
+                  </Select.Content>
+                </Select.Portal>
+              </Select.Root>
             </div>
           )}
 

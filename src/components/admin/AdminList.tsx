@@ -6,7 +6,7 @@ import AdminForm from './AdminForm'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/Dialog'
-import { Plus, Edit, Trash2, AlertCircle, Users, Search, Mail } from 'lucide-react'
+import { Plus, Edit, Trash2, AlertCircle, Users, Search, Key } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { useVendor } from '@/contexts/VendorContext'
 import { supabase } from '@/lib/supabase'
@@ -36,6 +36,11 @@ export default function AdminList() {
   const [isDeleting, setIsDeleting] = useState(false)
   const [adminAvatarUrls, setAdminAvatarUrls] = useState<Record<string, string>>({})
   const [brokenAvatarAdminIds, setBrokenAvatarAdminIds] = useState<Record<string, boolean>>({})
+  const [showPasswordReset, setShowPasswordReset] = useState(false)
+  const [adminToReset, setAdminToReset] = useState<User | null>(null)
+  const [newPassword, setNewPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
+  const [isResettingPassword, setIsResettingPassword] = useState(false)
 
   const isGrandUserView = role === 'grand_user'
 
@@ -237,10 +242,65 @@ export default function AdminList() {
     loadAdmins()
   }
 
-  const handleSendResetEmailForAdmin = async (_admin: User) => {
-    const message = 'Password reset is not available with custom authentication.'
-    setError(message)
-    toast('Not available', message, 'info')
+  const handleSendResetEmailForAdmin = (admin: User) => {
+    // Check permissions
+    if (role === 'grand_user') {
+      // Grand user can reset any password
+      setAdminToReset(admin)
+      setNewPassword('')
+      setConfirmPassword('')
+      setShowPasswordReset(true)
+    } else if (role === 'super_admin') {
+      // Super admin can reset their own or admin passwords
+      const targetRole = admin.role
+      const isSelf = admin.id === user?.id
+      const isAdmin = targetRole === 'admin'
+
+      if (isSelf || isAdmin) {
+        setAdminToReset(admin)
+        setNewPassword('')
+        setConfirmPassword('')
+        setShowPasswordReset(true)
+      } else {
+        toast('Permission denied', 'Super admin can only reset their own password or admin passwords', 'error')
+      }
+    } else {
+      toast('Permission denied', 'You do not have permission to reset passwords', 'error')
+    }
+  }
+
+  const handleResetPassword = async () => {
+    if (!adminToReset || !user) return
+
+    if (newPassword.length < 6) {
+      toast('Invalid password', 'Password must be at least 6 characters', 'error')
+      return
+    }
+
+    if (newPassword !== confirmPassword) {
+      toast('Passwords do not match', 'Please confirm the password correctly', 'error')
+      return
+    }
+
+    try {
+      setIsResettingPassword(true)
+      await adminService.resetPassword(
+        adminToReset.id,
+        user.id,
+        role || '',
+        newPassword
+      )
+      toast('Password reset successful', `Password for ${adminToReset.name} has been reset`, 'success')
+      setShowPasswordReset(false)
+      setAdminToReset(null)
+      setNewPassword('')
+      setConfirmPassword('')
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to reset password'
+      toast('Failed to reset password', message, 'error')
+    } finally {
+      setIsResettingPassword(false)
+    }
   }
 
   const isVendorSuperAdmin = user ? nonDeletableAdminIds.includes(user.id) : false
@@ -500,7 +560,7 @@ export default function AdminList() {
                         title="Send reset link"
                         className="h-9 w-9 p-0 text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-full"
                       >
-                        <Mail size={16} />
+                        <Key size={16} />
                       </Button>
                       <Button
                         variant="ghost"
@@ -646,10 +706,10 @@ export default function AdminList() {
                             variant="ghost"
                             size="sm"
                             onClick={() => handleSendResetEmailForAdmin(admin)}
-                            title="Send reset link"
-                            className="h-8 w-8 p-0 text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-full"
+                            title="Reset password"
+                            className="h-8 w-8 p-0 text-orange-600 hover:text-orange-700 hover:bg-orange-50 rounded-full"
                           >
-                            <Mail size={16} />
+                            <Key size={16} />
                           </Button>
                           <Button
                             variant="ghost"
@@ -768,6 +828,78 @@ export default function AdminList() {
                 onClick={handleConfirmDelete}
               >
                 {isDeleting ? 'Deleting...' : 'Delete'}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {/* Password reset modal */}
+      {showPasswordReset && adminToReset && (
+        <Dialog
+          open={showPasswordReset}
+          onOpenChange={(open) => {
+            setShowPasswordReset(open)
+            if (!open) {
+              setAdminToReset(null)
+              setNewPassword('')
+              setConfirmPassword('')
+            }
+          }}
+        >
+          <DialogContent className="max-w-sm p-0 flex flex-col">
+            <DialogHeader className="px-6 pt-6 pb-3 border-b border-gray-200 bg-white">
+              <DialogTitle className="text-lg">Reset Password</DialogTitle>
+            </DialogHeader>
+            <div className="px-6 py-4 space-y-4">
+              <p className="text-sm text-gray-700">
+                Reset password for{' '}
+                <span className="font-semibold">{adminToReset.name}</span>{' '}
+                <span className="text-gray-500">({adminToReset.email})</span>
+              </p>
+              <div className="space-y-3">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">New Password</label>
+                  <Input
+                    type="password"
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    placeholder="Enter new password (min 6 characters)"
+                    className="w-full"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Confirm Password</label>
+                  <Input
+                    type="password"
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    placeholder="Confirm new password"
+                    className="w-full"
+                  />
+                </div>
+              </div>
+            </div>
+            <DialogFooter className="px-6 py-4 border-t border-gray-200 bg-white flex justify-end gap-3">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  setShowPasswordReset(false)
+                  setAdminToReset(null)
+                  setNewPassword('')
+                  setConfirmPassword('')
+                }}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                disabled={isResettingPassword || !newPassword || !confirmPassword}
+                className="bg-orange-600 hover:bg-orange-700 text-white"
+                onClick={handleResetPassword}
+              >
+                {isResettingPassword ? 'Resetting...' : 'Reset Password'}
               </Button>
             </DialogFooter>
           </DialogContent>

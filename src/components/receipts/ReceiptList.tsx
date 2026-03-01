@@ -98,6 +98,8 @@ export default function ReceiptList() {
     tax_percent: '0',
     discount_type: 'none' as 'none' | 'percentage' | 'flat',
     discount_value: '0',
+    notes: '',
+    footer_message: '',
   })
   const showToast = (title: string, description = '', variant: 'success' | 'error' = 'success') => {
     toast(title, description, variant)
@@ -441,6 +443,8 @@ export default function ReceiptList() {
       tax_percent: '0',
       discount_type: 'none',
       discount_value: '0',
+      notes: '',
+      footer_message: '',
     })
     setItems([])
     setSelectedProductId('')
@@ -488,6 +492,8 @@ export default function ReceiptList() {
             : fullReceipt.discount && fullReceipt.discount > 0
               ? String(fullReceipt.discount)
               : '0',
+        notes: fullReceipt.notes || '',
+        footer_message: fullReceipt.footer_message || '',
       })
       // Load existing items if available
       setItems(fullReceipt.items || [])
@@ -962,10 +968,23 @@ export default function ReceiptList() {
                 return `<td style="padding: 8px; border-bottom: 1px solid #eee;">${item.color || ''}</td>`
               }
               if (col === 'discount') {
-                return `<td style="padding: 8px; border-bottom: 1px solid #eee; text-align: right;">${item.discount_enabled === true ? `-৳${lineDiscount.toFixed(2)}` : ''}</td>`
+                const discountMetaText =
+                  item.discount_type === 'percentage' && item.discount_enabled
+                    ? `${clampPercent(item.discount_value).toFixed(0)}%`
+                    : item.discount_type === 'flat' && item.discount_enabled
+                      ? `৳${Math.max(0, Math.floor(item.discount_value || 0)).toFixed(0)} flat`
+                      : ''
+                return `<td style="padding: 8px; border-bottom: 1px solid #eee; text-align: right;">
+                  ${item.discount_enabled === true ? `<div>-৳${lineDiscount.toFixed(2)}</div>` : '<div></div>'}
+                  ${discountMetaText ? `<div style="font-size: 10px; color: #6b7280; margin-top: 2px;">${discountMetaText}</div>` : ''}
+                </td>`
               }
               if (col === 'tax') {
-                return `<td style="padding: 8px; border-bottom: 1px solid #eee; text-align: right;">${taxEnabled ? `+৳${lineTax.toFixed(2)}` : ''}</td>`
+                const taxMetaText = taxEnabled ? `${taxPercentage.toFixed(0)}%` : ''
+                return `<td style="padding: 8px; border-bottom: 1px solid #eee; text-align: right;">
+                  ${taxEnabled ? `<div>+৳${lineTax.toFixed(2)}</div>` : '<div></div>'}
+                  ${taxMetaText ? `<div style="font-size: 10px; color: #6b7280; margin-top: 2px;">${taxMetaText}</div>` : ''}
+                </td>`
               }
               if (col === 'quantity') {
                 return `<td style="padding: 8px; border-bottom: 1px solid #eee; text-align: center;">${item.quantity}</td>`
@@ -2676,6 +2695,32 @@ export default function ReceiptList() {
                     <p className="text-xs text-gray-500 mt-1">Add products below to create receipt</p>
                   </div>
                 )}
+              </div>
+
+              {/* Notes and Footer Message Section */}
+              <div className="space-y-4">
+                <div>
+                  <Label htmlFor="notes" className="text-sm font-medium text-gray-700">Notes / Terms</Label>
+                  <textarea
+                    id="notes"
+                    value={formData.notes}
+                    onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+                    placeholder="Add payment terms, special instructions, or notes..."
+                    className="mt-1 w-full px-3 py-2 border-0 bg-gray-50 rounded-md focus:outline-none focus:ring-2 focus:ring-violet-500 text-sm min-h-[80px] resize-y"
+                  />
+                </div>
+
+                <div>
+                  <Label htmlFor="footer_message" className="text-sm font-medium text-gray-700">Footer Message</Label>
+                  <Input
+                    id="footer_message"
+                    type="text"
+                    value={formData.footer_message}
+                    onChange={(e) => setFormData({ ...formData, footer_message: e.target.value })}
+                    placeholder="Thank you for your business!"
+                    className="mt-1 border-0 bg-gray-50 focus:bg-white"
+                  />
+                </div>
               </div>
 
               </div>

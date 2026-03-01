@@ -275,10 +275,23 @@ export default function ReceiptPreviewModal({
                 return `<td style="padding: 8px; border-bottom: 1px solid #eee;">${item.color || ''}</td>`
               }
               if (col === 'discount') {
-                return `<td style="padding: 8px; border-bottom: 1px solid #eee; text-align: right;">${item.discount_enabled === true ? `-৳${lineDiscount.toFixed(2)}` : ''}</td>`
+                const discountMetaText =
+                  item.discount_type === 'percentage' && item.discount_enabled
+                    ? `${clampPercent(item.discount_value).toFixed(0)}%`
+                    : item.discount_type === 'flat' && item.discount_enabled
+                      ? `৳${Math.max(0, Math.floor(item.discount_value || 0)).toFixed(0)} flat`
+                      : ''
+                return `<td style="padding: 8px; border-bottom: 1px solid #eee; text-align: right;">
+                  ${item.discount_enabled === true ? `<div>-৳${lineDiscount.toFixed(2)}</div>` : '<div></div>'}
+                  ${discountMetaText ? `<div style="font-size: 10px; color: #6b7280; margin-top: 2px;">${discountMetaText}</div>` : ''}
+                </td>`
               }
               if (col === 'tax') {
-                return `<td style="padding: 8px; border-bottom: 1px solid #eee; text-align: right;">${taxEnabled ? `+৳${lineTax.toFixed(2)}` : ''}</td>`
+                const taxMetaText = taxEnabled ? `${taxPercentage.toFixed(0)}%` : ''
+                return `<td style="padding: 8px; border-bottom: 1px solid #eee; text-align: right;">
+                  ${taxEnabled ? `<div>+৳${lineTax.toFixed(2)}</div>` : '<div></div>'}
+                  ${taxMetaText ? `<div style="font-size: 10px; color: #6b7280; margin-top: 2px;">${taxMetaText}</div>` : ''}
+                </td>`
               }
               if (col === 'quantity') {
                 return `<td style="padding: 8px; border-bottom: 1px solid #eee; text-align: center;">${item.quantity}</td>`
