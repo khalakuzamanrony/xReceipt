@@ -30,7 +30,19 @@ export const brandSettingsService = {
     const { data, error } = await supabase
       .from('brand_settings')
       .select('*')
+      .eq('scope', 'vendor')
       .eq('vendor_id', vendorId)
+      .maybeSingle()
+
+    if (error) throw error
+    return data || null
+  },
+
+  async getGlobal(): Promise<BrandSettings | null> {
+    const { data, error } = await supabase
+      .from('brand_settings')
+      .select('*')
+      .eq('scope', 'global')
       .maybeSingle()
 
     if (error) throw error
@@ -41,15 +53,56 @@ export const brandSettingsService = {
     vendorId: string,
     updates: Pick<BrandSettings, 'app_name' | 'tagline'>,
   ): Promise<BrandSettings> {
+    const conflictKey = `vendor:${vendorId}`
     const payload = {
+      scope: 'vendor',
       vendor_id: vendorId,
+      conflict_key: conflictKey,
       app_name: updates.app_name,
       tagline: updates.tagline,
     }
 
     const { data, error } = await supabase
       .from('brand_settings')
-      .upsert(payload, { onConflict: 'vendor_id' })
+      .upsert(payload, { onConflict: 'conflict_key' })
+      .select('*')
+      .single()
+
+    if (error) throw error
+    return data
+  },
+
+  async upsertBrandIconGlobal(updates: Pick<BrandSettings, 'icon_url' | 'icon_path'>): Promise<BrandSettings> {
+    const payload = {
+      scope: 'global',
+      vendor_id: null,
+      conflict_key: 'global',
+      icon_url: updates.icon_url,
+      icon_path: updates.icon_path,
+    }
+
+    const { data, error } = await supabase
+      .from('brand_settings')
+      .upsert(payload, { onConflict: 'conflict_key' })
+      .select('*')
+      .single()
+
+    if (error) throw error
+    return data
+  },
+
+  async upsertBrandInfoGlobal(updates: Pick<BrandSettings, 'app_name' | 'tagline'>): Promise<BrandSettings> {
+    const payload = {
+      scope: 'global',
+      vendor_id: null,
+      conflict_key: 'global',
+      app_name: updates.app_name,
+      tagline: updates.tagline,
+    }
+
+    const { data, error } = await supabase
+      .from('brand_settings')
+      .upsert(payload, { onConflict: 'conflict_key' })
       .select('*')
       .single()
 
@@ -61,15 +114,18 @@ export const brandSettingsService = {
     vendorId: string,
     updates: Pick<BrandSettings, 'icon_url' | 'icon_path'>,
   ): Promise<BrandSettings> {
+    const conflictKey = `vendor:${vendorId}`
     const payload = {
+      scope: 'vendor',
       vendor_id: vendorId,
+      conflict_key: conflictKey,
       icon_url: updates.icon_url,
       icon_path: updates.icon_path,
     }
 
     const { data, error } = await supabase
       .from('brand_settings')
-      .upsert(payload, { onConflict: 'vendor_id' })
+      .upsert(payload, { onConflict: 'conflict_key' })
       .select('*')
       .single()
 
@@ -81,8 +137,11 @@ export const brandSettingsService = {
     vendorId: string,
     updates: Pick<BrandSettings, 'app_name' | 'tagline' | 'icon_url' | 'icon_path'>,
   ): Promise<BrandSettings> {
+    const conflictKey = `vendor:${vendorId}`
     const payload = {
+      scope: 'vendor',
       vendor_id: vendorId,
+      conflict_key: conflictKey,
       app_name: updates.app_name,
       tagline: updates.tagline,
       icon_url: updates.icon_url,
@@ -91,7 +150,7 @@ export const brandSettingsService = {
 
     const { data, error } = await supabase
       .from('brand_settings')
-      .upsert(payload, { onConflict: 'vendor_id' })
+      .upsert(payload, { onConflict: 'conflict_key' })
       .select('*')
       .single()
 
@@ -99,21 +158,26 @@ export const brandSettingsService = {
     return data
   },
 
-  async uploadBrandIcon(
-    vendorId: string,
-    file: File,
-  ): Promise<{ publicUrl: string; path: string }> {
+  async uploadBrandIcon(options: {
+    scope: 'vendor' | 'global'
+    vendorId?: string | null
+    file: File
+  }): Promise<{ publicUrl: string; path: string }> {
     if (!hasAuthToken()) {
       throw new Error('You must be logged in to upload an app icon.')
     }
 
     // Always upload to a deterministic path so it truly replaces the previous icon.
     // This matches the behavior you have in other modules (single stable path per entity).
-    const path = `${vendorId}/app-icon`
+    const folder = options.scope === 'global' ? 'global' : options.vendorId
+    if (!folder) {
+      throw new Error('Please select a shop first.')
+    }
+    const path = `${folder}/app-icon`
 
-    const { error: uploadError } = await supabase.storage.from(BRAND_ASSETS_BUCKET).upload(path, file, {
+    const { error: uploadError } = await supabase.storage.from(BRAND_ASSETS_BUCKET).upload(path, options.file, {
       upsert: true,
-      contentType: file.type || undefined,
+      contentType: options.file.type || undefined,
     })
 
     if (uploadError) {

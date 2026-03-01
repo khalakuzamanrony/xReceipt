@@ -169,7 +169,15 @@ CREATE INDEX IF NOT EXISTS idx_receipt_template_vendors_vendor_id ON receipt_tem
  -- 4B. BRAND SETTINGS TABLE
  -- ============================================
  CREATE TABLE IF NOT EXISTS brand_settings (
-   vendor_id UUID PRIMARY KEY REFERENCES vendors(id) ON DELETE CASCADE,
+   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+   scope TEXT NOT NULL DEFAULT 'vendor' CHECK (scope IN ('vendor', 'global')),
+   vendor_id UUID REFERENCES vendors(id) ON DELETE CASCADE,
+   conflict_key TEXT GENERATED ALWAYS AS (
+     CASE
+       WHEN scope = 'global' THEN 'global'
+       ELSE ('vendor:' || vendor_id::text)
+     END
+   ) STORED,
    app_name VARCHAR(255) NOT NULL DEFAULT 'xReceipt',
    tagline VARCHAR(255),
    icon_url VARCHAR(500),
@@ -177,6 +185,10 @@ CREATE INDEX IF NOT EXISTS idx_receipt_template_vendors_vendor_id ON receipt_tem
    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
  );
+
+-- Single conflict target for upserts (works with PostgREST on_conflict)
+CREATE UNIQUE INDEX IF NOT EXISTS brand_settings_conflict_key_unique
+  ON brand_settings(conflict_key);
 
 -- ============================================
 -- 5. ADMIN PERMISSIONS TABLE
@@ -469,6 +481,20 @@ CREATE POLICY "Public delete access" ON brand_settings FOR DELETE USING (true);
 -- 10. FUNCTIONS & TRIGGERS
 -- ============================================
 
+-- Maintain brand_settings.conflict_key for stable upserts
+CREATE OR REPLACE FUNCTION set_brand_settings_conflict_key()
+RETURNS TRIGGER AS $$
+BEGIN
+  IF NEW.scope = 'global' THEN
+    NEW.vendor_id := NULL;
+    NEW.conflict_key := 'global';
+  ELSE
+    NEW.conflict_key := 'vendor:' || NEW.vendor_id::text;
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
 -- Function to update updated_at timestamp
 CREATE OR REPLACE FUNCTION update_updated_at_column()
 RETURNS TRIGGER AS $$
@@ -490,6 +516,7 @@ DROP TRIGGER IF EXISTS update_receipts_updated_at ON receipts;
 DROP TRIGGER IF EXISTS update_vendor_admins_updated_at ON vendor_admins;
 DROP TRIGGER IF EXISTS update_receipt_template_vendors_updated_at ON receipt_template_vendors;
 DROP TRIGGER IF EXISTS update_brand_settings_updated_at ON brand_settings;
+DROP TRIGGER IF EXISTS set_brand_settings_conflict_key_trigger ON brand_settings;
 
 -- Triggers for updated_at
 CREATE TRIGGER update_users_updated_at BEFORE UPDATE ON users
@@ -524,6 +551,10 @@ CREATE TRIGGER update_receipt_template_vendors_updated_at BEFORE UPDATE ON recei
 
 CREATE TRIGGER update_brand_settings_updated_at BEFORE UPDATE ON brand_settings
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER set_brand_settings_conflict_key_trigger
+  BEFORE INSERT OR UPDATE ON brand_settings
+  FOR EACH ROW EXECUTE FUNCTION set_brand_settings_conflict_key();
 
 -- ============================================
 -- 11. SEED DEFAULT GRAND USER (OPTIONAL)

@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 import type { BrandSettings } from '@/types'
+import { useAuth } from '@/contexts/AuthContext'
 import { useVendor } from '@/contexts/VendorContext'
 import { brandSettingsService } from '@/services/brandSettingsService'
 
@@ -47,14 +48,17 @@ const applyBrowserBranding = (settings: BrandSettings | null) => {
 }
 
 export function BrandSettingsProvider({ children }: { children: ReactNode }) {
+  const { role } = useAuth()
   const { activeVendorId } = useVendor()
   const [settings, setSettings] = useState<BrandSettings | null>(null)
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  const scope: 'vendor' | 'global' = role === 'grand_user' && !activeVendorId ? 'global' : 'vendor'
+
   const refresh = async () => {
-    if (!activeVendorId) {
+    if (!activeVendorId && scope === 'vendor') {
       setSettings(null)
       applyBrowserBranding(null)
       return
@@ -63,7 +67,10 @@ export function BrandSettingsProvider({ children }: { children: ReactNode }) {
     setLoading(true)
     setError(null)
     try {
-      const data = await brandSettingsService.getForVendor(activeVendorId)
+      const data =
+        scope === 'global'
+          ? await brandSettingsService.getGlobal()
+          : await brandSettingsService.getForVendor(activeVendorId as string)
       setSettings(data)
       applyBrowserBranding(data)
     } catch (err) {
@@ -78,18 +85,24 @@ export function BrandSettingsProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     void refresh()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeVendorId])
+  }, [activeVendorId, role])
 
   const updateBrandInfo: BrandSettingsContextValue['updateBrandInfo'] = async ({ appName, tagline }) => {
-    if (!activeVendorId) throw new Error('Please select a shop first.')
+    if (scope === 'vendor' && !activeVendorId) throw new Error('Please select a shop first.')
 
     setSaving(true)
     setError(null)
     try {
-      const next = await brandSettingsService.upsertBrandInfoForVendor(activeVendorId, {
-        app_name: appName.trim() || DEFAULT_APP_NAME,
-        tagline: tagline.trim() || null,
-      })
+      const next =
+        scope === 'global'
+          ? await brandSettingsService.upsertBrandInfoGlobal({
+              app_name: appName.trim() || DEFAULT_APP_NAME,
+              tagline: tagline.trim() || null,
+            })
+          : await brandSettingsService.upsertBrandInfoForVendor(activeVendorId as string, {
+              app_name: appName.trim() || DEFAULT_APP_NAME,
+              tagline: tagline.trim() || null,
+            })
       setSettings(next)
       applyBrowserBranding(next)
     } catch (err) {
@@ -101,16 +114,24 @@ export function BrandSettingsProvider({ children }: { children: ReactNode }) {
   }
 
   const uploadIcon: BrandSettingsContextValue['uploadIcon'] = async (file) => {
-    if (!activeVendorId) throw new Error('Please select a shop first.')
+    if (scope === 'vendor' && !activeVendorId) throw new Error('Please select a shop first.')
 
     setSaving(true)
     setError(null)
     try {
-      const { publicUrl, path } = await brandSettingsService.uploadBrandIcon(activeVendorId, file)
-      const next = await brandSettingsService.upsertBrandIconForVendor(activeVendorId, {
-        icon_url: publicUrl,
-        icon_path: path,
+      const { publicUrl, path } = await brandSettingsService.uploadBrandIcon({
+        scope,
+        vendorId: activeVendorId,
+        file,
       })
+
+      const next =
+        scope === 'global'
+          ? await brandSettingsService.upsertBrandIconGlobal({ icon_url: publicUrl, icon_path: path })
+          : await brandSettingsService.upsertBrandIconForVendor(activeVendorId as string, {
+              icon_url: publicUrl,
+              icon_path: path,
+            })
       setSettings(next)
       applyBrowserBranding(next)
     } catch (err) {
@@ -122,7 +143,7 @@ export function BrandSettingsProvider({ children }: { children: ReactNode }) {
   }
 
   const deleteIcon: BrandSettingsContextValue['deleteIcon'] = async () => {
-    if (!activeVendorId) throw new Error('Please select a shop first.')
+    if (scope === 'vendor' && !activeVendorId) throw new Error('Please select a shop first.')
 
     setSaving(true)
     setError(null)
@@ -131,10 +152,13 @@ export function BrandSettingsProvider({ children }: { children: ReactNode }) {
         await brandSettingsService.deleteBrandIcon(settings.icon_path || settings.icon_url || '')
       }
 
-      const next = await brandSettingsService.upsertBrandIconForVendor(activeVendorId, {
-        icon_url: null,
-        icon_path: null,
-      })
+      const next =
+        scope === 'global'
+          ? await brandSettingsService.upsertBrandIconGlobal({ icon_url: null, icon_path: null })
+          : await brandSettingsService.upsertBrandIconForVendor(activeVendorId as string, {
+              icon_url: null,
+              icon_path: null,
+            })
       setSettings(next)
       applyBrowserBranding(next)
     } catch (err) {
