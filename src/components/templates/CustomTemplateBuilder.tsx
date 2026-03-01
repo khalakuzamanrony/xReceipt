@@ -29,22 +29,12 @@ interface CustomTemplateBuilderProps {
     templateId?: string | null
 }
 
-type LayoutVariant =
-    | 'classic'
-    | 'classic-totals-left'
-    | 'classic-notes-between'
-    | 'split-header'
-    | 'split-totals-left'
-    | 'split-totals-first'
-    | 'top-strip'
-    | 'top-strip-totals-left'
-    | 'top-strip-notes-between'
-    | 'minimal-header'
+type LayoutVariant = 'top-strip' | 'classic' | 'minimal' | 'modern'
 
 type BodySectionId = 'items' | 'totals' | 'footer'
 
 type HeaderMetaModuleId = 'receiptNumber' | 'date' | 'dueDate'
-type TotalsModuleId = 'subtotal' | 'discount' | 'tax' | 'total'
+type TotalsModuleId = 'items_total' | 'subtotal' | 'discount' | 'tax' | 'total'
 type FooterModuleId = 'notes' | 'message'
 type ItemsColumnId = 'description' | 'quantity' | 'price' | 'total'
 
@@ -57,60 +47,30 @@ interface LayoutConfig {
 }
 
 const LAYOUT_PRESETS: Record<LayoutVariant, LayoutConfig> = {
-    'classic': {
-        headerStyle: 'classic',
-        bodyOrder: ['items', 'totals', 'footer'],
-        totalsAlignment: 'right',
-    },
-    'classic-totals-left': {
-        headerStyle: 'classic',
-        bodyOrder: ['items', 'totals', 'footer'],
-        totalsAlignment: 'left',
-    },
-    'classic-notes-between': {
-        headerStyle: 'classic',
-        bodyOrder: ['items', 'footer', 'totals'],
-        totalsAlignment: 'right',
-    },
-    'split-header': {
-        headerStyle: 'split-header',
-        bodyOrder: ['items', 'totals', 'footer'],
-        totalsAlignment: 'right',
-    },
-    'split-totals-left': {
-        headerStyle: 'split-header',
-        bodyOrder: ['items', 'totals', 'footer'],
-        totalsAlignment: 'left',
-    },
-    'split-totals-first': {
-        headerStyle: 'split-header',
-        bodyOrder: ['totals', 'items', 'footer'],
-        totalsAlignment: 'right',
-    },
     'top-strip': {
         headerStyle: 'top-strip',
         bodyOrder: ['items', 'totals', 'footer'],
         totalsAlignment: 'right',
     },
-    'top-strip-totals-left': {
-        headerStyle: 'top-strip',
+    'classic': {
+        headerStyle: 'classic',
+        bodyOrder: ['items', 'totals', 'footer'],
+        totalsAlignment: 'right',
+    },
+    'minimal': {
+        headerStyle: 'classic',
         bodyOrder: ['items', 'totals', 'footer'],
         totalsAlignment: 'left',
     },
-    'top-strip-notes-between': {
-        headerStyle: 'top-strip',
-        bodyOrder: ['items', 'footer', 'totals'],
-        totalsAlignment: 'right',
-    },
-    'minimal-header': {
-        headerStyle: 'classic',
+    'modern': {
+        headerStyle: 'split-header',
         bodyOrder: ['items', 'totals', 'footer'],
         totalsAlignment: 'right',
     },
 }
 
 const DEFAULT_HEADER_META_ORDER: HeaderMetaModuleId[] = ['receiptNumber', 'date', 'dueDate']
-const DEFAULT_TOTALS_ORDER: TotalsModuleId[] = ['subtotal', 'discount', 'tax', 'total']
+const DEFAULT_TOTALS_ORDER: TotalsModuleId[] = ['items_total', 'subtotal', 'discount', 'tax', 'total']
 const DEFAULT_FOOTER_ORDER: FooterModuleId[] = ['notes', 'message']
 const DEFAULT_ITEMS_COLUMNS_ORDER: ItemsColumnId[] = ['description', 'quantity', 'price', 'total']
 
@@ -182,7 +142,7 @@ export default function CustomTemplateBuilder({ open, onClose, onSave, isFullPag
     const { toast } = useToast()
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState<string | null>(null)
-    const [activeTab, setActiveTab] = useState<'company' | 'client' | 'content' | 'layout' | 'style'>('company')
+    const [activeTab, setActiveTab] = useState<'company' | 'client' | 'content' | 'style'>('company')
 
     const activeVendorName = activeVendorId
         ? memberships.find((m) => m.vendor.id === activeVendorId)?.vendor.name || ''
@@ -237,19 +197,13 @@ export default function CustomTemplateBuilder({ open, onClose, onSave, isFullPag
         textColor: '#1f2937',
         backgroundColor: '#ffffff',
         fontFamily: 'Arial, sans-serif',
-        layoutVariant: 'classic',
-        bodyOrder: LAYOUT_PRESETS['classic'].bodyOrder,
+        layoutVariant: 'top-strip',
+        bodyOrder: LAYOUT_PRESETS['top-strip'].bodyOrder,
         headerMetaOrder: DEFAULT_HEADER_META_ORDER,
         totalsOrder: DEFAULT_TOTALS_ORDER,
         footerOrder: DEFAULT_FOOTER_ORDER,
         itemsColumnsOrder: DEFAULT_ITEMS_COLUMNS_ORDER,
     })
-
-    const [draggingSection, setDraggingSection] = useState<BodySectionId | null>(null)
-    const [draggingHeaderMeta, setDraggingHeaderMeta] = useState<HeaderMetaModuleId | null>(null)
-    const [draggingTotalsModule, setDraggingTotalsModule] = useState<TotalsModuleId | null>(null)
-    const [draggingFooterModule, setDraggingFooterModule] = useState<FooterModuleId | null>(null)
-    const [draggingItemsColumn, setDraggingItemsColumn] = useState<ItemsColumnId | null>(null)
 
     const [rawTemplateHtml, setRawTemplateHtml] = useState<string>('')
     const [isRawEditMode, setIsRawEditMode] = useState(false)
@@ -376,7 +330,7 @@ export default function CustomTemplateBuilder({ open, onClose, onSave, isFullPag
             data.companyAddress || data.companyCity || data.companyZip ||
             data.companyWebsite || data.companyTaxId
 
-        const layoutConfig = LAYOUT_PRESETS[data.layoutVariant] ?? LAYOUT_PRESETS['classic']
+        const layoutConfig = LAYOUT_PRESETS[data.layoutVariant] ?? LAYOUT_PRESETS['top-strip']
         const headerStyle = layoutConfig.headerStyle
 
         const headerMetaOrder = data.headerMetaOrder && data.headerMetaOrder.length
@@ -588,6 +542,14 @@ export default function CustomTemplateBuilder({ open, onClose, onSave, isFullPag
 
         const totalsRowsHTML = totalsOrder
             .map((moduleId) => {
+                if (moduleId === 'items_total') {
+                    return `
+        <div class="total-row items-total">
+          <span class="total-label">Items Total</span>
+          <span class="total-value">{{ITEMS_TOTAL}}</span>
+        </div>
+        `
+                }
                 if (moduleId === 'subtotal' && data.showSubtotal) {
                     return `
         <div class="total-row subtotal">
@@ -602,6 +564,7 @@ export default function CustomTemplateBuilder({ open, onClose, onSave, isFullPag
           <span class="total-label">${data.discountLabel} <span style="font-size: 12px; color: #6b7280; font-weight: 500;">{{DISCOUNT_META}}</span></span>
           <span class="total-value">{{DISCOUNT}}</span>
         </div>
+        {{ITEMS_DISCOUNT}}
         `
                 }
                 if (moduleId === 'tax' && data.showTax) {
@@ -610,6 +573,7 @@ export default function CustomTemplateBuilder({ open, onClose, onSave, isFullPag
           <span class="total-label">${data.taxLabel} <span style="font-size: 12px; color: #6b7280; font-weight: 500;">{{TAX_META}}</span></span>
           <span class="total-value">{{TAX}}</span>
         </div>
+        {{ITEMS_TAX}}
         `
                 }
                 if (moduleId === 'total' && data.showTotal) {
@@ -1128,7 +1092,6 @@ export default function CustomTemplateBuilder({ open, onClose, onSave, isFullPag
         { id: 'company' as const, label: 'Company Info', icon: Building2 },
         { id: 'client' as const, label: 'Client Info', icon: User },
         { id: 'content' as const, label: 'Content', icon: FileText },
-        { id: 'layout' as const, label: 'Layout', icon: Package },
         { id: 'style' as const, label: 'Styling', icon: ImageIcon },
     ]
 
@@ -1660,343 +1623,33 @@ export default function CustomTemplateBuilder({ open, onClose, onSave, isFullPag
                                 </div>
                             )}
 
-                            {/* Layout Tab */}
-                            {activeTab === 'layout' && (
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-                                    <div className="space-y-3">
-                                        <h3 className="text-sm font-bold text-gray-900">Layout Presets</h3>
-
-                                        <p className="text-xs text-gray-600">
-                                            Choose from predefined arrangements of header, items, totals, and footer.
-                                        </p>
-
-                                        <div className="inline-flex flex-wrap gap-2 rounded-lg bg-gray-50 p-1">
-                                            <button
-                                                type="button"
-                                                onClick={() => setLayoutVariant('classic')}
-                                                className={`px-3 py-1.5 rounded-md text-[11px] font-medium border transition-all ${
-                                                    data.layoutVariant === 'classic'
-                                                        ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
-                                                        : 'bg-white text-gray-700 border-transparent hover:bg-gray-100'
-                                                }`}
-                                            >
-                                                Classic
-                                            </button>
-                                            <button
-                                                type="button"
-                                                onClick={() => setLayoutVariant('classic-totals-left')}
-                                                className={`px-3 py-1.5 rounded-md text-[11px] font-medium border transition-all ${
-                                                    data.layoutVariant === 'classic-totals-left'
-                                                        ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
-                                                        : 'bg-white text-gray-700 border-transparent hover:bg-gray-100'
-                                                }`}
-                                            >
-                                                Classic · totals left
-                                            </button>
-                                            <button
-                                                type="button"
-                                                onClick={() => setLayoutVariant('classic-notes-between')}
-                                                className={`px-3 py-1.5 rounded-md text-[11px] font-medium border transition-all ${
-                                                    data.layoutVariant === 'classic-notes-between'
-                                                        ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
-                                                        : 'bg-white text-gray-700 border-transparent hover:bg-gray-100'
-                                                }`}
-                                            >
-                                                Classic · notes before totals
-                                            </button>
-                                            <button
-                                                type="button"
-                                                onClick={() => setLayoutVariant('split-header')}
-                                                className={`px-3 py-1.5 rounded-md text-[11px] font-medium border transition-all ${
-                                                    data.layoutVariant === 'split-header'
-                                                        ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
-                                                        : 'bg-white text-gray-700 border-transparent hover:bg-gray-100'
-                                                }`}
-                                            >
-                                                Split header
-                                            </button>
-                                            <button
-                                                type="button"
-                                                onClick={() => setLayoutVariant('split-totals-left')}
-                                                className={`px-3 py-1.5 rounded-md text-[11px] font-medium border transition-all ${
-                                                    data.layoutVariant === 'split-totals-left'
-                                                        ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
-                                                        : 'bg-white text-gray-700 border-transparent hover:bg-gray-100'
-                                                }`}
-                                            >
-                                                Split · totals left
-                                            </button>
-                                            <button
-                                                type="button"
-                                                onClick={() => setLayoutVariant('split-totals-first')}
-                                                className={`px-3 py-1.5 rounded-md text-[11px] font-medium border transition-all ${
-                                                    data.layoutVariant === 'split-totals-first'
-                                                        ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
-                                                        : 'bg-white text-gray-700 border-transparent hover:bg-gray-100'
-                                                }`}
-                                            >
-                                                Split · totals before items
-                                            </button>
-                                            <button
-                                                type="button"
-                                                onClick={() => setLayoutVariant('top-strip')}
-                                                className={`px-3 py-1.5 rounded-md text-[11px] font-medium border transition-all ${
-                                                    data.layoutVariant === 'top-strip'
-                                                        ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
-                                                        : 'bg-white text-gray-700 border-transparent hover:bg-gray-100'
-                                                }`}
-                                            >
-                                                Top strip
-                                            </button>
-                                            <button
-                                                type="button"
-                                                onClick={() => setLayoutVariant('top-strip-totals-left')}
-                                                className={`px-3 py-1.5 rounded-md text-[11px] font-medium border transition-all ${
-                                                    data.layoutVariant === 'top-strip-totals-left'
-                                                        ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
-                                                        : 'bg-white text-gray-700 border-transparent hover:bg-gray-100'
-                                                }`}
-                                            >
-                                                Top strip · totals left
-                                            </button>
-                                            <button
-                                                type="button"
-                                                onClick={() => setLayoutVariant('top-strip-notes-between')}
-                                                className={`px-3 py-1.5 rounded-md text-[11px] font-medium border transition-all ${
-                                                    data.layoutVariant === 'top-strip-notes-between'
-                                                        ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
-                                                        : 'bg-white text-gray-700 border-transparent hover:bg-gray-100'
-                                                }`}
-                                            >
-                                                Top strip · notes before totals
-                                            </button>
-                                            <button
-                                                type="button"
-                                                onClick={() => setLayoutVariant('minimal-header')}
-                                                className={`px-3 py-1.5 rounded-md text-[11px] font-medium border transition-all ${
-                                                    data.layoutVariant === 'minimal-header'
-                                                        ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
-                                                        : 'bg-white text-gray-700 border-transparent hover:bg-gray-100'
-                                                }`}
-                                            >
-                                                Minimal header
-                                            </button>
-                                        </div>
-                                    </div>
-
-                                    <div className="space-y-5 border-t border-gray-200 pt-4">
-                                        {/* Header meta chips */}
-                                        <div className="space-y-2">
-                                            <h4 className="text-xs font-semibold text-gray-700 tracking-wide uppercase">Header info order</h4>
-                                            <p className="text-xs text-gray-500">
-                                                Drag to reorder receipt number, date, and due date within the header area.
-                                            </p>
-                                            <div className="flex flex-wrap gap-2">
-                                                {(data.headerMetaOrder && data.headerMetaOrder.length ? data.headerMetaOrder : DEFAULT_HEADER_META_ORDER).map(metaId => (
-                                                    <div
-                                                        key={metaId}
-                                                        draggable
-                                                        onDragStart={() => setDraggingHeaderMeta(metaId)}
-                                                        onDragOver={e => e.preventDefault()}
-                                                        onDrop={e => {
-                                                            e.preventDefault()
-                                                            if (!draggingHeaderMeta || draggingHeaderMeta === metaId) return
-                                                            setData(prev => {
-                                                                const base = prev.headerMetaOrder && prev.headerMetaOrder.length
-                                                                    ? [...prev.headerMetaOrder]
-                                                                    : [...DEFAULT_HEADER_META_ORDER]
-                                                                const fromIndex = base.indexOf(draggingHeaderMeta)
-                                                                const toIndex = base.indexOf(metaId)
-                                                                if (fromIndex === -1 || toIndex === -1) return prev
-                                                                base.splice(fromIndex, 1)
-                                                                base.splice(toIndex, 0, draggingHeaderMeta)
-                                                                return { ...prev, headerMetaOrder: base }
-                                                            })
-                                                            setDraggingHeaderMeta(null)
-                                                        }}
-                                                        className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-gray-200 bg-white text-[11px] font-medium text-gray-800 cursor-move hover:bg-gray-50"
-                                                    >
-                                                        <span>
-                                                            {metaId === 'receiptNumber' && 'Receipt number'}
-                                                            {metaId === 'date' && 'Date'}
-                                                            {metaId === 'dueDate' && 'Due date'}
-                                                        </span>
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        </div>
-
-                                        {/* Body section chips */}
-                                        <div className="space-y-2">
-                                            <h4 className="text-xs font-semibold text-gray-700 tracking-wide uppercase">Body sections</h4>
-                                            <p className="text-xs text-gray-500">
-                                                Drag to change the order of items, totals, and footer. The live preview will update automatically.
-                                            </p>
-                                            <div className="flex flex-wrap gap-2">
-                                                {(data.bodyOrder && data.bodyOrder.length ? data.bodyOrder : LAYOUT_PRESETS[data.layoutVariant].bodyOrder).map(sectionId => (
-                                                    <div
-                                                        key={sectionId}
-                                                        draggable
-                                                        onDragStart={() => setDraggingSection(sectionId)}
-                                                        onDragOver={e => e.preventDefault()}
-                                                        onDrop={e => {
-                                                            e.preventDefault()
-                                                            if (!draggingSection || draggingSection === sectionId) return
-                                                            setData(prev => {
-                                                                const base = prev.bodyOrder && prev.bodyOrder.length
-                                                                    ? [...prev.bodyOrder]
-                                                                    : [...LAYOUT_PRESETS[prev.layoutVariant].bodyOrder]
-                                                                const fromIndex = base.indexOf(draggingSection)
-                                                                const toIndex = base.indexOf(sectionId)
-                                                                if (fromIndex === -1 || toIndex === -1) return prev
-                                                                base.splice(fromIndex, 1)
-                                                                base.splice(toIndex, 0, draggingSection)
-                                                                return { ...prev, bodyOrder: base }
-                                                            })
-                                                            setDraggingSection(null)
-                                                        }}
-                                                        className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-gray-200 bg-white text-[11px] font-medium text-gray-800 cursor-move hover:bg-gray-50"
-                                                    >
-                                                        <span>
-                                                            {sectionId === 'items' && 'Items'}
-                                                            {sectionId === 'totals' && 'Totals'}
-                                                            {sectionId === 'footer' && 'Footer / notes'}
-                                                        </span>
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        </div>
-
-                                        {/* Items columns chips */}
-                                        <div className="space-y-2">
-                                            <h4 className="text-xs font-semibold text-gray-700 tracking-wide uppercase">Items table columns</h4>
-                                            <p className="text-xs text-gray-500">
-                                                Drag to reorder Description, Qty, Price, and Total columns in the items table header.
-                                            </p>
-                                            <div className="flex flex-wrap gap-2">
-                                                {(data.itemsColumnsOrder && data.itemsColumnsOrder.length ? data.itemsColumnsOrder : DEFAULT_ITEMS_COLUMNS_ORDER).map(colId => (
-                                                    <div
-                                                        key={colId}
-                                                        draggable
-                                                        onDragStart={() => setDraggingItemsColumn(colId)}
-                                                        onDragOver={e => e.preventDefault()}
-                                                        onDrop={e => {
-                                                            e.preventDefault()
-                                                            if (!draggingItemsColumn || draggingItemsColumn === colId) return
-                                                            setData(prev => {
-                                                                const base = prev.itemsColumnsOrder && prev.itemsColumnsOrder.length
-                                                                    ? [...prev.itemsColumnsOrder]
-                                                                    : [...DEFAULT_ITEMS_COLUMNS_ORDER]
-                                                                const fromIndex = base.indexOf(draggingItemsColumn)
-                                                                const toIndex = base.indexOf(colId)
-                                                                if (fromIndex === -1 || toIndex === -1) return prev
-                                                                base.splice(fromIndex, 1)
-                                                                base.splice(toIndex, 0, draggingItemsColumn)
-                                                                return { ...prev, itemsColumnsOrder: base }
-                                                            })
-                                                            setDraggingItemsColumn(null)
-                                                        }}
-                                                        className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-gray-200 bg-white text-[11px] font-medium text-gray-800 cursor-move hover:bg-gray-50"
-                                                    >
-                                                        <span>
-                                                            {colId === 'description' && 'Description'}
-                                                            {colId === 'quantity' && 'Qty'}
-                                                            {colId === 'price' && 'Price'}
-                                                            {colId === 'total' && 'Total'}
-                                                        </span>
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        </div>
-
-                                        {/* Totals chips */}
-                                        <div className="space-y-2">
-                                            <h4 className="text-xs font-semibold text-gray-700 tracking-wide uppercase">Totals rows</h4>
-                                            <p className="text-xs text-gray-500">
-                                                Drag to reorder subtotal, discount, tax, and total rows in the totals block.
-                                            </p>
-                                            <div className="flex flex-wrap gap-2">
-                                                {(data.totalsOrder && data.totalsOrder.length ? data.totalsOrder : DEFAULT_TOTALS_ORDER).map(totalsId => (
-                                                    <div
-                                                        key={totalsId}
-                                                        draggable
-                                                        onDragStart={() => setDraggingTotalsModule(totalsId)}
-                                                        onDragOver={e => e.preventDefault()}
-                                                        onDrop={e => {
-                                                            e.preventDefault()
-                                                            if (!draggingTotalsModule || draggingTotalsModule === totalsId) return
-                                                            setData(prev => {
-                                                                const base = prev.totalsOrder && prev.totalsOrder.length
-                                                                    ? [...prev.totalsOrder]
-                                                                    : [...DEFAULT_TOTALS_ORDER]
-                                                                const fromIndex = base.indexOf(draggingTotalsModule)
-                                                                const toIndex = base.indexOf(totalsId)
-                                                                if (fromIndex === -1 || toIndex === -1) return prev
-                                                                base.splice(fromIndex, 1)
-                                                                base.splice(toIndex, 0, draggingTotalsModule)
-                                                                return { ...prev, totalsOrder: base }
-                                                            })
-                                                            setDraggingTotalsModule(null)
-                                                        }}
-                                                        className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-gray-200 bg-white text-[11px] font-medium text-gray-800 cursor-move hover:bg-gray-50"
-                                                    >
-                                                        <span>
-                                                            {totalsId === 'subtotal' && 'Subtotal'}
-                                                            {totalsId === 'discount' && 'Discount'}
-                                                            {totalsId === 'tax' && 'Tax'}
-                                                            {totalsId === 'total' && 'Total'}
-                                                        </span>
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        </div>
-
-                                        {/* Footer chips */}
-                                        <div className="space-y-2">
-                                            <h4 className="text-xs font-semibold text-gray-700 tracking-wide uppercase">Footer modules</h4>
-                                            <p className="text-xs text-gray-500">
-                                                Drag to reorder the notes/terms box and the thank-you message in the footer.
-                                            </p>
-                                            <div className="flex flex-wrap gap-2">
-                                                {(data.footerOrder && data.footerOrder.length ? data.footerOrder : DEFAULT_FOOTER_ORDER).map(footerId => (
-                                                    <div
-                                                        key={footerId}
-                                                        draggable
-                                                        onDragStart={() => setDraggingFooterModule(footerId)}
-                                                        onDragOver={e => e.preventDefault()}
-                                                        onDrop={e => {
-                                                            e.preventDefault()
-                                                            if (!draggingFooterModule || draggingFooterModule === footerId) return
-                                                            setData(prev => {
-                                                                const base = prev.footerOrder && prev.footerOrder.length
-                                                                    ? [...prev.footerOrder]
-                                                                    : [...DEFAULT_FOOTER_ORDER]
-                                                                const fromIndex = base.indexOf(draggingFooterModule)
-                                                                const toIndex = base.indexOf(footerId)
-                                                                if (fromIndex === -1 || toIndex === -1) return prev
-                                                                base.splice(fromIndex, 1)
-                                                                base.splice(toIndex, 0, draggingFooterModule)
-                                                                return { ...prev, footerOrder: base }
-                                                            })
-                                                            setDraggingFooterModule(null)
-                                                        }}
-                                                        className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-gray-200 bg-white text-[11px] font-medium text-gray-800 cursor-move hover:bg-gray-50"
-                                                    >
-                                                        <span>
-                                                            {footerId === 'notes' && 'Notes / terms'}
-                                                            {footerId === 'message' && 'Thank-you message'}
-                                                        </span>
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            )}
-
-                            {/* Styling Tab */}
+                            {/* Styling Tab - includes Layout & Appearance */}
                             {activeTab === 'style' && (
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                                    {/* Layout Selection */}
+                                    <div className="space-y-3">
+                                        <h3 className="text-sm font-bold text-gray-900">Template Layout</h3>
+                                        <p className="text-xs text-gray-600">
+                                            Choose a predefined receipt template layout.
+                                        </p>
+                                        <div className="flex flex-col gap-1">
+                                            <Label htmlFor="layout-select" className="text-xs font-semibold text-gray-900">
+                                                Layout Style
+                                            </Label>
+                                            <select
+                                                id="layout-select"
+                                                value={data.layoutVariant}
+                                                onChange={e => setLayoutVariant(e.target.value as LayoutVariant)}
+                                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm bg-white"
+                                            >
+                                                <option value="top-strip">Top Strip - Modern with bold header strip</option>
+                                                <option value="classic">Classic - Traditional header layout</option>
+                                                <option value="minimal">Minimal - Clean and simple</option>
+                                                <option value="modern">Modern - Split header design</option>
+                                            </select>
+                                        </div>
+                                    </div>
+
                                     {/* Template Metadata */}
                                     <div className="space-y-3">
                                         <h3 className="text-sm font-bold text-gray-900">Template Details</h3>

@@ -113,6 +113,8 @@ export interface Receipt {
   total?: number
   status: 'draft' | 'sent' | 'paid'
   items?: ReceiptItem[]
+  notes?: string
+  footer_message?: string
   created_at: string
   updated_at: string
 }
@@ -152,6 +154,7 @@ export interface CreateReceiptFormData {
   customer_address?: string
   company_name?: string
   notes?: string
+  footer_message?: string
 }
 
 export type VendorStatus = 'active' | 'inactive'

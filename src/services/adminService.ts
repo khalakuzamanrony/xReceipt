@@ -69,6 +69,54 @@ export const adminService = {
     throw new Error('Password reset not implemented for custom authentication')
   },
 
+  // Reset password for a user (grand user can reset any, super user can reset self and admins under them)
+  async resetPassword(
+    targetUserId: string,
+    currentUserId: string,
+    currentUserRole: string,
+    newPassword: string
+  ): Promise<void> {
+    // Hash the new password
+    const hashedPassword = await hashPassword(newPassword)
+
+    // Get target user info
+    const { data: targetUser, error: targetError } = await supabase
+      .from('users')
+      .select('id, role, email')
+      .eq('id', targetUserId)
+      .single()
+
+    if (targetError) throw new Error('Target user not found')
+
+    // Permission checks
+    if (currentUserRole === 'grand_user') {
+      // Grand user can reset password for any user
+      // No additional checks needed
+    } else if (currentUserRole === 'super_admin') {
+      // Super admin can only reset:
+      // 1. Their own password
+      // 2. Admin passwords (if they manage them)
+      if (targetUserId !== currentUserId && targetUser.role !== 'admin') {
+        throw new Error('Super admin can only reset their own password or admin passwords')
+      }
+    } else {
+      throw new Error('Insufficient permissions to reset password')
+    }
+
+    // Update the password
+    const { error: updateError } = await supabase
+      .from('users')
+      .update({
+        password_hash: hashedPassword,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', targetUserId)
+
+    if (updateError) {
+      throw new Error(`Failed to reset password: ${updateError.message}`)
+    }
+  },
+
   // Get admin by email (used for auth mapping)
   async getAdminByEmail(email: string): Promise<User | null> {
     const { data, error } = await supabase
