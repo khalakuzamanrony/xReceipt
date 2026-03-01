@@ -5,8 +5,10 @@ import { Input } from '@/components/ui/Input'
 import { Label } from '@/components/ui/Label'
 import { useVendor } from '@/contexts/VendorContext'
 import { useBrandSettings } from '@/contexts/BrandSettingsContext'
+import { useAuth } from '@/contexts/AuthContext'
 
 export default function SettingsPage() {
+  const { role } = useAuth()
   const { activeVendorId, memberships } = useVendor()
   const { settings, loading, saving, error, updateBrandInfo, uploadIcon, deleteIcon } = useBrandSettings()
 
@@ -32,7 +34,7 @@ export default function SettingsPage() {
     setIconToDelete(false)
   }, [settings?.app_name, settings?.tagline, settings?.icon_url])
 
-  const canEdit = !!activeVendorId
+  const canEdit = !!activeVendorId || role === 'grand_user'
 
   const handleSave = async () => {
     setLocalError(null)
@@ -98,12 +100,12 @@ export default function SettingsPage() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-gray-900">Settings</h1>
-        <p className="text-sm text-gray-600 mt-1">
-          Manage your shop settings{vendorName ? ` for ${vendorName}` : ''}.
+        <p className="text-gray-600">
+          Manage app name, tagline, and icon for {vendorName ?? (role === 'grand_user' ? 'the dashboard' : 'your shop')}.
         </p>
       </div>
 
-      {!activeVendorId ? (
+      {!activeVendorId && role !== 'grand_user' ? (
         <Card>
           <CardHeader>
             <CardTitle>Brand Info</CardTitle>
@@ -118,7 +120,9 @@ export default function SettingsPage() {
           <CardHeader>
             <CardTitle>Brand Info</CardTitle>
             <CardDescription>
-              Update the app name, icon, and tagline. These will apply while this shop is active.
+              {role === 'grand_user' && !activeVendorId
+                ? 'Update the app name, icon, and tagline. These will apply to the main dashboard when no shop is selected.'
+                : 'Update the app name, icon, and tagline. These will apply while this shop is active.'}
             </CardDescription>
           </CardHeader>
           <CardContent>

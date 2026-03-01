@@ -181,7 +181,10 @@ export interface VendorAdmin {
 
 // Brand settings (per vendor)
 export interface BrandSettings {
-  vendor_id: string
+  id: string
+  scope: 'vendor' | 'global'
+  vendor_id: string | null
+  conflict_key?: string
   app_name: string
   tagline: string | null
   icon_url: string | null

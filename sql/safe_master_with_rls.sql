@@ -188,14 +188,116 @@ CREATE TABLE IF NOT EXISTS receipt_template_vendors (
  -- 2B. BRAND SETTINGS TABLE
  -- ============================================
  CREATE TABLE IF NOT EXISTS brand_settings (
-   vendor_id UUID PRIMARY KEY REFERENCES vendors(id) ON DELETE CASCADE,
-   app_name VARCHAR(255) NOT NULL DEFAULT 'xReceipt',
-   tagline VARCHAR(255),
-   icon_url VARCHAR(500),
-   icon_path VARCHAR(500),
-   created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-   updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  scope TEXT NOT NULL DEFAULT 'vendor' CHECK (scope IN ('vendor', 'global')),
+  vendor_id UUID REFERENCES vendors(id) ON DELETE CASCADE,
+  conflict_key TEXT,
+  app_name VARCHAR(255) NOT NULL DEFAULT 'xReceipt',
+  tagline VARCHAR(255),
+  icon_url VARCHAR(500),
+  icon_path VARCHAR(500),
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
  );
+
+-- If brand_settings existed previously with vendor_id as primary key, migrate it safely.
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.tables
+    WHERE table_schema = 'public' AND table_name = 'brand_settings'
+  ) THEN
+    -- Add missing columns
+    IF NOT EXISTS (
+      SELECT 1 FROM information_schema.columns
+      WHERE table_schema = 'public' AND table_name = 'brand_settings' AND column_name = 'id'
+    ) THEN
+      ALTER TABLE brand_settings ADD COLUMN id UUID DEFAULT gen_random_uuid();
+    END IF;
+
+    IF NOT EXISTS (
+      SELECT 1 FROM information_schema.columns
+      WHERE table_schema = 'public' AND table_name = 'brand_settings' AND column_name = 'scope'
+    ) THEN
+      ALTER TABLE brand_settings ADD COLUMN scope TEXT NOT NULL DEFAULT 'vendor';
+      ALTER TABLE brand_settings ADD CONSTRAINT brand_settings_scope_check CHECK (scope IN ('vendor', 'global'));
+    END IF;
+
+    -- Add conflict_key (for deterministic upserts) if missing
+    IF NOT EXISTS (
+      SELECT 1 FROM information_schema.columns
+      WHERE table_schema = 'public' AND table_name = 'brand_settings' AND column_name = 'conflict_key'
+    ) THEN
+      ALTER TABLE brand_settings ADD COLUMN conflict_key TEXT;
+    END IF;
+
+    -- Make vendor_id nullable (required for global row)
+    BEGIN
+      ALTER TABLE brand_settings ALTER COLUMN vendor_id DROP NOT NULL;
+    EXCEPTION WHEN others THEN
+      NULL;
+    END;
+
+    -- Ensure primary key is on id
+    BEGIN
+      ALTER TABLE brand_settings DROP CONSTRAINT brand_settings_pkey;
+    EXCEPTION WHEN others THEN
+      NULL;
+    END;
+
+    BEGIN
+      ALTER TABLE brand_settings ADD CONSTRAINT brand_settings_pkey PRIMARY KEY (id);
+    EXCEPTION WHEN others THEN
+      NULL;
+    END;
+
+    -- Ensure vendor scope rows are tagged
+    UPDATE brand_settings
+      SET scope = 'vendor'
+      WHERE scope IS NULL;
+
+    -- Backfill conflict_key for existing rows
+    UPDATE brand_settings
+      SET conflict_key = CASE
+        WHEN scope = 'global' THEN 'global'
+        ELSE ('vendor:' || vendor_id::text)
+      END
+      WHERE conflict_key IS NULL;
+  END IF;
+END $$;
+
+-- Unique conflict key used by PostgREST on_conflict
+CREATE UNIQUE INDEX IF NOT EXISTS brand_settings_conflict_key_unique
+  ON brand_settings(conflict_key);
+
+-- Ensure conflict_key is not null after migration
+DO $$
+BEGIN
+  BEGIN
+    ALTER TABLE brand_settings ALTER COLUMN conflict_key SET NOT NULL;
+  EXCEPTION WHEN others THEN
+    NULL;
+  END;
+END $$;
+
+-- Maintain conflict_key automatically
+CREATE OR REPLACE FUNCTION set_brand_settings_conflict_key()
+RETURNS TRIGGER AS $$
+BEGIN
+  IF NEW.scope = 'global' THEN
+    NEW.vendor_id := NULL;
+    NEW.conflict_key := 'global';
+  ELSE
+    NEW.conflict_key := 'vendor:' || NEW.vendor_id::text;
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS set_brand_settings_conflict_key_trigger ON brand_settings;
+CREATE TRIGGER set_brand_settings_conflict_key_trigger
+  BEFORE INSERT OR UPDATE ON brand_settings
+  FOR EACH ROW EXECUTE FUNCTION set_brand_settings_conflict_key();
 
 CREATE INDEX IF NOT EXISTS idx_receipt_template_vendors_template_id ON receipt_template_vendors(template_id);
 CREATE INDEX IF NOT EXISTS idx_receipt_template_vendors_vendor_id ON receipt_template_vendors(vendor_id);
