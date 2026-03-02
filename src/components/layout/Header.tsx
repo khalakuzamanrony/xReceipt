@@ -1,15 +1,29 @@
 import { useAuth } from '@/contexts/AuthContext'
 import { ChevronDown, LogOut } from 'lucide-react'
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
-import { useBrandSettings } from '@/contexts/BrandSettingsContext'
 import { useToast } from '@/contexts/ToastContext'
 
-export default function Header() {
+interface HeaderProps {
+  currentPage: string
+}
+
+const PAGE_TITLES: Record<string, string> = {
+  dashboard: 'Dashboard',
+  receipts: 'Receipts',
+  templates: 'Receipt Templates',
+  'template-builder': 'Template Builder',
+  products: 'Products',
+  categories: 'Categories',
+  vendors: 'Shops',
+  settings: 'Settings',
+  admin: 'Admin Management',
+}
+
+export default function Header({ currentPage }: HeaderProps) {
   const { user, signOut } = useAuth()
-  const { settings } = useBrandSettings()
   const { toast } = useToast()
 
-  const appName = settings?.app_name?.trim() || 'xReceipt'
+  const pageTitle = PAGE_TITLES[currentPage] || 'xReceipt'
 
   const userInitials = (() => {
     const source = user?.name || user?.email || 'U'
@@ -24,12 +38,12 @@ export default function Header() {
   return (
     <header className="bg-white border-b border-gray-200 sticky top-0 z-30">
       <div className="pl-14 pr-6 md:px-8 py-3 flex items-center justify-between gap-4">
-        <span className="text-lg font-bold text-gray-900 truncate">{appName}</span>
+        <span className="text-lg font-bold text-gray-900 truncate">{pageTitle}</span>
         {user && (
           <DropdownMenu.Root>
             <DropdownMenu.Trigger asChild>
               <button className="flex items-center gap-2 p-1.5 rounded-lg hover:bg-gray-100 transition-colors">
-                <div className="h-8 w-8 rounded-full bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center text-white text-xs font-medium">
+                <div className="h-8 w-8 rounded-xl bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center text-white text-xs font-medium shadow-sm">
                   {userInitials}
                 </div>
                 <ChevronDown className="h-4 w-4 text-gray-400" />
