@@ -30,6 +30,7 @@ export default function App() {
   })
 
   const [templateBuilderTemplateId, setTemplateBuilderTemplateId] = useState<string | null>(null)
+  const [previousSidebarState, setPreviousSidebarState] = useState<boolean | null>(null)
 
   // Redirect regular admins (not grand_user or super_admin) from admin page to dashboard
   useEffect(() => {
@@ -47,6 +48,25 @@ export default function App() {
     if (typeof window === 'undefined') return
     window.localStorage.setItem('xreceipt.sidebarCollapsed', String(sidebarCollapsed))
   }, [sidebarCollapsed])
+
+  // Auto-collapse sidebar on desktop only when entering template-builder
+  // Remember previous state and restore when leaving
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const isDesktop = window.innerWidth >= 1024
+
+    if (isDesktop && currentPage === 'template-builder' && previousSidebarState === null) {
+      // Entering template builder - save current state and collapse
+      setPreviousSidebarState(sidebarCollapsed)
+      if (!sidebarCollapsed) {
+        setSidebarCollapsed(true)
+      }
+    } else if (isDesktop && currentPage !== 'template-builder' && previousSidebarState !== null) {
+      // Leaving template builder - restore previous state
+      setSidebarCollapsed(previousSidebarState)
+      setPreviousSidebarState(null)
+    }
+  }, [currentPage, sidebarCollapsed, previousSidebarState])
 
   if (loading) {
     return (
@@ -118,7 +138,7 @@ export default function App() {
       {/* Main Content */}
       <div className={`${sidebarCollapsed ? 'md:ml-20' : 'md:ml-64'} flex flex-col flex-1 overflow-hidden`}>
         {/* Header */}
-        <Header />
+        <Header currentPage={currentPage} />
 
         {/* Page Content */}
         <main className="flex-1 overflow-auto px-6 md:px-8 py-6">

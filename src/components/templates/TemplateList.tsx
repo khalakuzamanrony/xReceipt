@@ -424,6 +424,21 @@ export default function TemplateList({ onNavigateToBuilder }: TemplateListProps)
     )
   }
 
+  // Mobile check - only block on mobile (< 768px), allow tablet and desktop
+  if (!isDesktop) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh] px-6 text-center">
+        <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-violet-100 to-purple-100 flex items-center justify-center mb-4">
+          <FileCode size={32} className="text-violet-600" />
+        </div>
+        <h2 className="text-xl font-bold text-gray-900 mb-2">Desktop & Tablet Only</h2>
+        <p className="text-gray-600 max-w-sm">
+          Receipt template creation is only available on desktop and tablet. Please open this page on a larger screen to create and manage templates.
+        </p>
+      </div>
+    )
+  }
+
   return (
     <div className="space-y-4">
       {/* Header with Title and Buttons */}

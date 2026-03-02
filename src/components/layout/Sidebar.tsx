@@ -27,17 +27,6 @@ interface SidebarProps {
   onCollapsedChange: (collapsed: boolean) => void
 }
 
-// Simple logo component with 3 circles
-function LogoIcon({ className }: { className?: string }) {
-  return (
-    <div className={cn('flex items-center gap-0.5', className)}>
-      <div className="w-2.5 h-2.5 rounded-full bg-gray-900" />
-      <div className="w-2.5 h-2.5 rounded-full bg-gray-900" />
-      <div className="w-2.5 h-2.5 rounded-full bg-gray-900" />
-    </div>
-  )
-}
-
 // Brand icon component - shows uploaded brand icon or fallback
 function BrandLogoIcon({ iconUrl, className }: { iconUrl?: string | null; className?: string }) {
   if (iconUrl) {
@@ -45,11 +34,18 @@ function BrandLogoIcon({ iconUrl, className }: { iconUrl?: string | null; classN
       <img
         src={iconUrl}
         alt="Brand icon"
-        className={cn('w-6 h-6 rounded-lg object-cover', className)}
+        className={cn('w-full h-full object-cover', className)}
       />
     )
   }
-  return <LogoIcon className={className} />
+  // Fallback: 3 dots on gray background
+  return (
+    <div className={cn('flex items-center justify-center gap-0.5 bg-gray-100', className)}>
+      <div className="w-1.5 h-1.5 rounded-full bg-gray-600" />
+      <div className="w-1.5 h-1.5 rounded-full bg-gray-600" />
+      <div className="w-1.5 h-1.5 rounded-full bg-gray-600" />
+    </div>
+  )
 }
 
 export default function Sidebar({ currentPage, onPageChange, collapsed, onCollapsedChange }: SidebarProps) {
@@ -166,12 +162,19 @@ export default function Sidebar({ currentPage, onPageChange, collapsed, onCollap
         <div className="flex flex-col h-full">
           {/* Mobile Header - App Name on left, X on right */}
           {isOpen && (
-            <div className="md:hidden flex items-center justify-between px-4 py-3 border-b border-gray-200">
-              <div className="flex items-center gap-2">
-                <BrandLogoIcon iconUrl={settings?.icon_url} className="w-5 h-5" />
-                <span className="font-semibold text-gray-900 truncate">
-                  {activeVendor?.name || 'xReceipt'}
-                </span>
+            <div className="md:hidden flex items-center justify-between px-4 py-3 border-b border-gray-200 bg-gradient-to-r from-violet-50/50 to-purple-50/50">
+              <div className="flex items-center gap-3">
+                <BrandLogoIcon iconUrl={settings?.icon_url} className="w-9 h-9 rounded-xl object-cover" />
+                <div className="flex flex-col">
+                  <span className="font-bold text-gray-900 text-sm leading-tight">
+                    {settings?.app_name?.trim() || 'xReceipt'}
+                  </span>
+                  {settings?.tagline?.trim() && (
+                    <span className="text-[10px] text-gray-500 leading-tight max-w-[140px] truncate">
+                      {settings.tagline}
+                    </span>
+                  )}
+                </div>
               </div>
               <button
                 onClick={() => setIsOpen(false)}
@@ -184,40 +187,60 @@ export default function Sidebar({ currentPage, onPageChange, collapsed, onCollap
           )}
 
           {/* Desktop Header with Logo and Collapse Button */}
-          <div className="hidden md:flex items-center justify-between px-4 py-4">
-            <button
-              onClick={() => onPageChange('dashboard')}
-              className={cn(
-                'flex items-center hover:bg-gray-100 rounded-lg p-1.5 -m-1.5 transition-colors cursor-pointer',
-                collapsed && 'justify-center w-full',
+          <div className="hidden md:flex flex-col">
+            <div className={cn(
+              'flex items-center justify-between px-4 py-4',
+              !collapsed && 'border-b border-gray-200/60'
+            )}>
+              <button
+                onClick={() => onPageChange('dashboard')}
+                className={cn(
+                  'flex items-center gap-3 hover:bg-gray-100 rounded-xl p-2 -m-2 transition-colors cursor-pointer',
+                  collapsed && 'justify-center w-full',
+                )}
+                title="Go to Dashboard"
+              >
+                <BrandLogoIcon iconUrl={settings?.icon_url} className={cn(
+                  'w-10 h-10 rounded-xl shadow-sm',
+                  collapsed && 'w-10 h-10'
+                )} />
+                {!collapsed && (
+                  <div className="flex flex-col items-start">
+                    <span className="text-sm font-bold text-gray-900 leading-tight">
+                      {settings?.app_name?.trim() || 'xReceipt'}
+                    </span>
+                    {settings?.tagline?.trim() && (
+                      <span className="text-[10px] text-gray-500 leading-tight max-w-[120px] truncate">
+                        {settings.tagline}
+                      </span>
+                    )}
+                  </div>
+                )}
+              </button>
+              {!collapsed && (
+                <button
+                  onClick={() => onCollapsedChange(true)}
+                  className="p-1.5 hover:bg-gray-200 rounded-lg transition-colors"
+                  aria-label="Collapse sidebar"
+                >
+                  <ChevronLeft size={16} className="text-gray-500" />
+                </button>
               )}
-              title="Go to Dashboard"
-            >
-              <BrandLogoIcon iconUrl={settings?.icon_url} className="w-6 h-6" />
-            </button>
-            {!collapsed && (
-              <button
-                onClick={() => onCollapsedChange(true)}
-                className="p-1.5 hover:bg-gray-200 rounded-md transition-colors"
-                aria-label="Collapse sidebar"
-              >
-                <ChevronLeft size={16} className="text-gray-500" />
-              </button>
-            )}
-            {collapsed && (
-              <button
-                onClick={() => onCollapsedChange(false)}
-                className="p-1.5 hover:bg-gray-200 rounded-md transition-colors absolute -right-3 top-4 bg-white border border-gray-200 shadow-sm"
-                aria-label="Expand sidebar"
-              >
-                <ChevronRight size={14} className="text-gray-500" />
-              </button>
-            )}
+              {collapsed && (
+                <button
+                  onClick={() => onCollapsedChange(false)}
+                  className="p-1.5 hover:bg-gray-200 rounded-md transition-colors absolute -right-3 top-4"
+                  aria-label="Expand sidebar"
+                >
+                  <ChevronRight size={14} className="text-gray-500" />
+                </button>
+              )}
+            </div>
           </div>
 
           {/* Workspace Selector - Full dropdown (desktop expanded + mobile) */}
           {showVendorSelector && showLabels && (
-            <div className={cn('px-4', isOpen ? 'pb-2' : 'pb-4')}>
+            <div className={cn('px-4', isOpen ? 'py-2' : 'py-4')}>
               <Select.Root
                 value={selectValue}
                 onValueChange={(value) => {
@@ -230,7 +253,7 @@ export default function Sidebar({ currentPage, onPageChange, collapsed, onCollap
               >
                 <Select.Trigger className="w-full flex items-center justify-between gap-2 px-3 py-2 rounded-lg border border-gray-200 bg-white hover:border-gray-300 transition-colors focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500">
                   <div className="flex items-center gap-2 min-w-0">
-                    <div className="w-7 h-7 rounded-md bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center text-white text-xs font-medium">
+                    <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center text-white text-xs font-medium flex-shrink-0">
                       {(activeVendor?.name || 'W').charAt(0).toUpperCase()}
                     </div>
                     <span className="text-sm font-medium text-gray-700 truncate">
@@ -287,7 +310,7 @@ export default function Sidebar({ currentPage, onPageChange, collapsed, onCollap
 
           {/* Workspace Selector - Collapsed: clickable avatar dropdown (desktop only) */}
           {collapsed && !isOpen && showVendorSelector && (
-            <div className="px-4 pb-4 flex justify-center">
+            <div className="px-4 py-4 flex justify-center">
               <Select.Root
                 value={selectValue}
                 onValueChange={(value) => {

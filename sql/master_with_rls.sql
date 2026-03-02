@@ -568,5 +568,96 @@ VALUES ('granduser@xreceipt.com', 'Grand User', 'grand_user', '$2b$10$DkyhpvaaOk
 ON CONFLICT (email) DO UPDATE SET password_hash = EXCLUDED.password_hash;
 
 -- ============================================
+-- 12. PERMISSION ASSIGNMENT FUNCTION
+-- ============================================
+
+CREATE OR REPLACE FUNCTION assign_admin_vendor_permissions(
+  p_admin_id UUID,
+  p_vendor_id UUID,
+  p_can_view_products BOOLEAN DEFAULT FALSE,
+  p_can_create_products BOOLEAN DEFAULT FALSE,
+  p_can_view_categories BOOLEAN DEFAULT FALSE,
+  p_can_create_categories BOOLEAN DEFAULT FALSE,
+  p_can_view_receipts BOOLEAN DEFAULT FALSE,
+  p_can_create_receipts BOOLEAN DEFAULT FALSE,
+  p_is_vendor_super_admin BOOLEAN DEFAULT FALSE
+)
+RETURNS admin_vendor_permissions
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+  v_result admin_vendor_permissions;
+  v_admin_exists BOOLEAN;
+  v_vendor_exists BOOLEAN;
+BEGIN
+  -- Validate admin_id exists and is actually an admin (not grand_user)
+  SELECT EXISTS(
+    SELECT 1 FROM users WHERE id = p_admin_id AND role IN ('admin', 'super_admin')
+  ) INTO v_admin_exists;
+  
+  IF NOT v_admin_exists THEN
+    RAISE EXCEPTION 'Invalid admin_id: % - User must exist and have admin or super_admin role', p_admin_id
+      USING ERRCODE = '23503';
+  END IF;
+  
+  -- Validate vendor_id exists
+  SELECT EXISTS(
+    SELECT 1 FROM vendors WHERE id = p_vendor_id
+  ) INTO v_vendor_exists;
+  
+  IF NOT v_vendor_exists THEN
+    RAISE EXCEPTION 'Invalid vendor_id: % - Vendor does not exist', p_vendor_id
+      USING ERRCODE = '23503';
+  END IF;
+  
+  -- Upsert the permission record
+  INSERT INTO admin_vendor_permissions (
+    admin_id,
+    vendor_id,
+    can_view_products,
+    can_create_products,
+    can_view_categories,
+    can_create_categories,
+    can_view_receipts,
+    can_create_receipts,
+    is_vendor_super_admin,
+    created_at,
+    updated_at
+  )
+  VALUES (
+    p_admin_id,
+    p_vendor_id,
+    p_can_view_products,
+    p_can_create_products,
+    p_can_view_categories,
+    p_can_create_categories,
+    p_can_view_receipts,
+    p_can_create_receipts,
+    p_is_vendor_super_admin,
+    CURRENT_TIMESTAMP,
+    CURRENT_TIMESTAMP
+  )
+  ON CONFLICT (admin_id, vendor_id) 
+  DO UPDATE SET
+    can_view_products = EXCLUDED.can_view_products,
+    can_create_products = EXCLUDED.can_create_products,
+    can_view_categories = EXCLUDED.can_view_categories,
+    can_create_categories = EXCLUDED.can_create_categories,
+    can_view_receipts = EXCLUDED.can_view_receipts,
+    can_create_receipts = EXCLUDED.can_create_receipts,
+    is_vendor_super_admin = EXCLUDED.is_vendor_super_admin,
+    updated_at = CURRENT_TIMESTAMP
+  RETURNING * INTO v_result;
+  
+  RETURN v_result;
+END;
+$$;
+
+-- Grant execute permission to authenticated users
+GRANT EXECUTE ON FUNCTION assign_admin_vendor_permissions TO authenticated;
+GRANT EXECUTE ON FUNCTION assign_admin_vendor_permissions TO anon;
+
+-- ============================================
 -- END OF SCHEMA
 -- ============================================
