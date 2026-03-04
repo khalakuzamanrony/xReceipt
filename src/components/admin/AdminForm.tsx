@@ -17,7 +17,7 @@ import { Eye, EyeOff, X } from 'lucide-react'
 
 interface AdminFormProps {
   admin: User | null
-  onClose: () => void
+  onClose: (saved?: boolean) => void
   canEditEmail?: boolean
 }
 
@@ -200,7 +200,7 @@ export default function AdminForm({ admin, onClose, canEditEmail = false }: Admi
             }
           }
 
-          onClose()
+          onClose(true)
           return
         }
 
@@ -256,7 +256,7 @@ export default function AdminForm({ admin, onClose, canEditEmail = false }: Admi
             console.error('Failed to assign admin to shop:', assignError)
           }
         }
-        onClose()
+        onClose(true)
         return
       }
 
@@ -268,7 +268,7 @@ export default function AdminForm({ admin, onClose, canEditEmail = false }: Admi
         }
       }
 
-      onClose()
+      onClose(true)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to save admin')
     } finally {
@@ -457,7 +457,7 @@ export default function AdminForm({ admin, onClose, canEditEmail = false }: Admi
           </div>
 
           <DialogFooter className="gap-3 px-4 sm:px-5 py-2 border-t border-gray-100 bg-white flex justify-end">
-            <Button type="button" variant="outline" onClick={onClose}>
+            <Button type="button" variant="outline" onClick={() => onClose()}>
               Cancel
             </Button>
             <Button type="submit" disabled={loading}>

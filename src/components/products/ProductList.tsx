@@ -392,160 +392,242 @@ export default function ProductList() {
     return categories.filter((cat: any) => cat.vendor_id === vendorId)
   })()
 
+  const getActiveFiltersCount = () => {
+    let count = 0
+    if (categoryFilter !== 'all') count++
+    if (dateRangeFilter !== 'all') count++
+    if (minPrice || maxPrice) count++
+    return count
+  }
+
+  const clearAllFilters = () => {
+    setCategoryFilter('all')
+    setDateRangeFilter('all')
+    setMinPrice('')
+    setMaxPrice('')
+    setSearchTerm('')
+  }
+
   return (
     <div className="space-y-4">
-      {/* Header with Title and Buttons */}
+      {/* Header with Title and Filters */}
       <div className="bg-white p-4 rounded-lg border border-gray-200">
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
           <div>
             <h1 className="text-2xl font-bold text-gray-900">Products</h1>
             <p className="text-sm text-gray-500 mt-1">Manage your product catalog</p>
           </div>
 
           {/* Search and Filters */}
-          <div className="w-full sm:w-auto flex flex-col sm:flex-row gap-3 sm:items-center">
-            <div className="flex-1 sm:w-64 bg-white rounded-lg border border-gray-200 h-9 px-3 flex items-center gap-2">
-              <Search size={18} className="text-gray-400" />
+          <div className="flex flex-col sm:flex-row gap-3 sm:items-center">
+            {/* Search Input */}
+            <div className="relative">
+              <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
               <Input
                 type="text"
                 placeholder="Search products..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="flex-1 h-9 border-0 focus:ring-0 px-0 py-0 text-sm"
+                className="pl-9 h-10 w-full sm:w-64 border-gray-200 rounded-full text-sm focus:ring-2 focus:ring-violet-500 focus:border-transparent"
               />
-            </div>
-
-            <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 sm:items-center">
-              <DropdownMenu.Root>
-                <DropdownMenu.Trigger asChild>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="h-9 px-3 flex items-center gap-2 border-gray-200 bg-white text-gray-700 hover:bg-gray-50"
-                  >
-                    <Funnel className="h-4 w-4" />
-                    <span className="text-xs font-medium">Filters</span>
-                  </Button>
-                </DropdownMenu.Trigger>
-                <DropdownMenu.Portal>
-                  <DropdownMenu.Content className="min-w-[260px] rounded-xl border border-gray-200 bg-white shadow-lg p-3 mr-1 mt-2 z-50 space-y-3">
-                    <div>
-                      <p className="text-[10px] font-semibold text-gray-500 uppercase mb-1.5">Category</p>
-                      <div className="flex flex-col gap-1 max-h-40 overflow-y-auto">
-                        <button
-                          type="button"
-                          onClick={() => setCategoryFilter('all')}
-                          className={cn(
-                            'w-full text-left px-2.5 py-1 rounded-md text-[11px] font-medium cursor-pointer transition-colors',
-                            categoryFilter === 'all'
-                              ? 'bg-violet-50 text-violet-700'
-                              : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900',
-                          )}
-                        >
-                          All categories
-                        </button>
-                        {categories.map((cat) => (
-                          <button
-                            key={cat.id}
-                            type="button"
-                            onClick={() => setCategoryFilter(cat.id)}
-                            className={cn(
-                              'w-full text-left px-2.5 py-1 rounded-md text-[11px] font-medium cursor-pointer transition-colors',
-                              categoryFilter === cat.id
-                                ? 'bg-violet-50 text-violet-700'
-                                : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900',
-                            )}
-                          >
-                            {cat.name}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-
-                    <div>
-                      <p className="text-[10px] font-semibold text-gray-500 uppercase mb-1.5">Date range</p>
-                      <div className="flex flex-wrap gap-1.5">
-                        {[
-                          { id: 'all', label: 'All time' },
-                          { id: 'today', label: 'Today' },
-                          { id: '7d', label: 'Last 7 days' },
-                          { id: '30d', label: 'Last 30 days' },
-                        ].map((option) => (
-                          <button
-                            key={option.id}
-                            type="button"
-                            onClick={() => setDateRangeFilter(option.id as 'all' | 'today' | '7d' | '30d')}
-                            className={cn(
-                              'px-2.5 py-1 rounded-full text-[11px] font-medium border cursor-pointer transition-colors',
-                              dateRangeFilter === option.id
-                                ? 'bg-violet-50 text-violet-700 border-violet-200'
-                                : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50 hover:text-gray-900',
-                            )}
-                          >
-                            {option.label}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-
-                    <div>
-                      <p className="text-[10px] font-semibold text-gray-500 uppercase mb-1.5">Price</p>
-                      <div className="flex items-center gap-2">
-                        <Input
-                          type="number"
-                          inputMode="decimal"
-                          min="0"
-                          value={minPrice}
-                          onChange={(e) => setMinPrice(e.target.value)}
-                          placeholder="Min"
-                          className="h-8 w-20 text-[11px] border-gray-200"
-                        />
-                        <span className="text-[10px] text-gray-400">to</span>
-                        <Input
-                          type="number"
-                          inputMode="decimal"
-                          min="0"
-                          value={maxPrice}
-                          onChange={(e) => setMaxPrice(e.target.value)}
-                          placeholder="Max"
-                          className="h-8 w-20 text-[11px] border-gray-200"
-                        />
-                      </div>
-                    </div>
-
-                    <div className="pt-2 border-t border-gray-100 flex justify-between items-center">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setCategoryFilter('all')
-                          setDateRangeFilter('all')
-                          setMinPrice('')
-                          setMaxPrice('')
-                        }}
-                        className="text-[11px] font-medium text-gray-500 hover:text-gray-700 cursor-pointer"
-                      >
-                        Reset filters
-                      </button>
-                    </div>
-                  </DropdownMenu.Content>
-                </DropdownMenu.Portal>
-              </DropdownMenu.Root>
-
-              {canCreateProducts && (
-                <span
-                  title={isGrandUserAllShops ? 'Select a shop first' : undefined}
-                  className="inline-flex"
+              {searchTerm && (
+                <button
+                  onClick={() => setSearchTerm('')}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
                 >
-                  <Button onClick={handleAddNew} size="sm" disabled={isGrandUserAllShops}>
-                    <Plus size={16} />
-                    Add Product
-                  </Button>
-                </span>
+                  <X size={14} />
+                </button>
               )}
             </div>
+
+            {/* Filter Dropdown */}
+            <DropdownMenu.Root>
+              <DropdownMenu.Trigger asChild>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className={cn(
+                    'h-10 px-4 rounded-lg border-gray-200 flex items-center gap-2 transition-all',
+                    getActiveFiltersCount() > 0
+                      ? 'bg-violet-50 border-violet-200 text-violet-700'
+                      : 'bg-white text-gray-700 hover:bg-gray-50'
+                  )}
+                >
+                  <Funnel className="h-4 w-4" />
+                  <span className="text-sm font-medium">Filters</span>
+                  {getActiveFiltersCount() > 0 && (
+                    <span className="ml-1 px-1.5 py-0.5 bg-violet-600 text-white text-[10px] font-semibold rounded-full">
+                      {getActiveFiltersCount()}
+                    </span>
+                  )}
+                </Button>
+              </DropdownMenu.Trigger>
+              <DropdownMenu.Portal>
+                <DropdownMenu.Content className="min-w-[320px] rounded-xl border border-gray-200 bg-white shadow-xl p-4 mr-2 mt-2 z-50 space-y-4">
+                  {/* Category Filter */}
+                  <div>
+                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Category</p>
+                    <div className="flex flex-col gap-1 max-h-48 overflow-y-auto pr-1">
+                      <button
+                        type="button"
+                        onClick={() => setCategoryFilter('all')}
+                        className={cn(
+                          'w-full text-left px-3 py-2 rounded-lg text-xs font-medium transition-colors',
+                          categoryFilter === 'all'
+                            ? 'bg-violet-50 text-violet-700'
+                            : 'text-gray-600 hover:bg-gray-50'
+                        )}
+                      >
+                        All categories
+                      </button>
+                      {categories.map((cat) => (
+                        <button
+                          key={cat.id}
+                          type="button"
+                          onClick={() => setCategoryFilter(cat.id)}
+                          className={cn(
+                            'w-full text-left px-3 py-2 rounded-lg text-xs font-medium transition-colors',
+                            categoryFilter === cat.id
+                              ? 'bg-violet-50 text-violet-700'
+                              : 'text-gray-600 hover:bg-gray-50'
+                          )}
+                        >
+                          {cat.name}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Date Range Filter */}
+                  <div>
+                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Date Range</p>
+                    <div className="flex flex-wrap gap-2">
+                      {[
+                        { id: 'all', label: 'All time' },
+                        { id: 'today', label: 'Today' },
+                        { id: '7d', label: 'Last 7 days' },
+                        { id: '30d', label: 'Last 30 days' },
+                      ].map((option) => (
+                        <button
+                          key={option.id}
+                          type="button"
+                          onClick={() => setDateRangeFilter(option.id as 'all' | 'today' | '7d' | '30d')}
+                          className={cn(
+                            'px-3 py-1.5 rounded-full text-xs font-medium border transition-all',
+                            dateRangeFilter === option.id
+                              ? 'bg-violet-100 text-violet-700 border-violet-300 shadow-sm'
+                              : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50 hover:border-gray-300'
+                          )}
+                        >
+                          {option.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Price Range */}
+                  <div>
+                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Price Range</p>
+                    <div className="flex items-center gap-2">
+                      <Input
+                        type="number"
+                        inputMode="decimal"
+                        min="0"
+                        value={minPrice}
+                        onChange={(e) => setMinPrice(e.target.value)}
+                        placeholder="Min"
+                        className="h-9 w-24 text-xs border-gray-200 rounded-lg"
+                      />
+                      <span className="text-xs text-gray-400">to</span>
+                      <Input
+                        type="number"
+                        inputMode="decimal"
+                        min="0"
+                        value={maxPrice}
+                        onChange={(e) => setMaxPrice(e.target.value)}
+                        placeholder="Max"
+                        className="h-9 w-24 text-xs border-gray-200 rounded-lg"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Footer */}
+                  <div className="pt-3 border-t border-gray-100 flex justify-between items-center">
+                    <span className="text-xs text-gray-400">
+                      {getActiveFiltersCount()} active {getActiveFiltersCount() === 1 ? 'filter' : 'filters'}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={clearAllFilters}
+                      className="text-xs font-medium text-violet-600 hover:text-violet-700 transition-colors"
+                    >
+                      Clear all
+                    </button>
+                  </div>
+                </DropdownMenu.Content>
+              </DropdownMenu.Portal>
+            </DropdownMenu.Root>
+
+            {/* Add Button */}
+            {canCreateProducts && (
+              <span
+                title={isGrandUserAllShops ? 'Select a shop first' : undefined}
+                className="inline-flex"
+              >
+                <Button onClick={handleAddNew} size="sm" disabled={isGrandUserAllShops} className="h-10 rounded-lg">
+                  <Plus size={16} className="mr-1" />
+                  Add Product
+                </Button>
+              </span>
+            )}
           </div>
         </div>
+
+        {/* Active Filter Pills */}
+        {(categoryFilter !== 'all' || dateRangeFilter !== 'all' || minPrice || maxPrice || searchTerm) && (
+          <div className="flex flex-wrap items-center gap-2 mt-4 pt-4 border-t border-gray-100">
+            <span className="text-xs text-gray-500 mr-1">Active filters:</span>
+            {searchTerm && (
+              <span className="inline-flex items-center gap-1 px-3 py-1 bg-gray-100 text-gray-700 text-xs font-medium rounded-full">
+                Search: "{searchTerm}"
+                <button onClick={() => setSearchTerm('')} className="hover:text-gray-900">
+                  <X size={12} />
+                </button>
+              </span>
+            )}
+            {categoryFilter !== 'all' && (
+              <span className="inline-flex items-center gap-1 px-3 py-1 bg-violet-100 text-violet-700 text-xs font-medium rounded-full">
+                Category: {categories.find(c => c.id === categoryFilter)?.name || categoryFilter}
+                <button onClick={() => setCategoryFilter('all')} className="hover:text-violet-900">
+                  <X size={12} />
+                </button>
+              </span>
+            )}
+            {dateRangeFilter !== 'all' && (
+              <span className="inline-flex items-center gap-1 px-3 py-1 bg-violet-100 text-violet-700 text-xs font-medium rounded-full">
+                Date: {dateRangeFilter === 'today' ? 'Today' : dateRangeFilter === '7d' ? 'Last 7 days' : 'Last 30 days'}
+                <button onClick={() => setDateRangeFilter('all')} className="hover:text-violet-900">
+                  <X size={12} />
+                </button>
+              </span>
+            )}
+            {(minPrice || maxPrice) && (
+              <span className="inline-flex items-center gap-1 px-3 py-1 bg-violet-100 text-violet-700 text-xs font-medium rounded-full">
+                Price: {minPrice || '0'} - {maxPrice || '∞'}
+                <button onClick={() => { setMinPrice(''); setMaxPrice('') }} className="hover:text-violet-900">
+                  <X size={12} />
+                </button>
+              </span>
+            )}
+            <button
+              onClick={clearAllFilters}
+              className="text-xs font-medium text-gray-500 hover:text-gray-700 ml-1"
+            >
+              Clear all
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Error Message */}

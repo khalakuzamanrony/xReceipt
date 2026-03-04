@@ -36,7 +36,7 @@ type BodySectionId = 'items' | 'totals' | 'footer'
 type HeaderMetaModuleId = 'receiptNumber' | 'date' | 'dueDate'
 type TotalsModuleId = 'items_total' | 'subtotal' | 'discount' | 'tax' | 'total'
 type FooterModuleId = 'notes' | 'message'
-type ItemsColumnId = 'description' | 'quantity' | 'price' | 'total'
+type ItemsColumnId = 'description' | 'quantity' | 'price' | 'tax' | 'discount' | 'total'
 
 type TotalsAlignment = 'right' | 'left'
 
@@ -72,7 +72,7 @@ const LAYOUT_PRESETS: Record<LayoutVariant, LayoutConfig> = {
 const DEFAULT_HEADER_META_ORDER: HeaderMetaModuleId[] = ['receiptNumber', 'date', 'dueDate']
 const DEFAULT_TOTALS_ORDER: TotalsModuleId[] = ['items_total', 'subtotal', 'discount', 'tax', 'total']
 const DEFAULT_FOOTER_ORDER: FooterModuleId[] = ['notes', 'message']
-const DEFAULT_ITEMS_COLUMNS_ORDER: ItemsColumnId[] = ['description', 'quantity', 'price', 'total']
+const DEFAULT_ITEMS_COLUMNS_ORDER: ItemsColumnId[] = ['description', 'quantity', 'price', 'tax', 'discount', 'total']
 
 interface TemplateData {
     // Template metadata
@@ -108,6 +108,8 @@ interface TemplateData {
     showItemDescription: boolean
     showItemQuantity: boolean
     showItemPrice: boolean
+    showItemTax: boolean
+    showItemDiscount: boolean
     showItemTotal: boolean
 
     // Totals Section
@@ -179,6 +181,8 @@ export default function CustomTemplateBuilder({ open, onClose, onSave, isFullPag
         showItemDescription: true,
         showItemQuantity: true,
         showItemPrice: true,
+        showItemTax: true,
+        showItemDiscount: true,
         showItemTotal: true,
 
         showSubtotal: true,
@@ -187,7 +191,7 @@ export default function CustomTemplateBuilder({ open, onClose, onSave, isFullPag
         taxLabel: 'Tax',
         showTotal: true,
         totalLabel: 'Total',
-        showDiscount: false,
+        showDiscount: true,
         discountLabel: 'Discount',
 
         footerNotes: '',
@@ -338,11 +342,11 @@ export default function CustomTemplateBuilder({ open, onClose, onSave, isFullPag
             : DEFAULT_HEADER_META_ORDER
 
         const buildHeaderMetaHTML = () => {
-            return headerMetaOrder
+            const items = headerMetaOrder
                 .map((moduleId) => {
                     if (moduleId === 'receiptNumber' && data.showReceiptNumber) {
                         return `
-      <div class="meta-item">
+      <div class="meta-item" style="flex: 1; text-align: center;">
         <span class="meta-label">${data.receiptNumberLabel}:</span>
         <span class="meta-value">{{RECEIPT_ID}}</span>
       </div>
@@ -350,7 +354,7 @@ export default function CustomTemplateBuilder({ open, onClose, onSave, isFullPag
                     }
                     if (moduleId === 'date' && data.showDate) {
                         return `
-      <div class="meta-item">
+      <div class="meta-item" style="flex: 1; text-align: center;">
         <span class="meta-label">${data.dateLabel}:</span>
         <span class="meta-value">{{DATE}}</span>
       </div>
@@ -358,7 +362,7 @@ export default function CustomTemplateBuilder({ open, onClose, onSave, isFullPag
                     }
                     if (moduleId === 'dueDate' && data.showDueDate) {
                         return `
-      <div class="meta-item">
+      <div class="meta-item" style="flex: 1; text-align: center;">
         <span class="meta-label">${data.dueDateLabel}:</span>
         <span class="meta-value">{{DUE_DATE}}</span>
       </div>
@@ -366,7 +370,11 @@ export default function CustomTemplateBuilder({ open, onClose, onSave, isFullPag
                     }
                     return ''
                 })
-                .join('')
+                .filter(Boolean)
+            
+            if (items.length === 0) return ''
+            
+            return `<div style="display: flex; width: 100%;">${items.join('')}</div>`
         }
 
         let headerAndClientHTML: string
@@ -406,7 +414,6 @@ export default function CustomTemplateBuilder({ open, onClose, onSave, isFullPag
         ` : ''}
         <!-- Receipt Meta Information -->
         <div class="receipt-meta receipt-meta--compact">
-          <div class="receipt-title">Receipt</div>
           ${buildHeaderMetaHTML()}
         </div>
       </div>
@@ -415,10 +422,13 @@ export default function CustomTemplateBuilder({ open, onClose, onSave, isFullPag
         } else if (headerStyle === 'top-strip') {
             headerAndClientHTML = `
     <!-- Compact Receipt Strip -->
-    <div class="receipt-strip">
-      <div class="receipt-strip-title">Receipt</div>
-      <div class="receipt-strip-meta">
-        ${buildHeaderMetaHTML()}
+    <div class="receipt-strip" style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
+      <div style="flex: 1; text-align: left;">
+        ${data.showReceiptNumber ? `<span>${data.receiptNumberLabel}: {{RECEIPT_ID}}</span>` : ''}
+      </div>
+      <div style="flex: 1; display: flex; justify-content: flex-end; gap: 16px;">
+        ${data.showDate ? `<span>${data.dateLabel}: {{DATE}}</span>` : ''}
+        ${data.showDueDate ? `<span>${data.dueDateLabel}: {{DUE_DATE}}</span>` : ''}
       </div>
     </div>
 
@@ -475,7 +485,6 @@ export default function CustomTemplateBuilder({ open, onClose, onSave, isFullPag
       
       <!-- Receipt Meta Information -->
       <div class="receipt-meta">
-        <div class="receipt-title">Receipt</div>
         ${buildHeaderMetaHTML()}
       </div>
     </div>
@@ -495,14 +504,40 @@ export default function CustomTemplateBuilder({ open, onClose, onSave, isFullPag
         }
 
         // Build body sections based on layout preset
-        const itemsColumnsOrder = data.itemsColumnsOrder && data.itemsColumnsOrder.length
+        const normalizeItemsColumnsOrder = (cols: ItemsColumnId[]) => {
+            if (!cols.length) return cols
+            const unique = Array.from(new Set(cols))
+            const qIndex = unique.indexOf('quantity')
+            const pIndex = unique.indexOf('price')
+            if (qIndex === -1 || pIndex === -1) return unique
+            const step1: ItemsColumnId[] = pIndex === qIndex + 1
+                ? unique
+                : (() => {
+                    const next: ItemsColumnId[] = unique.filter((c) => c !== 'price') as ItemsColumnId[]
+                    const qIndexNext = next.indexOf('quantity')
+                    next.splice(qIndexNext + 1, 0, 'price')
+                    return next
+                })()
+
+            const desired: ItemsColumnId[] = ['description', 'quantity', 'price', 'tax', 'discount', 'total']
+            const inDesired = step1.filter((c) => desired.includes(c))
+            const ordered = desired.filter((c) => inDesired.includes(c))
+            const extras = step1.filter((c) => !desired.includes(c))
+            return [...ordered, ...extras] as ItemsColumnId[]
+        }
+
+        const itemsColumnsOrderRaw = data.itemsColumnsOrder && data.itemsColumnsOrder.length
             ? data.itemsColumnsOrder
             : DEFAULT_ITEMS_COLUMNS_ORDER
+
+        const itemsColumnsOrder = normalizeItemsColumnsOrder(itemsColumnsOrderRaw)
 
         const visibleItemsColumns = itemsColumnsOrder.filter((colId) => {
             if (colId === 'description') return data.showItemDescription
             if (colId === 'quantity') return data.showItemQuantity
             if (colId === 'price') return data.showItemPrice
+            if (colId === 'tax') return data.showItemTax
+            if (colId === 'discount') return data.showItemDiscount
             if (colId === 'total') return data.showItemTotal
             return false
         })
@@ -511,7 +546,9 @@ export default function CustomTemplateBuilder({ open, onClose, onSave, isFullPag
             .map((colId) => {
                 if (colId === 'description') return '<th>Description</th>'
                 if (colId === 'quantity') return '<th class="text-center">Quantity</th>'
-                if (colId === 'price') return '<th class="text-right">Price</th>'
+                if (colId === 'price') return '<th class="text-right">Unit Price</th>'
+                if (colId === 'tax') return '<th class="text-right">Tax</th>'
+                if (colId === 'discount') return '<th class="text-right">Discount</th>'
                 if (colId === 'total') return '<th class="text-right">Total</th>'
                 return ''
             })
@@ -554,33 +591,31 @@ export default function CustomTemplateBuilder({ open, onClose, onSave, isFullPag
                     return `
         <div class="total-row subtotal">
           <span class="total-label">${data.subtotalLabel}</span>
-          <span class="total-value">{{SUBTOTAL}}</span>
+          <span class="total-value">৳ {{SUBTOTAL}}</span>
         </div>
         `
                 }
                 if (moduleId === 'discount' && data.showDiscount) {
                     return `
         <div class="total-row discount">
-          <span class="total-label">${data.discountLabel} <span style="font-size: 12px; color: #6b7280; font-weight: 500;">{{DISCOUNT_META}}</span></span>
-          <span class="total-value">{{DISCOUNT}}</span>
+          <span class="total-label">Total ${data.discountLabel}</span>
+          <span class="total-value">৳ {{TOTAL_DISCOUNT}}</span>
         </div>
-        {{ITEMS_DISCOUNT}}
         `
                 }
                 if (moduleId === 'tax' && data.showTax) {
                     return `
         <div class="total-row tax">
-          <span class="total-label">${data.taxLabel} <span style="font-size: 12px; color: #6b7280; font-weight: 500;">{{TAX_META}}</span></span>
-          <span class="total-value">{{TAX}}</span>
+          <span class="total-label">Total ${data.taxLabel}</span>
+          <span class="total-value">৳ {{TOTAL_TAX}}</span>
         </div>
-        {{ITEMS_TAX}}
         `
                 }
                 if (moduleId === 'total' && data.showTotal) {
                     return `
         <div class="total-row final">
           <span class="total-label">${data.totalLabel}</span>
-          <span class="total-value">{{TOTAL}}</span>
+          <span class="total-value">৳ {{TOTAL}}</span>
         </div>
         `
                 }
@@ -894,6 +929,10 @@ export default function CustomTemplateBuilder({ open, onClose, onSave, isFullPag
     
     .items-table td.text-center {
       text-align: center;
+    }
+    
+    .items-table tbody tr:nth-child(even) {
+      background-color: #f9fafb;
     }
     
     .item-description {
@@ -1509,6 +1548,26 @@ export default function CustomTemplateBuilder({ open, onClose, onSave, isFullPag
                                                             className="h-4 w-4"
                                                         />
                                                         <span className="text-sm text-gray-900">Unit Price Column</span>
+                                                    </div>
+
+                                                    <div className="flex items-center gap-3 cursor-pointer">
+                                                        <Checkbox
+                                                            id="show-item-tax"
+                                                            checked={data.showItemTax}
+                                                            onCheckedChange={checked => updateData('showItemTax', !!checked)}
+                                                            className="h-4 w-4"
+                                                        />
+                                                        <span className="text-sm text-gray-900">Tax Column</span>
+                                                    </div>
+
+                                                    <div className="flex items-center gap-3 cursor-pointer">
+                                                        <Checkbox
+                                                            id="show-item-discount"
+                                                            checked={data.showItemDiscount}
+                                                            onCheckedChange={checked => updateData('showItemDiscount', !!checked)}
+                                                            className="h-4 w-4"
+                                                        />
+                                                        <span className="text-sm text-gray-900">Discount Column</span>
                                                     </div>
 
                                                     <div className="flex items-center gap-3 cursor-pointer">

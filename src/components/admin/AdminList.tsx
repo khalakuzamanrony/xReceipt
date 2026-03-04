@@ -6,11 +6,13 @@ import AdminForm from './AdminForm'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/Dialog'
-import { Plus, Edit, Trash2, AlertCircle, Users, Search, Key } from 'lucide-react'
+import { Plus, Edit, Trash2, AlertCircle, Users, Search, Key, Funnel, X } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { useVendor } from '@/contexts/VendorContext'
+import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
 import { supabase } from '@/lib/supabase'
 import { useToast } from '@/contexts/ToastContext'
+import { cn } from '@/lib/utils'
 
 export default function AdminList() {
   const { role, user } = useAuth()
@@ -236,10 +238,12 @@ export default function AdminList() {
     }
   }
 
-  const handleFormClose = () => {
+  const handleFormClose = (saved?: boolean) => {
     setShowForm(false)
     setSelectedAdmin(null)
-    loadAdmins()
+    if (saved) {
+      loadAdmins()
+    }
   }
 
   const handleSendResetEmailForAdmin = (admin: User) => {
@@ -389,11 +393,20 @@ export default function AdminList() {
     )
   }
 
+  const getActiveFiltersCount = () => {
+    return roleFilter !== 'all' ? 1 : 0
+  }
+
+  const clearAllFilters = () => {
+    setRoleFilter('all')
+    setSearchTerm('')
+  }
+
   return (
     <div className="space-y-4">
-      {/* Header with Title and Search */}
-      <div className="bg-white p-4 rounded-lg border border-gray-200 space-y-4">
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+      {/* Header with Title and Filters */}
+      <div className="bg-white p-4 rounded-lg border border-gray-200">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
           <div>
             <h1 className="text-2xl font-bold text-gray-900">{isGrandUserView ? 'Users' : 'Admins'}</h1>
             <p className="text-sm text-gray-500 mt-1">
@@ -403,55 +416,139 @@ export default function AdminList() {
             </p>
           </div>
 
-          {/* Search + Add Button */}
-          <div className="w-full sm:w-auto flex flex-col sm:flex-row gap-3 sm:items-center">
-            <div className="flex-1 sm:w-64 bg-white rounded-lg border border-gray-200 h-9 px-3 flex items-center gap-2">
-              <Search size={18} className="text-gray-400" />
+          {/* Search and Filters */}
+          <div className="flex flex-col sm:flex-row gap-3 sm:items-center">
+            {/* Search Input */}
+            <div className="relative">
+              <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
               <Input
                 type="text"
-                placeholder={isGrandUserView ? 'Search users by name or email...' : 'Search admins by name or email...'}
+                placeholder={isGrandUserView ? 'Search users...' : 'Search admins...'}
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="flex-1 h-9 border-0 focus:ring-0 px-0 py-0 text-sm"
+                className="pl-9 h-10 w-full sm:w-64 border-gray-200 rounded-full text-sm focus:ring-2 focus:ring-violet-500 focus:border-transparent"
               />
-            </div>
-
-            <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 sm:items-center">
-              {isGrandUserView && (
-                <div className="inline-flex rounded-lg border border-gray-200 bg-gray-50 p-0.5 text-xs">
-                  {[
-                    { id: 'all', label: 'All' },
-                    { id: 'grand_user', label: 'Grand Users' },
-                    { id: 'super_admin', label: 'Super Admins' },
-                    { id: 'admin', label: 'Admins' },
-                  ].map((option) => (
-                    <button
-                      key={option.id}
-                      type="button"
-                      onClick={() => setRoleFilter(option.id as any)}
-                      className={`px-2.5 py-1 rounded-md font-medium transition-colors ${
-                        roleFilter === option.id
-                          ? 'bg-white text-blue-600 shadow-sm'
-                          : 'text-gray-600 hover:text-gray-900'
-                      }`}
-                    >
-                      {option.label}
-                    </button>
-                  ))}
-                </div>
+              {searchTerm && (
+                <button
+                  onClick={() => setSearchTerm('')}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                >
+                  <X size={14} />
+                </button>
               )}
-
-              <Button
-                onClick={handleAddNew}
-                size="sm"
-                disabled={!activeVendorId}
-              >
-                <Plus size={16} />
-                {isGrandUserView ? 'Add User' : 'Add Admin'}
-              </Button>
             </div>
+
+            {/* Role Filter Dropdown (for Grand Users) */}
+            {isGrandUserView && (
+              <DropdownMenu.Root>
+                <DropdownMenu.Trigger asChild>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className={cn(
+                      'h-10 px-4 rounded-lg border-gray-200 flex items-center gap-2 transition-all',
+                      getActiveFiltersCount() > 0
+                        ? 'bg-violet-50 border-violet-200 text-violet-700'
+                        : 'bg-white text-gray-700 hover:bg-gray-50'
+                    )}
+                  >
+                    <Funnel className="h-4 w-4" />
+                    <span className="text-sm font-medium">Role</span>
+                    {getActiveFiltersCount() > 0 && (
+                      <span className="ml-1 px-1.5 py-0.5 bg-violet-600 text-white text-[10px] font-semibold rounded-full">
+                        {getActiveFiltersCount()}
+                      </span>
+                    )}
+                  </Button>
+                </DropdownMenu.Trigger>
+                <DropdownMenu.Portal>
+                  <DropdownMenu.Content className="min-w-[280px] rounded-xl border border-gray-200 bg-white shadow-xl p-4 mr-2 mt-2 z-50 space-y-4">
+                    <div>
+                      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">User Role</p>
+                      <div className="flex flex-col gap-1">
+                        {[
+                          { id: 'all', label: 'All users' },
+                          { id: 'grand_user', label: 'Grand Users' },
+                          { id: 'super_admin', label: 'Super Admins' },
+                          { id: 'admin', label: 'Admins' },
+                        ].map((option) => (
+                          <button
+                            key={option.id}
+                            type="button"
+                            onClick={() => setRoleFilter(option.id as any)}
+                            className={cn(
+                              'w-full text-left px-3 py-2 rounded-lg text-xs font-medium transition-colors',
+                              roleFilter === option.id
+                                ? 'bg-violet-50 text-violet-700'
+                                : 'text-gray-600 hover:bg-gray-50'
+                            )}
+                          >
+                            {option.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Footer */}
+                    <div className="pt-3 border-t border-gray-100 flex justify-between items-center">
+                      <span className="text-xs text-gray-400">
+                        {getActiveFiltersCount()} active {getActiveFiltersCount() === 1 ? 'filter' : 'filters'}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={clearAllFilters}
+                        className="text-xs font-medium text-violet-600 hover:text-violet-700 transition-colors"
+                      >
+                        Clear all
+                      </button>
+                    </div>
+                  </DropdownMenu.Content>
+                </DropdownMenu.Portal>
+              </DropdownMenu.Root>
+            )}
+
+            {/* Add Button */}
+            <Button
+              onClick={handleAddNew}
+              size="sm"
+              disabled={!activeVendorId}
+              className="h-10 rounded-lg"
+            >
+              <Plus size={16} className="mr-1" />
+              {isGrandUserView ? 'Add User' : 'Add Admin'}
+            </Button>
           </div>
         </div>
+
+        {/* Active Filter Pills */}
+        {(roleFilter !== 'all' || searchTerm) && (
+          <div className="flex flex-wrap items-center gap-2 mt-4 pt-4 border-t border-gray-100">
+            <span className="text-xs text-gray-500 mr-1">Active filters:</span>
+            {searchTerm && (
+              <span className="inline-flex items-center gap-1 px-3 py-1 bg-gray-100 text-gray-700 text-xs font-medium rounded-full">
+                Search: "{searchTerm}"
+                <button onClick={() => setSearchTerm('')} className="hover:text-gray-900">
+                  <X size={12} />
+                </button>
+              </span>
+            )}
+            {roleFilter !== 'all' && (
+              <span className="inline-flex items-center gap-1 px-3 py-1 bg-violet-100 text-violet-700 text-xs font-medium rounded-full">
+                Role: {roleFilter === 'grand_user' ? 'Grand User' : roleFilter === 'super_admin' ? 'Super Admin' : 'Admin'}
+                <button onClick={() => setRoleFilter('all')} className="hover:text-violet-900">
+                  <X size={12} />
+                </button>
+              </span>
+            )}
+            <button
+              onClick={clearAllFilters}
+              className="text-xs font-medium text-gray-500 hover:text-gray-700 ml-1"
+            >
+              Clear all
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Error Message */}
