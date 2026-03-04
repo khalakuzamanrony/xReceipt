@@ -152,18 +152,30 @@ export default function ReceiptPreviewModal({
       | 'price'
       | 'total'
 
-    const ensureTaxDiscountAfterQuantity = (cols: ItemCol[]): ItemCol[] => {
-      const without = cols.filter(
-        (c): c is Exclude<ItemCol, 'tax' | 'discount'> => c !== 'tax' && c !== 'discount'
-      )
-      const qIndex = without.indexOf('quantity')
-      const result: ItemCol[] = [...without]
-      if (qIndex !== -1) {
-        result.splice(qIndex + 1, 0, 'tax', 'discount')
-        return result
+    const normalizeItemsColumns = (cols: ItemCol[]): ItemCol[] => {
+      if (!cols.length) return cols
+
+      const unique: ItemCol[] = Array.from(new Set(cols)) as ItemCol[]
+
+      const has = (c: ItemCol) => unique.includes(c)
+      const extrasBeforeQty: ItemCol[] = []
+      if (has('imei_or_model')) extrasBeforeQty.push('imei_or_model')
+      if (has('color')) extrasBeforeQty.push('color')
+
+      const normalized: ItemCol[] = []
+      if (has('description')) normalized.push('description')
+      normalized.push(...extrasBeforeQty)
+      if (has('quantity')) normalized.push('quantity')
+      if (has('price')) normalized.push('price')
+      if (has('tax')) normalized.push('tax')
+      if (has('discount')) normalized.push('discount')
+      if (has('total')) normalized.push('total')
+
+      for (const c of unique) {
+        if (!normalized.includes(c)) normalized.push(c)
       }
-      result.push('tax', 'discount')
-      return result
+
+      return normalized
     }
 
     const injectItemsHeaderColumns = (
@@ -185,9 +197,16 @@ export default function ReceiptPreviewModal({
       const discountTh = '<th class="text-right">Discount</th>'
       let updatedHeaderRowInner = headerRowInner
 
+      const unitPriceThRegex = /(<th[^>]*>[\s\S]*?(Unit\s*Price|Price)[\s\S]*?<\/th>)/i
       const quantityThRegex = /(<th[^>]*>[\s\S]*?(Quantity|Qty)[\s\S]*?<\/th>)/i
+
+      const unitMatch = headerRowInner.match(unitPriceThRegex)
       const qtyMatch = headerRowInner.match(quantityThRegex)
-      if (qtyMatch) {
+
+      if (unitMatch) {
+        const insertion = `${unitMatch[1]}${hasTaxHeader ? '' : taxTh}${hasDiscountHeader ? '' : discountTh}`
+        updatedHeaderRowInner = headerRowInner.replace(unitPriceThRegex, insertion)
+      } else if (qtyMatch) {
         const insertion = `${qtyMatch[1]}${hasTaxHeader ? '' : taxTh}${hasDiscountHeader ? '' : discountTh}`
         updatedHeaderRowInner = headerRowInner.replace(quantityThRegex, insertion)
       } else {
@@ -222,7 +241,10 @@ export default function ReceiptPreviewModal({
       }
     }
 
-    itemsColumns = ensureTaxDiscountAfterQuantity(itemsColumns)
+    if (!itemsColumns.includes('tax')) itemsColumns.push('tax')
+    if (!itemsColumns.includes('discount')) itemsColumns.push('discount')
+
+    itemsColumns = normalizeItemsColumns(itemsColumns)
     if (itemsColumnsMatch) {
       templateHtml = templateHtml.replace(itemsColumnsMatch[0], `data-items-columns="${itemsColumns.join(',')}"`)
       templateHtml = injectItemsHeaderColumns(templateHtml, itemsColumns)
@@ -233,18 +255,10 @@ export default function ReceiptPreviewModal({
     if (receipt.items && receipt.items.length > 0) {
       const hasDedicatedImeiColumn = itemsColumns.includes('imei_or_model')
       const hasDedicatedColorColumn = itemsColumns.includes('color')
-      const hasDedicatedDiscountColumn = itemsColumns.includes('discount')
-      const hasDedicatedTaxColumn = itemsColumns.includes('tax')
 
       itemsHTML = receipt.items
         .map((item: any) => {
-          const { lineDiscount, lineTax, lineTotal, taxEnabled, taxPercentage, discountType, discountValue } = getItemTotals(item)
-          const discountMetaForItem =
-            discountType === 'percentage'
-              ? `${clampPercent(discountValue).toFixed(2)}%`
-              : discountType === 'flat'
-                ? `৳${Math.max(0, Math.floor(discountValue)).toFixed(0)}/unit`
-                : ''
+          const { lineDiscount, lineTax, lineTotal, taxEnabled, taxPercentage } = getItemTotals(item)
 
           const cells = itemsColumns
             .map((col) => {
@@ -255,12 +269,6 @@ export default function ReceiptPreviewModal({
                 }
                 if (!hasDedicatedColorColumn && item.color) {
                   metaParts.push(`Color: ${item.color}`)
-                }
-                if (!hasDedicatedDiscountColumn && item.discount_enabled === true) {
-                  metaParts.push(`Discount: ${discountMetaForItem} (-৳${lineDiscount.toFixed(2)})`)
-                }
-                if (!hasDedicatedTaxColumn) {
-                  metaParts.push(taxEnabled ? `Tax: ${taxPercentage.toFixed(2)}% (+৳${lineTax.toFixed(2)})` : 'Tax: Off')
                 }
                 const metaHtml = metaParts.length
                   ? `<div style="margin-top: 2px; font-size: 11px; color: #666; line-height: 1.35;">${metaParts.join('<br/>')}</div>`
@@ -329,7 +337,7 @@ export default function ReceiptPreviewModal({
     const companyName = receipt.company_name || 'xReceipt'
 
     let html = templateHtml
-      .replace(/{{RECEIPT_ID}}/g, receipt.id)
+      .replace(/{{RECEIPT_ID}}/g, receipt.receipt_number || receipt.id)
       .replace(/{{DATE}}/g, new Date(receipt.created_at).toLocaleDateString())
       .replace(/{{DUE_DATE}}/g, '')
       .replace(/{{CUSTOMER_NAME}}/g, receipt.customer_name || '')
@@ -358,10 +366,64 @@ export default function ReceiptPreviewModal({
       .replace(/{{COMPANY_EMAIL}}/g, 'info@xreceipt.com')
       .replace(/{{FOOTER_MESSAGE}}/g, 'Thank you for your business!')
 
+    html = html.replace(/<div\s+class="total-row\s+items-total"[\s\S]*?<\/div>/gi, '')
+
     // Hide tax row if no taxable items
     if (!hasTaxableItems) {
       html = html.replace(/Tax\s*\([^)]*\):[^<]*<[^>]*>[^<]*<\/[^>]*>/g, '')
     }
+
+    const normalizeReceiptStrip = (raw: string) => {
+      const stripMatch = raw.match(/<div\s+class=\"receipt-strip\"[^>]*>[\s\S]*?<\/div>/i)
+      if (!stripMatch) return raw
+
+      const stripHtml = stripMatch[0]
+      const metaMatch = stripHtml.match(
+        /<div\s+class=\"receipt-strip-meta\"[^>]*>([\s\S]*?)<\/div>/i,
+      )
+      if (!metaMatch) return raw
+
+      const metaHtml = metaMatch[1]
+      const metaItems = metaHtml
+        .match(/<div\s+class=\"meta-item\"[\s\S]*?<\/div>/gi)
+        ?.slice(0, 3)
+
+      if (!metaItems || metaItems.length === 0) return raw
+
+      const toSpan = (divHtml: string) => {
+        const inner = divHtml
+          .replace(/^<div[^>]*>/i, '')
+          .replace(/<\/div>$/i, '')
+        return `<span style=\"white-space:nowrap\">${inner}</span>`
+      }
+
+      const leftMeta = toSpan(metaItems[0])
+      const rightMeta = metaItems.slice(1).map(toSpan).join('<span style="width:16px;display:inline-block"></span>')
+
+      const normalizedStrip = `
+<div class=\"receipt-strip\" style=\"display:flex;justify-content:space-between;align-items:center;width:100%\">
+  <div style=\"flex:1;text-align:left;white-space:nowrap\">
+    <span style=\"font-weight:bold;color:#2563eb;\">RECEIPT</span>
+    <span style=\"margin-left:8px;\">${leftMeta}</span>
+  </div>
+  <div style=\"flex:1;text-align:right;white-space:nowrap\">${rightMeta}</div>
+</div>`
+
+      return raw.replace(stripHtml, normalizedStrip)
+    }
+
+    html = normalizeReceiptStrip(html)
+
+    const previewCss =
+      '<style>html,body{margin:0;padding:0;overflow-x:hidden;overflow-y:auto}.items-table tbody tr:nth-child(even){background-color:#f9fafb}table tbody tr:nth-child(even){background-color:#f9fafb}</style>'
+
+    if (/<head[^>]*>/i.test(html)) {
+      html = html.replace(/<head[^>]*>/i, (match) => `${match}${previewCss}`)
+    } else {
+      html = `${previewCss}${html}`
+    }
+
+    html = `<div style="width: 794px; max-width: none; min-width: 794px; margin: 0 auto; box-sizing: border-box; overflow-x: hidden;">${html}</div>`
 
     return html
   }
@@ -399,7 +461,7 @@ export default function ReceiptPreviewModal({
       const imgWidth = 210
       const imgHeight = (canvas.height * imgWidth) / canvas.width
       pdf.addImage(imgData, 'PNG', 0, 0, imgWidth, imgHeight)
-      pdf.save(`receipt-${receipt.id}.pdf`)
+      pdf.save(`receipt-${receipt.receipt_number || receipt.id}.pdf`)
     } catch (error) {
       console.error('Failed to download PDF:', error)
     } finally {
@@ -453,7 +515,7 @@ export default function ReceiptPreviewModal({
 
       const link = document.createElement('a')
       link.href = canvas.toDataURL('image/png')
-      link.download = `receipt-${receipt.id}.png`
+      link.download = `receipt-${receipt.receipt_number || receipt.id}.png`
       link.click()
     } catch (error) {
       console.error('Failed to download PNG:', error)
@@ -473,13 +535,16 @@ export default function ReceiptPreviewModal({
         </DialogHeader>
 
         <div className="flex-1 min-h-0 overflow-auto bg-white">
-          <iframe
-            ref={iframeRef}
-            title="Receipt preview"
-            className="w-full h-full border-0 bg-white"
-            srcDoc={getPreviewHTML()}
-            onLoad={() => setIframeLoaded(true)}
-          />
+          <div className="flex justify-center min-w-fit">
+            <iframe
+              ref={iframeRef}
+              title="Receipt preview"
+              className="border-0 bg-white block flex-shrink-0"
+              style={{ minHeight: '600px', width: '794px', overflowX: 'hidden', overflowY: 'auto' }}
+              srcDoc={getPreviewHTML()}
+              onLoad={() => setIframeLoaded(true)}
+            />
+          </div>
         </div>
 
         <div className="px-6 py-3 border-t border-gray-200 bg-white flex justify-end gap-2">

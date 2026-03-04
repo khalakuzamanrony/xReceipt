@@ -213,18 +213,31 @@ export default function ReceiptDetailsPage({ receiptId, onBack }: ReceiptDetails
       | 'price'
       | 'total'
 
-    const ensureTaxDiscountAfterQuantity = (cols: ItemCol[]): ItemCol[] => {
-      const without = cols.filter(
-        (c): c is Exclude<ItemCol, 'tax' | 'discount'> => c !== 'tax' && c !== 'discount'
-      )
-      const qIndex = without.indexOf('quantity')
-      const result: ItemCol[] = [...without]
-      if (qIndex !== -1) {
-        result.splice(qIndex + 1, 0, 'tax', 'discount')
-        return result
+    const normalizeItemsColumns = (cols: ItemCol[]): ItemCol[] => {
+      if (!cols.length) return cols
+
+      const unique: ItemCol[] = Array.from(new Set(cols)) as ItemCol[]
+
+      const has = (c: ItemCol) => unique.includes(c)
+      const extrasBeforeQty: ItemCol[] = []
+      if (has('imei_or_model')) extrasBeforeQty.push('imei_or_model')
+      if (has('color')) extrasBeforeQty.push('color')
+
+      const normalized: ItemCol[] = []
+      if (has('description')) normalized.push('description')
+      normalized.push(...extrasBeforeQty)
+      if (has('quantity')) normalized.push('quantity')
+      if (has('price')) normalized.push('price')
+      if (has('tax')) normalized.push('tax')
+      if (has('discount')) normalized.push('discount')
+      if (has('total')) normalized.push('total')
+
+      // Append any remaining known columns not covered above (defensive)
+      for (const c of unique) {
+        if (!normalized.includes(c)) normalized.push(c)
       }
-      result.push('tax', 'discount')
-      return result
+
+      return normalized
     }
 
     const injectItemsHeaderColumns = (html: string, cols: ItemCol[]) => {
@@ -243,9 +256,16 @@ export default function ReceiptDetailsPage({ receiptId, onBack }: ReceiptDetails
       const discountTh = '<th class="text-right">Discount</th>'
       let updatedHeaderRowInner = headerRowInner
 
+      const unitPriceThRegex = /(<th[^>]*>[\s\S]*?(Unit\s*Price|Price)[\s\S]*?<\/th>)/i
       const quantityThRegex = /(<th[^>]*>[\s\S]*?(Quantity|Qty)[\s\S]*?<\/th>)/i
+
+      const unitMatch = headerRowInner.match(unitPriceThRegex)
       const qtyMatch = headerRowInner.match(quantityThRegex)
-      if (qtyMatch) {
+
+      if (unitMatch) {
+        const insertion = `${unitMatch[1]}${hasTaxHeader ? '' : taxTh}${hasDiscountHeader ? '' : discountTh}`
+        updatedHeaderRowInner = headerRowInner.replace(unitPriceThRegex, insertion)
+      } else if (qtyMatch) {
         const insertion = `${qtyMatch[1]}${hasTaxHeader ? '' : taxTh}${hasDiscountHeader ? '' : discountTh}`
         updatedHeaderRowInner = headerRowInner.replace(quantityThRegex, insertion)
       } else {
@@ -280,7 +300,10 @@ export default function ReceiptDetailsPage({ receiptId, onBack }: ReceiptDetails
       }
     }
 
-    itemsColumns = ensureTaxDiscountAfterQuantity(itemsColumns)
+    if (!itemsColumns.includes('tax')) itemsColumns.push('tax')
+    if (!itemsColumns.includes('discount')) itemsColumns.push('discount')
+
+    itemsColumns = normalizeItemsColumns(itemsColumns)
     if (itemsColumnsMatch) {
       templateHtml = templateHtml.replace(itemsColumnsMatch[0], `data-items-columns="${itemsColumns.join(',')}"`)
       templateHtml = injectItemsHeaderColumns(templateHtml, itemsColumns)
@@ -290,18 +313,10 @@ export default function ReceiptDetailsPage({ receiptId, onBack }: ReceiptDetails
     if (receipt.items && receipt.items.length > 0) {
       const hasDedicatedImeiColumn = itemsColumns.includes('imei_or_model')
       const hasDedicatedColorColumn = itemsColumns.includes('color')
-      const hasDedicatedDiscountColumn = itemsColumns.includes('discount')
-      const hasDedicatedTaxColumn = itemsColumns.includes('tax')
 
       itemsHTML = (receipt.items as any[])
         .map((item) => {
-          const { lineDiscount, lineTax, lineTotal, taxEnabled, taxPercentage, discountType, discountValue } = getItemTotals(item)
-          const discountMetaForItem =
-            discountType === 'percentage'
-              ? `${clampPercent(discountValue).toFixed(2)}%`
-              : discountType === 'flat'
-                ? `৳${Math.max(0, Math.floor(discountValue)).toFixed(0)}/unit`
-                : ''
+          const { lineDiscount, lineTax, lineTotal, taxEnabled } = getItemTotals(item)
 
           const cells = itemsColumns
             .map((col) => {
@@ -312,12 +327,6 @@ export default function ReceiptDetailsPage({ receiptId, onBack }: ReceiptDetails
                 }
                 if (!hasDedicatedColorColumn && item.color) {
                   metaParts.push(`Color: ${item.color}`)
-                }
-                if (!hasDedicatedDiscountColumn && item.discount_enabled === true) {
-                  metaParts.push(`Discount: ${discountMetaForItem} (-৳${lineDiscount.toFixed(2)})`)
-                }
-                if (!hasDedicatedTaxColumn) {
-                  metaParts.push(taxEnabled ? `Tax: ${taxPercentage.toFixed(2)}% (+৳${lineTax.toFixed(2)})` : 'Tax: Off')
                 }
                 const metaHtml = metaParts.length
                   ? `<div style="margin-top: 2px; font-size: 11px; color: #666; line-height: 1.35;">${metaParts.join('<br/>')}</div>`
@@ -371,8 +380,10 @@ export default function ReceiptDetailsPage({ receiptId, onBack }: ReceiptDetails
 
     const companyName = receipt.company_name || 'Company Name'
 
+    const displayReceiptId = receipt.receipt_number || receipt.id
+
     let html = templateHtml
-      .replace(/{{RECEIPT_ID}}/g, receipt.id)
+      .replace(/{{RECEIPT_ID}}/g, displayReceiptId)
       .replace(/{{DATE}}/g, new Date(receipt.created_at).toLocaleDateString())
       .replace(/{{DUE_DATE}}/g, '')
       .replace(/{{CUSTOMER_NAME}}/g, receipt.customer_name || '')
@@ -401,12 +412,69 @@ export default function ReceiptDetailsPage({ receiptId, onBack }: ReceiptDetails
       .replace(/{{COMPANY_EMAIL}}/g, 'contact@company.com')
       .replace(/{{FOOTER_MESSAGE}}/g, 'Thank you for your business!')
 
+    html = html.replace(/<div\s+class="total-row\s+items-total"[\s\S]*?<\/div>/gi, '')
+
     if (!hasTaxableItems) {
       html = html.replace(/Tax\s*\([^)]*\):[^<]*<[^>]*>[^<]*<\/[^>]*>/g, '')
     }
 
+    const normalizeReceiptStrip = (raw: string) => {
+      try {
+        const doc = new DOMParser().parseFromString(raw, 'text/html')
+        const strip = doc.querySelector('.receipt-strip')
+        if (!strip) return raw
+
+        const meta = strip.querySelector('.receipt-strip-meta')
+        const items = meta?.querySelectorAll('.meta-item')
+        if (!items || items.length === 0) return raw
+
+        const receiptMeta = items[0]
+        const rightMetas = Array.from(items).slice(1)
+
+        const left = doc.createElement('div')
+        left.setAttribute('style', 'flex:1;text-align:left;white-space:nowrap')
+
+        const title = doc.createElement('span')
+        title.setAttribute('style', 'font-weight:bold;color:#2563eb')
+        title.textContent = 'RECEIPT'
+
+        const spacer = doc.createElement('span')
+        spacer.setAttribute('style', 'margin-left:8px;white-space:nowrap')
+        spacer.innerHTML = receiptMeta.innerHTML
+
+        left.appendChild(title)
+        left.appendChild(spacer)
+
+        const right = doc.createElement('div')
+        right.setAttribute('style', 'flex:1;text-align:right;white-space:nowrap')
+
+        rightMetas.forEach((el, idx) => {
+          const span = doc.createElement('span')
+          span.setAttribute('style', 'white-space:nowrap')
+          span.innerHTML = el.innerHTML
+          right.appendChild(span)
+          if (idx !== rightMetas.length - 1) {
+            const gap = doc.createElement('span')
+            gap.setAttribute('style', 'width:16px;display:inline-block')
+            right.appendChild(gap)
+          }
+        })
+
+        strip.innerHTML = ''
+        strip.setAttribute('style', 'display:flex;justify-content:space-between;align-items:center;width:100%')
+        strip.appendChild(left)
+        strip.appendChild(right)
+
+        return doc.documentElement.outerHTML
+      } catch {
+        return raw
+      }
+    }
+
+    html = normalizeReceiptStrip(html)
+
     const previewCss =
-      '<style>html,body{margin:0;padding:0;overflow-x:hidden;overflow-y:auto}</style>'
+      '<style>html,body{margin:0;padding:0;overflow-x:hidden;overflow-y:auto}.items-table tbody tr:nth-child(even){background-color:#f9fafb}table tbody tr:nth-child(even){background-color:#f9fafb}</style>'
 
     if (/<head[^>]*>/i.test(html)) {
       html = html.replace(/<head[^>]*>/i, (match) => `${match}${previewCss}`)
@@ -511,7 +579,7 @@ export default function ReceiptDetailsPage({ receiptId, onBack }: ReceiptDetails
     const url = window.URL.createObjectURL(pdfBlob)
     const link = document.createElement('a')
     link.href = url
-    link.download = `receipt-${receipt?.id || 'download'}.pdf`
+    link.download = `receipt-${receipt?.receipt_number || receipt?.id || 'download'}.pdf`
     document.body.appendChild(link)
     link.click()
     link.remove()
@@ -552,7 +620,7 @@ export default function ReceiptDetailsPage({ receiptId, onBack }: ReceiptDetails
       const imgWidth = 210
       const imgHeight = (canvas.height * imgWidth) / canvas.width
       pdf.addImage(imgData, 'PNG', 0, 0, imgWidth, imgHeight)
-      pdf.save(`receipt-${receipt.id}.pdf`)
+      pdf.save(`receipt-${receipt.receipt_number || receipt.id}.pdf`)
     } catch (err) {
       setError('Failed to download PDF')
     } finally {
@@ -576,7 +644,7 @@ export default function ReceiptDetailsPage({ receiptId, onBack }: ReceiptDetails
 
       const link = document.createElement('a')
       link.href = canvas.toDataURL('image/png')
-      link.download = `receipt-${receipt.id}.png`
+      link.download = `receipt-${receipt.receipt_number || receipt.id}.png`
       link.click()
     } catch (err) {
       setError('Failed to download PNG')
@@ -626,7 +694,7 @@ export default function ReceiptDetailsPage({ receiptId, onBack }: ReceiptDetails
             <ArrowLeft size={20} />
           </button>
           <div className="flex-1">
-            <h1 className="text-xl font-bold text-gray-900">Receipt #{receipt.id.slice(0, 8)}</h1>
+            <h1 className="text-xl font-bold text-gray-900">Receipt #{receipt.receipt_number || receipt.id}</h1>
             <p className="text-sm text-gray-500">{receipt.customer_name}</p>
           </div>
           <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
@@ -691,10 +759,10 @@ export default function ReceiptDetailsPage({ receiptId, onBack }: ReceiptDetails
         </div>
       </div>
 
-      {/* Main Content: Info on left (40%), Receipt on right (60%) */}
-      <div className="grid gap-4 lg:grid-cols-[2fr_3fr] items-start">
+      {/* Main Content: Info on left (shrink), Receipt on right (max space) */}
+      <div className="grid gap-4 lg:grid-cols-[280px_1fr] items-start">
         {/* Left: Info Cards */}
-        <div className="space-y-3">
+        <div className="space-y-3 w-[280px] flex-shrink-0">
           <div className="grid grid-cols-2 md:grid-cols-2 gap-3">
             <div className="bg-white p-4 rounded-lg border border-gray-200">
               <p className="text-xs text-gray-600 font-semibold uppercase mb-2">Customer</p>
@@ -773,16 +841,18 @@ export default function ReceiptDetailsPage({ receiptId, onBack }: ReceiptDetails
           </div>
         </div>
 
-        {/* Right: Receipt Content (60% width) */}
-        <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
-          <div className="p-4 md:p-6 overflow-x-auto">
-            <iframe
-              ref={iframeRef}
-              title="Receipt preview"
-              className="border-0 rounded-md bg-white block"
-              style={{ minHeight: '600px', width: '794px', overflowX: 'hidden', overflowY: 'auto' }}
-              srcDoc={getPreviewHTML()}
-            />
+        {/* Right: Receipt Content (max space) */}
+        <div className="bg-white rounded-lg border border-gray-200 overflow-hidden min-w-0">
+          <div className="overflow-auto" style={{ maxHeight: 'calc(100vh - 200px)' }}>
+            <div className="flex justify-center min-w-fit p-4 md:p-6">
+              <iframe
+                ref={iframeRef}
+                title="Receipt preview"
+                className="border-0 rounded-md bg-white block flex-shrink-0"
+                style={{ minHeight: '600px', width: '794px', maxWidth: 'none', overflowX: 'hidden', overflowY: 'hidden' }}
+                srcDoc={getPreviewHTML()}
+              />
+            </div>
           </div>
         </div>
       </div>

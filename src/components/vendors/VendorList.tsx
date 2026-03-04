@@ -7,11 +7,9 @@ import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Label } from '@/components/ui/Label'
 import { Dialog, DialogClose, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/Dialog'
-import { Checkbox } from '@/components/ui/Checkbox'
 import { Plus, Edit, Trash2, AlertCircle, Store, Search, X } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { useVendor } from '@/contexts/VendorContext'
-import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
 import { cn } from '@/lib/utils'
 import { supabase } from '@/lib/supabase'
 import { useToast } from '@/contexts/ToastContext'
@@ -29,20 +27,9 @@ export default function VendorList() {
   const [rowsPerPage, setRowsPerPage] = useState(10)
   const [showForm, setShowForm] = useState(false)
   const [selectedVendor, setSelectedVendor] = useState<Vendor | null>(null)
-  const [showAdminsDialog, setShowAdminsDialog] = useState(false)
-  const [adminsVendor, setAdminsVendor] = useState<Vendor | null>(null)
-  const [assignedAdminIds, setAssignedAdminIds] = useState<string[]>([])
-  const [superAdminIds, setSuperAdminIds] = useState<string[]>([])
-  const [savingAdmins, setSavingAdmins] = useState(false)
   const [vendorAdminAssignments, setVendorAdminAssignments] = useState<
-    Record<string, { adminIds: string[]; superAdminIds: string[] }>
+    Record<string, { adminIds: string[] }>
   >({})
-  const [assignVendorId, setAssignVendorId] = useState<string | null>(null)
-  const [assignSearch, setAssignSearch] = useState('')
-  const [assignSelectedAdminIds, setAssignSelectedAdminIds] = useState<string[]>([])
-  const [assignSaving, setAssignSaving] = useState(false)
-  const [assignError, setAssignError] = useState<string | null>(null)
-  const [isDesktop, setIsDesktop] = useState(false)
   const [adminAvatarUrls, setAdminAvatarUrls] = useState<Record<string, string>>({})
   const [brokenAvatarAdminIds, setBrokenAvatarAdminIds] = useState<Record<string, boolean>>({})
   const [formData, setFormData] = useState({
@@ -71,23 +58,6 @@ export default function VendorList() {
 
   useEffect(() => {
     loadData()
-  }, [])
-
-  useEffect(() => {
-    const mql = window.matchMedia('(min-width: 768px)')
-    const handleChange = () => {
-      setIsDesktop(mql.matches)
-      setAssignVendorId(null)
-      setAssignSearch('')
-      setAssignSelectedAdminIds([])
-      setAssignError(null)
-    }
-
-    handleChange()
-    mql.addEventListener('change', handleChange)
-    return () => {
-      mql.removeEventListener('change', handleChange)
-    }
   }, [])
 
   const loadData = async () => {
@@ -162,17 +132,14 @@ export default function VendorList() {
         const vendorIds = vendorsData.map((v) => v.id)
         if (vendorIds.length > 0) {
           const assignments = await vendorAdminService.getAssignmentsForVendors(vendorIds)
-          const map: Record<string, { adminIds: string[]; superAdminIds: string[] }> = {}
+          const map: Record<string, { adminIds: string[] }> = {}
 
           for (const row of assignments) {
             if (!map[row.vendor_id]) {
-              map[row.vendor_id] = { adminIds: [], superAdminIds: [] }
+              map[row.vendor_id] = { adminIds: [] }
             }
             if (!map[row.vendor_id].adminIds.includes(row.admin_id)) {
               map[row.vendor_id].adminIds.push(row.admin_id)
-            }
-            if (row.is_vendor_super_admin && !map[row.vendor_id].superAdminIds.includes(row.admin_id)) {
-              map[row.vendor_id].superAdminIds.push(row.admin_id)
             }
           }
 
@@ -190,78 +157,6 @@ export default function VendorList() {
       setVendors([])
     } finally {
       setLoading(false)
-    }
-  }
-
-  const handleManageAdmins = async (vendor: Vendor) => {
-    setAdminsVendor(vendor)
-    setError(null)
-    setSavingAdmins(false)
-    try {
-      const existing = await vendorAdminService.getAdminsForVendor(vendor.id)
-      const assigned = existing.map((va) => va.admin_id)
-      const superAssigned = existing
-        .filter((va) => va.is_vendor_super_admin)
-        .map((va) => va.admin_id)
-      setAssignedAdminIds(assigned)
-      setSuperAdminIds(superAssigned)
-      setShowAdminsDialog(true)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load shop admins')
-    }
-  }
-
-  const handleToggleAssignedAdmin = (adminId: string, checked: boolean) => {
-    if (checked) {
-      if (!assignedAdminIds.includes(adminId)) {
-        setAssignedAdminIds([...assignedAdminIds, adminId])
-      }
-    } else {
-      setAssignedAdminIds(assignedAdminIds.filter((id) => id !== adminId))
-      if (superAdminIds.includes(adminId)) {
-        setSuperAdminIds(superAdminIds.filter((id) => id !== adminId))
-      }
-    }
-  }
-
-  const handleToggleSuperAdmin = (adminId: string, checked: boolean) => {
-    if (!assignedAdminIds.includes(adminId)) return
-    if (checked) {
-      if (!superAdminIds.includes(adminId)) {
-        setSuperAdminIds([...superAdminIds, adminId])
-      }
-    } else {
-      setSuperAdminIds(superAdminIds.filter((id) => id !== adminId))
-    }
-  }
-
-  const handleSaveVendorAdmins = async () => {
-    if (!adminsVendor) return
-    setSavingAdmins(true)
-    setError(null)
-    try {
-      const assignments = assignedAdminIds.map((adminId) => ({
-        admin_id: adminId,
-        is_vendor_super_admin: superAdminIds.includes(adminId),
-      }))
-      await vendorAdminService.saveAdminsForVendor(adminsVendor.id, assignments)
-
-      setVendorAdminAssignments((prev) => ({
-        ...prev,
-        [adminsVendor.id]: {
-          adminIds: assignedAdminIds,
-          superAdminIds: superAdminIds,
-        },
-      }))
-      setShowAdminsDialog(false)
-      setAdminsVendor(null)
-      toast('Shop admins saved', 'Admin assignments have been updated.', 'success')
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to save shop admins'
-      setError(message)
-      toast('Failed to save shop admins', message, 'error')
-    } finally {
-      setSavingAdmins(false)
     }
   }
 
@@ -519,48 +414,6 @@ export default function VendorList() {
       .map((part) => part.charAt(0).toUpperCase())
       .slice(0, 2)
       .join('')
-
-  const handleSaveVendorAdminAssignments = async (vendor: Vendor) => {
-    if (assignVendorId !== vendor.id) return
-
-    const current = vendorAdminAssignments[vendor.id] || { adminIds: [], superAdminIds: [] }
-    const nextAdminIds = assignSelectedAdminIds
-    const nextSuperAdminIds = current.superAdminIds.filter((id) => nextAdminIds.includes(id))
-
-    setAssignSaving(true)
-    setAssignError(null)
-    try {
-      const payload = nextAdminIds.map((id) => ({
-        admin_id: id,
-        is_vendor_super_admin: nextSuperAdminIds.includes(id),
-      }))
-      await vendorAdminService.saveAdminsForVendor(vendor.id, payload)
-
-      // Keep legacy vendors.admin_id column in sync with first assigned admin
-      const primaryAdminId = nextAdminIds[0] ?? null
-      await vendorService.updateVendor(vendor.id, { admin_id: primaryAdminId })
-      setVendors((prev) => prev.map((v) => (v.id === vendor.id ? { ...v, admin_id: primaryAdminId } : v)))
-
-      setVendorAdminAssignments((prev) => ({
-        ...prev,
-        [vendor.id]: {
-          adminIds: nextAdminIds,
-          superAdminIds: nextSuperAdminIds,
-        },
-      }))
-
-      setAssignVendorId(null)
-      setAssignSelectedAdminIds([])
-      setAssignSearch('')
-      toast('Assignments updated', 'Assigned admins have been updated.', 'success')
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to update assigned admins'
-      setAssignError(message)
-      toast('Failed to update assignments', message, 'error')
-    } finally {
-      setAssignSaving(false)
-    }
-  }
 
   if (loading) {
     return (
@@ -909,39 +762,60 @@ export default function VendorList() {
     <div className="space-y-4">
       {/* Header with Title and Buttons */}
       <div className="bg-white p-4 rounded-lg border border-gray-200">
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
           <div>
             <h1 className="text-2xl font-bold text-gray-900">Shops</h1>
             <p className="text-sm text-gray-500 mt-1">Manage shops and their assigned admins</p>
           </div>
 
           {/* Search Bar */}
-          <div className="w-full sm:w-auto flex flex-col sm:flex-row gap-3 sm:items-center">
-            <div className="flex-1 sm:w-64 bg-white rounded-lg border border-gray-200 h-9 px-3 flex items-center gap-2">
-              <Search size={18} className="text-gray-400" />
+          <div className="flex flex-col sm:flex-row gap-3 sm:items-center">
+            <div className="relative">
+              <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
               <Input
                 type="text"
                 placeholder="Search shops..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="flex-1 h-9 border-0 focus:ring-0 px-0 py-0 text-sm"
+                className="pl-9 h-10 w-full sm:w-64 border-gray-200 rounded-full text-sm focus:ring-2 focus:ring-violet-500 focus:border-transparent"
               />
+              {searchTerm && (
+                <button
+                  onClick={() => setSearchTerm('')}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                >
+                  <X size={14} />
+                </button>
+              )}
             </div>
 
-            {/* Add Button - only for Grand Users */}
             {isGrandUser && (
               <Button
                 onClick={handleAddNew}
                 size="sm"
-                disabled={Boolean(activeVendorId)}
+                disabled={!!activeVendorId}
+                className="h-10 rounded-lg"
                 title={activeVendorId ? 'Switch to All shops to add a new shop' : undefined}
               >
-                <Plus size={16} />
+                <Plus size={16} className="mr-1" />
                 Add Shop
               </Button>
             )}
           </div>
         </div>
+
+        {/* Active Search Pill */}
+        {searchTerm && (
+          <div className="flex flex-wrap items-center gap-2 mt-4 pt-4 border-t border-gray-100">
+            <span className="text-xs text-gray-500 mr-1">Active filters:</span>
+            <span className="inline-flex items-center gap-1 px-3 py-1 bg-gray-100 text-gray-700 text-xs font-medium rounded-full">
+              Search: "{searchTerm}"
+              <button onClick={() => setSearchTerm('')} className="hover:text-gray-900">
+                <X size={12} />
+              </button>
+            </span>
+          </div>
+        )}
       </div>
 
       {/* Error Message */}
@@ -1174,78 +1048,6 @@ export default function VendorList() {
         </Dialog>
       )}
 
-      {showAdminsDialog && adminsVendor && (
-        <Dialog open={true} onOpenChange={setShowAdminsDialog}>
-          <DialogContent className="max-w-lg bg-white">
-            <DialogHeader className="border-b border-gray-200 pb-4">
-              <DialogTitle className="text-xl font-bold text-gray-900">
-                Manage admins for {adminsVendor.name}
-              </DialogTitle>
-            </DialogHeader>
-
-            <div className="space-y-4 py-4">
-              <div className="max-h-64 overflow-y-auto space-y-2">
-                {admins.map((admin) => {
-                  const assigned = assignedAdminIds.includes(admin.id)
-                  const isSuper = superAdminIds.includes(admin.id)
-                  return (
-                    <div
-                      key={admin.id}
-                      className="flex items-start justify-between gap-4 border border-gray-200 rounded-lg px-3 py-2"
-                    >
-                      <div>
-                        <label className="flex items-center gap-2 text-sm text-gray-900">
-                          <input
-                            type="checkbox"
-                            className="rounded border-gray-300 text-violet-600 focus:ring-violet-500"
-                            checked={assigned}
-                            onChange={(e) => handleToggleAssignedAdmin(admin.id, e.target.checked)}
-                          />
-                          <span>{admin.name}</span>
-                          <span className="text-xs text-gray-500">{admin.email}</span>
-                        </label>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <input
-                          type="checkbox"
-                          className="rounded border-gray-300 text-violet-600 focus:ring-violet-500"
-                          checked={assigned && isSuper}
-                          disabled={!assigned}
-                          onChange={(e) => handleToggleSuperAdmin(admin.id, e.target.checked)}
-                        />
-                        <span className="text-xs text-gray-700">Shop super admin</span>
-                      </div>
-                    </div>
-                  )
-                })}
-                {admins.length === 0 && (
-                  <p className="text-sm text-gray-500">No admins available. Create admins first.</p>
-                )}
-              </div>
-
-              <DialogFooter className="gap-3 border-t border-gray-200 pt-4 flex justify-end">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => setShowAdminsDialog(false)}
-                  className="px-4 py-2"
-                >
-                  Cancel
-                </Button>
-                <Button
-                  type="button"
-                  onClick={handleSaveVendorAdmins}
-                  disabled={savingAdmins}
-                  className="px-4 py-2 bg-violet-600 hover:bg-violet-700 text-white"
-                >
-                  {savingAdmins ? 'Saving...' : 'Save'}
-                </Button>
-              </DialogFooter>
-            </div>
-          </DialogContent>
-        </Dialog>
-      )}
-
       {/* Vendors Table */}
       {scopedVendors.length === 0 ? (
         <div className="bg-white rounded-lg border border-gray-200 text-center py-12">
@@ -1269,13 +1071,6 @@ export default function VendorList() {
           <div className="md:hidden divide-y divide-gray-200">
             {pagedVendors.map((vendor) => {
               const assignedAdmins = getAssignedAdminsForVendor(vendor.id)
-              const isOpen = assignVendorId === vendor.id
-              const filteredAdmins = admins.filter((a) => {
-                const term = assignSearch.toLowerCase()
-                const name = (a.name || '').toLowerCase()
-                const email = (a.email || '').toLowerCase()
-                return !term || name.includes(term) || email.includes(term)
-              })
 
               return (
                 <div key={vendor.id} className="p-4 space-y-3">
@@ -1337,200 +1132,72 @@ export default function VendorList() {
                   </div>
 
                   <div className="flex items-center justify-between gap-3">
-                    <DropdownMenu.Root
-                      open={!isDesktop && isOpen}
-                      onOpenChange={(open) => {
-                        if (isDesktop) return
-                        if (open) {
-                          setAssignVendorId(vendor.id)
-                          setAssignSearch('')
-                          setAssignError(null)
-                          const validAdminIds = new Set(admins.map((a) => a.id))
-                          const baseIds = (vendorAdminAssignments[vendor.id]?.adminIds || []).filter((id) =>
-                            validAdminIds.has(id),
-                          )
-                          setAssignSelectedAdminIds(baseIds)
-                        } else if (!assignSaving) {
-                          setAssignVendorId(null)
-                          setAssignSearch('')
-                          setAssignSelectedAdminIds([])
-                          setAssignError(null)
-                        }
-                      }}
-                    >
-                      <DropdownMenu.Trigger asChild>
-                        <button
-                          type="button"
-                          className="inline-flex items-center gap-2 px-2.5 py-1.5 rounded-md border border-gray-200 bg-white text-xs text-gray-700 hover:bg-gray-50 cursor-pointer"
-                          disabled={assignSaving}
-                        >
-                          <span className="text-gray-500">Assign Admin</span>
-                          {assignedAdmins.length === 0 ? (
-                            <span className="text-xs text-gray-600">Unassigned</span>
-                          ) : (
-                            <span className="text-xs font-medium text-gray-800">
-                              {assignedAdmins.length} assigned
-                            </span>
-                          )}
-                        </button>
-                      </DropdownMenu.Trigger>
-                      <DropdownMenu.Portal>
-                        <DropdownMenu.Content className="min-w-[260px] rounded-xl border border-gray-200 bg-white shadow-lg p-2 mr-1 mt-2 z-50 space-y-2">
-                          <div className="px-1">
-                            <Input
-                              type="text"
-                              placeholder="Search admins..."
-                              value={assignSearch}
-                              onChange={(e) => setAssignSearch(e.target.value)}
-                              className="h-8 text-xs border-gray-300"
+                    <span className="text-xs text-gray-500">Assigned admins</span>
+                    {assignedAdmins.length === 0 ? (
+                      <span className="text-xs text-gray-600">Unassigned</span>
+                    ) : (
+                      <div className="flex items-center -space-x-1">
+                        {assignedAdmins.slice(0, 3).map((admin) => {
+                          const rawAvatar = admin.profile_image_url || ''
+                          const hasSafeRawAvatar =
+                            rawAvatar.startsWith('http') &&
+                            !rawAvatar.includes('/storage/v1/object/sign/admin-profiles/')
+                          const avatarUrl = brokenAvatarAdminIds[admin.id]
+                            ? ''
+                            : adminAvatarUrls[admin.id] || (hasSafeRawAvatar ? rawAvatar : '')
+
+                          return avatarUrl ? (
+                            <img
+                              key={admin.id}
+                              src={avatarUrl}
+                              alt={admin.name}
+                              title={admin.name}
+                              className="h-7 w-7 rounded-full object-cover ring-2 ring-white bg-white"
+                              onError={() => {
+                                setBrokenAvatarAdminIds((prev) => ({ ...prev, [admin.id]: true }))
+                              }}
                             />
-                          </div>
-                          <div className="flex items-center justify-between px-1">
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.preventDefault()
-                                const filteredIds = filteredAdmins.map((a) => a.id)
-                                if (filteredIds.length === 0) return
-                                const allSelected = filteredIds.every((id) => assignSelectedAdminIds.includes(id))
-
-                                if (allSelected) {
-                                  setAssignSelectedAdminIds((prev) => prev.filter((id) => !filteredIds.includes(id)))
-                                } else {
-                                  setAssignSelectedAdminIds((prev) => Array.from(new Set([...prev, ...filteredIds])))
-                                }
-                              }}
-                              className="text-[11px] text-violet-600 hover:text-violet-700 font-medium cursor-pointer"
+                          ) : (
+                            <div
+                              key={admin.id}
+                              className="h-7 w-7 rounded-full bg-violet-50 ring-2 ring-white flex items-center justify-center text-[10px] font-semibold text-violet-700"
+                              title={admin.name}
                             >
-                              {(() => {
-                                const filteredIds = filteredAdmins.map((a) => a.id)
-                                const allSelected =
-                                  filteredIds.length > 0 && filteredIds.every((id) => assignSelectedAdminIds.includes(id))
-                                return allSelected ? 'Unselect all' : 'Select all'
-                              })()}
-                            </button>
+                              {buildInitials(admin.name || admin.email || 'A')}
+                            </div>
+                          )
+                        })}
+                        {assignedAdmins.length > 3 && (
+                          <div className="h-7 w-7 rounded-full bg-gray-100 ring-2 ring-white flex items-center justify-center text-[10px] font-semibold text-gray-700">
+                            +{assignedAdmins.length - 3}
                           </div>
-                          {assignError && <p className="px-1 text-[11px] text-red-600">{assignError}</p>}
-                          <div className="max-h-56 overflow-y-auto space-y-1">
-                            {filteredAdmins.length === 0 ? (
-                              <div className="px-2 py-2 text-xs text-gray-500">No admins found</div>
-                            ) : (
-                              filteredAdmins.map((admin) => {
-                                const checked = assignSelectedAdminIds.includes(admin.id)
-                                const rawAvatar = admin.profile_image_url || ''
-                                const hasSafeRawAvatar =
-                                  rawAvatar.startsWith('http') &&
-                                  !rawAvatar.includes('/storage/v1/object/sign/admin-profiles/')
-                                const avatarUrl = brokenAvatarAdminIds[admin.id]
-                                  ? ''
-                                  : adminAvatarUrls[admin.id] || (hasSafeRawAvatar ? rawAvatar : '')
-                                return (
-                                  <DropdownMenu.Item
-                                    key={admin.id}
-                                    className={cn(
-                                      'flex items-center gap-2 px-2 py-1.5 text-xs text-gray-700 rounded cursor-pointer outline-none hover:bg-gray-50',
-                                      checked && 'bg-violet-50',
-                                      assignSaving && 'opacity-60 pointer-events-none',
-                                    )}
-                                    onSelect={(event) => {
-                                      event.preventDefault()
-                                      setAssignSelectedAdminIds((prev) =>
-                                        checked ? prev.filter((id) => id !== admin.id) : [...prev, admin.id],
-                                      )
-                                    }}
-                                  >
-                                    <Checkbox checked={checked} className="h-3.5 w-3.5 rounded-[2px]" aria-hidden="true" />
-                                    {avatarUrl ? (
-                                      <img
-                                        src={avatarUrl}
-                                        alt={admin.name}
-                                        className="w-6 h-6 rounded-full object-cover"
-                                        onError={() => {
-                                          setBrokenAvatarAdminIds((prev) => ({ ...prev, [admin.id]: true }))
-                                        }}
-                                      />
-                                    ) : (
-                                      <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-violet-50 text-[10px] font-semibold text-violet-700">
-                                        {buildInitials(admin.name || admin.email || 'A')}
-                                      </span>
-                                    )}
-                                    <span className="flex-1 truncate">{admin.name}</span>
-                                  </DropdownMenu.Item>
-                                )
-                              })
-                            )}
-                          </div>
-                          <div className="flex justify-end gap-2 pt-2 border-t border-gray-100 px-1">
-                            <Button
-                              type="button"
-                              variant="outline"
-                              size="sm"
-                              className="h-7 px-2 text-[11px]"
-                              onClick={() => {
-                                setAssignVendorId(null)
-                                setAssignSelectedAdminIds([])
-                                setAssignSearch('')
-                                setAssignError(null)
-                              }}
-                            >
-                              Cancel
-                            </Button>
-                            <Button
-                              type="button"
-                              size="sm"
-                              className="h-7 px-3 text-[11px]"
-                              disabled={assignSaving}
-                              onClick={() => {
-                                void handleSaveVendorAdminAssignments(vendor)
-                              }}
-                            >
-                              {assignSaving ? 'Saving...' : 'Save'}
-                            </Button>
-                          </div>
-                          <div className="pt-2 border-t border-gray-100">
-                            <DropdownMenu.Item
-                              className="px-2 py-1.5 text-xs text-gray-700 rounded cursor-pointer outline-none hover:bg-gray-50"
-                              onSelect={(e) => {
-                                e.preventDefault()
-                                setAssignVendorId(null)
-                                setAssignSearch('')
-                                setAssignSelectedAdminIds([])
-                                setAssignError(null)
-                                setTimeout(() => {
-                                  void handleManageAdmins(vendor)
-                                }, 0)
-                              }}
-                            >
-                              Advanced (shop super admin)
-                            </DropdownMenu.Item>
-                          </div>
-                        </DropdownMenu.Content>
-                      </DropdownMenu.Portal>
-                    </DropdownMenu.Root>
-
-                    {isGrandUser && (
-                      <div className="flex items-center gap-2">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleEdit(vendor)}
-                          title="Edit"
-                          className="h-9 w-9 p-0 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-full"
-                        >
-                          <Edit size={14} />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleRequestDelete(vendor)}
-                          className="h-9 w-9 p-0 text-red-500 hover:text-red-600 hover:bg-red-50 rounded-full"
-                          title="Delete"
-                        >
-                          <Trash2 size={14} />
-                        </Button>
+                        )}
                       </div>
                     )}
                   </div>
+
+                  {isGrandUser && (
+                    <div className="flex items-center justify-end gap-2 pt-2 border-t border-gray-100">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleEdit(vendor)}
+                        title="Edit"
+                        className="h-9 w-9 p-0 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-full"
+                      >
+                        <Edit size={14} />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleRequestDelete(vendor)}
+                        className="h-9 w-9 p-0 text-red-500 hover:text-red-600 hover:bg-red-50 rounded-full"
+                        title="Delete"
+                      >
+                        <Trash2 size={14} />
+                      </Button>
+                    </div>
+                  )}
                 </div>
               )
             })}
@@ -1545,7 +1212,7 @@ export default function VendorList() {
                   <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Shop ID</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">URL</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Status</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Assign Admin</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Assigned admins</th>
                   {isGrandUser && (
                     <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600 uppercase">Actions</th>
                   )}
@@ -1554,13 +1221,6 @@ export default function VendorList() {
               <tbody className="divide-y divide-gray-200">
                 {pagedVendors.map((vendor) => {
                   const assignedAdmins = getAssignedAdminsForVendor(vendor.id)
-                  const isOpen = assignVendorId === vendor.id
-                  const filteredAdmins = admins.filter((a) => {
-                    const term = assignSearch.toLowerCase()
-                    const name = (a.name || '').toLowerCase()
-                    const email = (a.email || '').toLowerCase()
-                    return !term || name.includes(term) || email.includes(term)
-                  })
 
                   return (
                     <tr key={vendor.id} className="hover:bg-gray-50 transition-colors">
@@ -1616,206 +1276,74 @@ export default function VendorList() {
                       </td>
 
                       <td className="px-4 py-3">
-                        <DropdownMenu.Root
-                          open={isDesktop && isOpen}
-                          onOpenChange={(open) => {
-                            if (!isDesktop) return
-                            if (open) {
-                              setAssignVendorId(vendor.id)
-                              setAssignSearch('')
-                              setAssignError(null)
-                              const validAdminIds = new Set(admins.map((a) => a.id))
-                              const baseIds = (vendorAdminAssignments[vendor.id]?.adminIds || []).filter((id) =>
-                                validAdminIds.has(id),
+                        {assignedAdmins.length === 0 ? (
+                          <p className="text-sm text-gray-600">Unassigned</p>
+                        ) : (
+                          <div className="flex items-center -space-x-1">
+                            {assignedAdmins.slice(0, 3).map((admin) => {
+                              const rawAvatar = admin.profile_image_url || ''
+                              const hasSafeRawAvatar =
+                                rawAvatar.startsWith('http') &&
+                                !rawAvatar.includes('/storage/v1/object/sign/admin-profiles/')
+                              const avatarUrl = brokenAvatarAdminIds[admin.id]
+                                ? ''
+                                : adminAvatarUrls[admin.id] || (hasSafeRawAvatar ? rawAvatar : '')
+
+                              return avatarUrl ? (
+                                <img
+                                  key={admin.id}
+                                  src={avatarUrl}
+                                  alt={admin.name}
+                                  title={admin.name}
+                                  className="h-7 w-7 rounded-full object-cover ring-2 ring-white bg-white"
+                                  onError={() => {
+                                    setBrokenAvatarAdminIds((prev) => ({ ...prev, [admin.id]: true }))
+                                  }}
+                                />
+                              ) : (
+                                <div
+                                  key={admin.id}
+                                  className="h-7 w-7 rounded-full bg-violet-50 ring-2 ring-white flex items-center justify-center text-[10px] font-semibold text-violet-700"
+                                  title={admin.name}
+                                >
+                                  {buildInitials(admin.name || admin.email || 'A')}
+                                </div>
                               )
-                              setAssignSelectedAdminIds(baseIds)
-                            } else if (!assignSaving) {
-                              setAssignVendorId(null)
-                              setAssignSearch('')
-                              setAssignSelectedAdminIds([])
-                              setAssignError(null)
-                            }
-                          }}
-                        >
-                          <DropdownMenu.Trigger asChild>
-                          <button
-                            type="button"
-                            className="inline-flex items-center gap-2 px-0 py-0 cursor-pointer bg-transparent border-0"
-                            disabled={assignSaving}
-                          >
-                            {assignedAdmins.length === 0 ? (
-                              <span className="text-xs text-gray-500">Unassigned</span>
-                            ) : (
-                              <div className="flex items-center -space-x-1">
-                                {assignedAdmins.slice(0, 3).map((admin) => (
-                                  <div
-                                    key={admin.id}
-                                    className="h-7 w-7 rounded-full bg-violet-50 ring-2 ring-white flex items-center justify-center text-[10px] font-semibold text-violet-700"
-                                    title={admin.name}
-                                  >
-                                    {buildInitials(admin.name || admin.email || 'A')}
-                                  </div>
-                                ))}
-                                {assignedAdmins.length > 3 && (
-                                  <div className="h-7 w-7 rounded-full bg-gray-100 ring-2 ring-white flex items-center justify-center text-[10px] font-semibold text-gray-700">
-                                    +{assignedAdmins.length - 3}
-                                  </div>
-                                )}
+                            })}
+                            {assignedAdmins.length > 3 && (
+                              <div className="h-7 w-7 rounded-full bg-gray-100 ring-2 ring-white flex items-center justify-center text-[10px] font-semibold text-gray-700">
+                                +{assignedAdmins.length - 3}
                               </div>
                             )}
-                          </button>
-                        </DropdownMenu.Trigger>
-                        <DropdownMenu.Portal>
-                          <DropdownMenu.Content className="min-w-[260px] rounded-xl border border-gray-200 bg-white shadow-lg p-2 mr-1 mt-2 z-50 space-y-2">
-                            <div className="px-1">
-                              <Input
-                                type="text"
-                                placeholder="Search admins..."
-                                value={assignSearch}
-                                onChange={(e) => setAssignSearch(e.target.value)}
-                                className="h-8 text-xs border-gray-300"
-                              />
-                            </div>
-                            <div className="flex items-center justify-between px-1">
-                              <button
-                                type="button"
-                                onClick={(e) => {
-                                  e.preventDefault()
-                                  const filteredIds = filteredAdmins.map((a) => a.id)
-                                  if (filteredIds.length === 0) return
-                                  const allSelected = filteredIds.every((id) => assignSelectedAdminIds.includes(id))
-
-                                  if (allSelected) {
-                                    setAssignSelectedAdminIds((prev) =>
-                                      prev.filter((id) => !filteredIds.includes(id)),
-                                    )
-                                  } else {
-                                    setAssignSelectedAdminIds((prev) =>
-                                      Array.from(new Set([...prev, ...filteredIds])),
-                                    )
-                                  }
-                                }}
-                                className="text-[11px] text-violet-600 hover:text-violet-700 font-medium cursor-pointer"
-                              >
-                                {(() => {
-                                  const filteredIds = filteredAdmins.map((a) => a.id)
-                                  const allSelected =
-                                    filteredIds.length > 0 &&
-                                    filteredIds.every((id) => assignSelectedAdminIds.includes(id))
-                                  return allSelected ? 'Unselect all' : 'Select all'
-                                })()}
-                              </button>
-                            </div>
-                            {assignError && <p className="px-1 text-[11px] text-red-600">{assignError}</p>}
-                            <div className="max-h-56 overflow-y-auto space-y-1">
-                              {filteredAdmins.length === 0 ? (
-                                <div className="px-2 py-2 text-xs text-gray-500">No admins found</div>
-                              ) : (
-                                filteredAdmins.map((admin) => {
-                                  const checked = assignSelectedAdminIds.includes(admin.id)
-                                  return (
-                                    <DropdownMenu.Item
-                                      key={admin.id}
-                                      className={cn(
-                                        'flex items-center gap-2 px-2 py-1.5 text-xs text-gray-700 rounded cursor-pointer outline-none hover:bg-gray-50',
-                                        checked && 'bg-violet-50',
-                                        assignSaving && 'opacity-60 pointer-events-none',
-                                      )}
-                                      onSelect={(event) => {
-                                        event.preventDefault()
-                                        setAssignSelectedAdminIds((prev) =>
-                                          checked ? prev.filter((id) => id !== admin.id) : [...prev, admin.id],
-                                        )
-                                      }}
-                                    >
-                                      <Checkbox
-                                        checked={checked}
-                                        className="h-3.5 w-3.5 rounded-[2px]"
-                                        aria-hidden="true"
-                                      />
-                                      <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-violet-50 text-[10px] font-semibold text-violet-700">
-                                        {buildInitials(admin.name || admin.email || 'A')}
-                                      </span>
-                                      <span className="flex-1 truncate">{admin.name}</span>
-                                    </DropdownMenu.Item>
-                                  )
-                                })
-                              )}
-                            </div>
-                            <div className="flex justify-end gap-2 pt-2 border-t border-gray-100 px-1">
-                              <Button
-                                type="button"
-                                variant="outline"
-                                size="sm"
-                                className="h-7 px-2 text-[11px]"
-                                onClick={() => {
-                                  setAssignVendorId(null)
-                                  setAssignSelectedAdminIds([])
-                                  setAssignSearch('')
-                                  setAssignError(null)
-                                }}
-                              >
-                                Cancel
-                              </Button>
-                              <Button
-                                type="button"
-                                size="sm"
-                                className="h-7 px-3 text-[11px]"
-                                disabled={assignSaving}
-                                onClick={() => {
-                                  void handleSaveVendorAdminAssignments(vendor)
-                                }}
-                              >
-                                {assignSaving ? 'Saving...' : 'Save'}
-                              </Button>
-                            </div>
-                            <div className="pt-2 border-t border-gray-100">
-                              <DropdownMenu.Item
-                                className="px-2 py-1.5 text-xs text-gray-700 rounded cursor-pointer outline-none hover:bg-gray-50"
-                                onSelect={(e) => {
-                                  e.preventDefault()
-                                  setAssignVendorId(null)
-                                  setAssignSearch('')
-                                  setAssignSelectedAdminIds([])
-                                  setAssignError(null)
-                                  setTimeout(() => {
-                                    void handleManageAdmins(vendor)
-                                  }, 0)
-                                }}
-                              >
-                                Advanced (shop super admin)
-                              </DropdownMenu.Item>
-                            </div>
-                          </DropdownMenu.Content>
-                        </DropdownMenu.Portal>
-                      </DropdownMenu.Root>
-                    </td>
-                    {isGrandUser && (
-                      <td className="px-4 py-3">
-                        <div className="flex gap-1.5 justify-end">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleEdit(vendor)}
-                            title="Edit"
-                            className="h-8 w-8 p-0 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-full"
-                          >
-                            <Edit size={14} />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleRequestDelete(vendor)}
-                            className="h-8 w-8 p-0 text-red-500 hover:text-red-600 hover:bg-red-50 rounded-full"
-                            title="Delete"
-                          >
-                            <Trash2 size={14} />
-                          </Button>
-                        </div>
+                          </div>
+                        )}
                       </td>
-                    )}
-                  </tr>
-                )
+                      {isGrandUser && (
+                        <td className="px-4 py-3">
+                          <div className="flex gap-1.5 justify-end">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleEdit(vendor)}
+                              title="Edit"
+                              className="h-8 w-8 p-0 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-full"
+                            >
+                              <Edit size={14} />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleRequestDelete(vendor)}
+                              className="h-8 w-8 p-0 text-red-500 hover:text-red-600 hover:bg-red-50 rounded-full"
+                              title="Delete"
+                            >
+                              <Trash2 size={14} />
+                            </Button>
+                          </div>
+                        </td>
+                      )}
+                    </tr>
+                  )
                 })}
               </tbody>
             </table>

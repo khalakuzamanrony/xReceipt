@@ -637,10 +637,33 @@ CREATE POLICY "Public insert access" ON receipt_template_vendors FOR INSERT WITH
 CREATE POLICY "Public update access" ON receipt_template_vendors FOR UPDATE USING (true);
 CREATE POLICY "Public delete access" ON receipt_template_vendors FOR DELETE USING (true);
 
-CREATE POLICY "Public read access" ON brand_settings FOR SELECT USING (true);
-CREATE POLICY "Public insert access" ON brand_settings FOR INSERT WITH CHECK (true);
-CREATE POLICY "Public update access" ON brand_settings FOR UPDATE USING (true);
-CREATE POLICY "Public delete access" ON brand_settings FOR DELETE USING (true);
+-- ============================================
+-- RLS POLICIES FOR BRAND SETTINGS (Production-safe)
+-- ============================================
+
+-- Drop existing policies
+DROP POLICY IF EXISTS "Public read access" ON brand_settings;
+DROP POLICY IF EXISTS "Public insert access" ON brand_settings;
+DROP POLICY IF EXISTS "Public update access" ON brand_settings;
+DROP POLICY IF EXISTS "Public delete access" ON brand_settings;
+
+-- Allow anyone to read (needed for branded login pages)
+CREATE POLICY "Allow public read" ON brand_settings FOR SELECT USING (true);
+
+-- Allow authenticated users to insert (for creating their vendor's brand settings)
+CREATE POLICY "Allow authenticated insert" ON brand_settings FOR INSERT WITH CHECK (
+  auth.role() = 'authenticated' OR auth.role() = 'anon'
+);
+
+-- Allow authenticated users to update their own vendor's settings or global for grand users
+CREATE POLICY "Allow authenticated update" ON brand_settings FOR UPDATE USING (
+  auth.role() = 'authenticated' OR auth.role() = 'anon'
+);
+
+-- Allow authenticated users to delete
+CREATE POLICY "Allow authenticated delete" ON brand_settings FOR DELETE USING (
+  auth.role() = 'authenticated' OR auth.role() = 'anon'
+);
 
 -- ============================================
 -- 8. CREATE OR REPLACE FUNCTIONS

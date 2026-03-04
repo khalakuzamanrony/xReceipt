@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/Dialog'
 import { Checkbox } from '@/components/ui/Checkbox'
-import { Plus, Edit, Trash2, AlertCircle, FileCode, Search, Funnel, Eye, ChevronDown } from 'lucide-react'
+import { Plus, Edit, Trash2, AlertCircle, FileCode, Search, Funnel, Eye, ChevronDown, X } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { useVendor } from '@/contexts/VendorContext'
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
@@ -439,164 +439,243 @@ export default function TemplateList({ onNavigateToBuilder }: TemplateListProps)
     )
   }
 
+  const getActiveFiltersCount = () => {
+    let count = 0
+    if (assignmentFilter !== 'all') count++
+    if (vendorFilter !== 'all') count++
+    if (dateRangeFilter !== 'all') count++
+    return count
+  }
+
+  const clearAllFilters = () => {
+    setAssignmentFilter('all')
+    setVendorFilter('all')
+    setDateRangeFilter('all')
+    setSearchTerm('')
+  }
+
   return (
     <div className="space-y-4">
-      {/* Header with Title and Buttons */}
+      {/* Header with Title and Filters */}
       <div className="bg-white p-4 rounded-lg border border-gray-200">
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
           <div>
             <h1 className="text-2xl font-bold text-gray-900">Receipt Templates</h1>
             <p className="text-sm text-gray-500 mt-1">Manage your receipt templates</p>
           </div>
 
-          <div className="w-full sm:w-auto flex flex-col sm:flex-row gap-3 sm:items-center">
-            {/* Search Bar */}
-            <div className="flex-1 sm:w-64 bg-white rounded-lg border border-gray-200 h-9 px-3 flex items-center gap-2">
-              <Search size={18} className="text-gray-400" />
+          {/* Search and Filters */}
+          <div className="flex flex-col sm:flex-row gap-3 sm:items-center">
+            {/* Search Input */}
+            <div className="relative">
+              <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
               <Input
                 type="text"
                 placeholder="Search templates..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="flex-1 h-9 border-0 focus:ring-0 px-0 py-0 text-sm"
+                className="pl-9 h-10 w-full sm:w-64 border-gray-200 rounded-full text-sm focus:ring-2 focus:ring-violet-500 focus:border-transparent"
               />
-            </div>
-
-            <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 sm:items-center">
-              <DropdownMenu.Root>
-                <DropdownMenu.Trigger asChild>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="h-9 px-3 flex items-center gap-2 border-gray-200 bg-white text-gray-700 hover:bg-gray-50"
-                  >
-                    <Funnel className="h-4 w-4" />
-                    <span className="text-xs font-medium">Filters</span>
-                  </Button>
-                </DropdownMenu.Trigger>
-                <DropdownMenu.Portal>
-                  <DropdownMenu.Content className="min-w-[260px] rounded-xl border border-gray-200 bg-white shadow-lg p-3 mr-1 mt-2 z-50 space-y-3">
-                    <div>
-                      <p className="text-[10px] font-semibold text-gray-500 uppercase mb-1.5">Assignment</p>
-                      <div className="flex flex-wrap gap-1.5">
-                        {[
-                          { id: 'all', label: 'All' },
-                          { id: 'assigned', label: 'Assigned' },
-                          { id: 'unassigned', label: 'Unassigned' },
-                        ].map((option) => (
-                          <button
-                            key={option.id}
-                            type="button"
-                            onClick={() => setAssignmentFilter(option.id as 'all' | 'assigned' | 'unassigned')}
-                            className={cn(
-                              'px-2.5 py-1 rounded-full text-[11px] font-medium border cursor-pointer transition-colors',
-                              assignmentFilter === option.id
-                                ? 'bg-violet-50 text-violet-700 border-violet-200'
-                                : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50 hover:text-gray-900',
-                            )}
-                          >
-                            {option.label}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-
-                    {vendors.length > 0 && (
-                      <div>
-                        <p className="text-[10px] font-semibold text-gray-500 uppercase mb-1.5">Shop</p>
-                        <div className="flex flex-col gap-1 max-h-40 overflow-y-auto">
-                          <button
-                            type="button"
-                            onClick={() => setVendorFilter('all')}
-                            className={cn(
-                              'w-full text-left px-2.5 py-1 rounded-md text-[11px] font-medium cursor-pointer transition-colors',
-                              vendorFilter === 'all'
-                                ? 'bg-violet-50 text-violet-700'
-                                : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900',
-                            )}
-                          >
-                            All shops
-                          </button>
-                          {vendors.map((vendor) => (
-                            <button
-                              key={vendor.id}
-                              type="button"
-                              onClick={() => setVendorFilter(vendor.id)}
-                              className={cn(
-                                'w-full text-left px-2.5 py-1 rounded-md text-[11px] font-medium cursor-pointer transition-colors',
-                                vendorFilter === vendor.id
-                                  ? 'bg-violet-50 text-violet-700'
-                                  : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900',
-                              )}
-                            >
-                              {vendor.name}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
-                    <div>
-                      <p className="text-[10px] font-semibold text-gray-500 uppercase mb-1.5">Date range</p>
-                      <div className="flex flex-wrap gap-1.5">
-                        {[
-                          { id: 'all', label: 'All time' },
-                          { id: 'today', label: 'Today' },
-                          { id: '7d', label: 'Last 7 days' },
-                          { id: '30d', label: 'Last 30 days' },
-                        ].map((option) => (
-                          <button
-                            key={option.id}
-                            type="button"
-                            onClick={() => setDateRangeFilter(option.id as 'all' | 'today' | '7d' | '30d')}
-                            className={cn(
-                              'px-2.5 py-1 rounded-full text-[11px] font-medium border cursor-pointer transition-colors',
-                              dateRangeFilter === option.id
-                                ? 'bg-violet-50 text-violet-700 border-violet-200'
-                                : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50 hover:text-gray-900',
-                            )}
-                          >
-                            {option.label}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-
-                    <div className="pt-2 border-t border-gray-100 flex justify-between items-center">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setAssignmentFilter('all')
-                          setVendorFilter('all')
-                          setDateRangeFilter('all')
-                        }}
-                        className="text-[11px] font-medium text-gray-500 hover:text-gray-700 cursor-pointer"
-                      >
-                        Reset filters
-                      </button>
-                    </div>
-                  </DropdownMenu.Content>
-                </DropdownMenu.Portal>
-              </DropdownMenu.Root>
-
-              {/* Action Buttons */}
-              {canCreateTemplates && (
-                <div className="flex gap-2 flex-wrap sm:justify-end">
-                  <span
-                    title={isGrandUserAllShops ? 'Select a shop first' : undefined}
-                    className="inline-flex"
-                  >
-                    <Button onClick={() => onNavigateToBuilder?.()} size="sm" disabled={isGrandUserAllShops}>
-                      <Plus size={16} />
-                      Template Builder
-                    </Button>
-                  </span>
-                </div>
+              {searchTerm && (
+                <button
+                  onClick={() => setSearchTerm('')}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                >
+                  <X size={14} />
+                </button>
               )}
             </div>
+
+            {/* Filter Dropdown */}
+            <DropdownMenu.Root>
+              <DropdownMenu.Trigger asChild>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className={cn(
+                    'h-10 px-4 rounded-lg border-gray-200 flex items-center gap-2 transition-all',
+                    getActiveFiltersCount() > 0
+                      ? 'bg-violet-50 border-violet-200 text-violet-700'
+                      : 'bg-white text-gray-700 hover:bg-gray-50'
+                  )}
+                >
+                  <Funnel className="h-4 w-4" />
+                  <span className="text-sm font-medium">Filters</span>
+                  {getActiveFiltersCount() > 0 && (
+                    <span className="ml-1 px-1.5 py-0.5 bg-violet-600 text-white text-[10px] font-semibold rounded-full">
+                      {getActiveFiltersCount()}
+                    </span>
+                  )}
+                </Button>
+              </DropdownMenu.Trigger>
+              <DropdownMenu.Portal>
+                <DropdownMenu.Content className="min-w-[320px] rounded-xl border border-gray-200 bg-white shadow-xl p-4 mr-2 mt-2 z-50 space-y-4">
+                  {/* Assignment Filter */}
+                  <div>
+                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Assignment</p>
+                    <div className="flex flex-wrap gap-2">
+                      {[
+                        { id: 'all', label: 'All' },
+                        { id: 'assigned', label: 'Assigned' },
+                        { id: 'unassigned', label: 'Unassigned' },
+                      ].map((option) => (
+                        <button
+                          key={option.id}
+                          type="button"
+                          onClick={() => setAssignmentFilter(option.id as 'all' | 'assigned' | 'unassigned')}
+                          className={cn(
+                            'px-3 py-1.5 rounded-full text-xs font-medium border transition-all',
+                            assignmentFilter === option.id
+                              ? 'bg-violet-100 text-violet-700 border-violet-300 shadow-sm'
+                              : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50 hover:border-gray-300'
+                          )}
+                        >
+                          {option.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Vendor Filter */}
+                  {vendors.length > 0 && (
+                    <div>
+                      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Shop</p>
+                      <div className="flex flex-col gap-1 max-h-48 overflow-y-auto pr-1">
+                        <button
+                          type="button"
+                          onClick={() => setVendorFilter('all')}
+                          className={cn(
+                            'w-full text-left px-3 py-2 rounded-lg text-xs font-medium transition-colors',
+                            vendorFilter === 'all'
+                              ? 'bg-violet-50 text-violet-700'
+                              : 'text-gray-600 hover:bg-gray-50'
+                          )}
+                        >
+                          All shops
+                        </button>
+                        {vendors.map((vendor) => (
+                          <button
+                            key={vendor.id}
+                            type="button"
+                            onClick={() => setVendorFilter(vendor.id)}
+                            className={cn(
+                              'w-full text-left px-3 py-2 rounded-lg text-xs font-medium transition-colors',
+                              vendorFilter === vendor.id
+                                ? 'bg-violet-50 text-violet-700'
+                                : 'text-gray-600 hover:bg-gray-50'
+                            )}
+                          >
+                            {vendor.name}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Date Range Filter */}
+                  <div>
+                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Date Range</p>
+                    <div className="flex flex-wrap gap-2">
+                      {[
+                        { id: 'all', label: 'All time' },
+                        { id: 'today', label: 'Today' },
+                        { id: '7d', label: 'Last 7 days' },
+                        { id: '30d', label: 'Last 30 days' },
+                      ].map((option) => (
+                        <button
+                          key={option.id}
+                          type="button"
+                          onClick={() => setDateRangeFilter(option.id as 'all' | 'today' | '7d' | '30d')}
+                          className={cn(
+                            'px-3 py-1.5 rounded-full text-xs font-medium border transition-all',
+                            dateRangeFilter === option.id
+                              ? 'bg-violet-100 text-violet-700 border-violet-300 shadow-sm'
+                              : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50 hover:border-gray-300'
+                          )}
+                        >
+                          {option.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Footer */}
+                  <div className="pt-3 border-t border-gray-100 flex justify-between items-center">
+                    <span className="text-xs text-gray-400">
+                      {getActiveFiltersCount()} active {getActiveFiltersCount() === 1 ? 'filter' : 'filters'}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={clearAllFilters}
+                      className="text-xs font-medium text-violet-600 hover:text-violet-700 transition-colors"
+                    >
+                      Clear all
+                    </button>
+                  </div>
+                </DropdownMenu.Content>
+              </DropdownMenu.Portal>
+            </DropdownMenu.Root>
+
+            {/* Add Button */}
+            {canCreateTemplates && (
+              <span
+                title={isGrandUserAllShops ? 'Select a shop first' : undefined}
+                className="inline-flex"
+              >
+                <Button onClick={() => onNavigateToBuilder?.()} size="sm" disabled={isGrandUserAllShops} className="h-10 rounded-lg">
+                  <Plus size={16} className="mr-1" />
+                  Template Builder
+                </Button>
+              </span>
+            )}
           </div>
         </div>
+
+        {/* Active Filter Pills */}
+        {(assignmentFilter !== 'all' || vendorFilter !== 'all' || dateRangeFilter !== 'all' || searchTerm) && (
+          <div className="flex flex-wrap items-center gap-2 mt-4 pt-4 border-t border-gray-100">
+            <span className="text-xs text-gray-500 mr-1">Active filters:</span>
+            {searchTerm && (
+              <span className="inline-flex items-center gap-1 px-3 py-1 bg-gray-100 text-gray-700 text-xs font-medium rounded-full">
+                Search: "{searchTerm}"
+                <button onClick={() => setSearchTerm('')} className="hover:text-gray-900">
+                  <X size={12} />
+                </button>
+              </span>
+            )}
+            {assignmentFilter !== 'all' && (
+              <span className="inline-flex items-center gap-1 px-3 py-1 bg-violet-100 text-violet-700 text-xs font-medium rounded-full">
+                Assignment: {assignmentFilter === 'assigned' ? 'Assigned' : 'Unassigned'}
+                <button onClick={() => setAssignmentFilter('all')} className="hover:text-violet-900">
+                  <X size={12} />
+                </button>
+              </span>
+            )}
+            {vendorFilter !== 'all' && (
+              <span className="inline-flex items-center gap-1 px-3 py-1 bg-violet-100 text-violet-700 text-xs font-medium rounded-full">
+                Shop: {vendors.find(v => v.id === vendorFilter)?.name || vendorFilter}
+                <button onClick={() => setVendorFilter('all')} className="hover:text-violet-900">
+                  <X size={12} />
+                </button>
+              </span>
+            )}
+            {dateRangeFilter !== 'all' && (
+              <span className="inline-flex items-center gap-1 px-3 py-1 bg-violet-100 text-violet-700 text-xs font-medium rounded-full">
+                Date: {dateRangeFilter === 'today' ? 'Today' : dateRangeFilter === '7d' ? 'Last 7 days' : 'Last 30 days'}
+                <button onClick={() => setDateRangeFilter('all')} className="hover:text-violet-900">
+                  <X size={12} />
+                </button>
+              </span>
+            )}
+            <button
+              onClick={clearAllFilters}
+              className="text-xs font-medium text-gray-500 hover:text-gray-700 ml-1"
+            >
+              Clear all
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Error Message */}

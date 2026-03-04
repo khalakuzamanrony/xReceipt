@@ -37,3 +37,15 @@
 18. permisiion not reflection other portal
 on sidebar collapse, the shop seletion dropdown is not showing, unable to select shop when sidbear is in collapsed mode state
 when ther is only one show, no need to show shop selection dropdown, specially for super user and admin, they can have one shop sho no need to show dropdown for them
+
+
+
+4. on user , when i open the add user modal and close the modal without saving anything, it reloads, should not reload , only reload if save button is clicked
+5. on prod unable to save white label
+6. need to work on filter
+7. template can be opened on desktop only, on other device show warning to open this page on desktop
+8. the generated receipts are not responsive on mobile, i want this like it should show same as desktop on mobile or tab but with scrollbar both horizontal and vertical but preserves its original view no need to make it responsive i mean the receipt
+9. do same for receipt details page, and keep the most of the space for receipt view and the data should be shrinked width
+10. on generated receipt the receipt id should be same as on portal and on the generated receipt, currently receipt id we are showing on the receipt list should be show on generated receipt and also on the header of the receipt details page .
+11. on receipt template builder page, sidebar should always collapsed mode by default , but user can expend if they want
+12. need an option to send the generated receipt to send on email and social media specially on email, whatsapp, messenger (this can be done like if email selected, a predefined email body will set , receipt pdf will be attached, customer email will be set to send , and a beautiful meaningful subject line should be added, it should be complete ready to send type, same goes for social share , if send , status will be sent

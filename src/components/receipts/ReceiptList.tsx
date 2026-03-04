@@ -850,18 +850,30 @@ export default function ReceiptList() {
       | 'price'
       | 'total'
 
-    const ensureTaxDiscountAfterQuantity = (cols: ItemCol[]): ItemCol[] => {
-      const without = cols.filter(
-        (c): c is Exclude<ItemCol, 'tax' | 'discount'> => c !== 'tax' && c !== 'discount'
-      )
-      const qIndex = without.indexOf('quantity')
-      const result: ItemCol[] = [...without]
-      if (qIndex !== -1) {
-        result.splice(qIndex + 1, 0, 'tax', 'discount')
-        return result
+    const normalizeItemsColumns = (cols: ItemCol[]): ItemCol[] => {
+      if (!cols.length) return cols
+
+      const unique: ItemCol[] = Array.from(new Set(cols)) as ItemCol[]
+
+      const has = (c: ItemCol) => unique.includes(c)
+      const extrasBeforeQty: ItemCol[] = []
+      if (has('imei_or_model')) extrasBeforeQty.push('imei_or_model')
+      if (has('color')) extrasBeforeQty.push('color')
+
+      const normalized: ItemCol[] = []
+      if (has('description')) normalized.push('description')
+      normalized.push(...extrasBeforeQty)
+      if (has('quantity')) normalized.push('quantity')
+      if (has('price')) normalized.push('price')
+      if (has('tax')) normalized.push('tax')
+      if (has('discount')) normalized.push('discount')
+      if (has('total')) normalized.push('total')
+
+      for (const c of unique) {
+        if (!normalized.includes(c)) normalized.push(c)
       }
-      result.push('tax', 'discount')
-      return result
+
+      return normalized
     }
 
     const injectItemsHeaderColumns = (html: string, cols: ItemCol[]) => {
@@ -880,9 +892,16 @@ export default function ReceiptList() {
       const discountTh = '<th class="text-right">Discount</th>'
       let updatedHeaderRowInner = headerRowInner
 
+      const unitPriceThRegex = /(<th[^>]*>[\s\S]*?(Unit\s*Price|Price)[\s\S]*?<\/th>)/i
       const quantityThRegex = /(<th[^>]*>[\s\S]*?(Quantity|Qty)[\s\S]*?<\/th>)/i
+
+      const unitMatch = headerRowInner.match(unitPriceThRegex)
       const qtyMatch = headerRowInner.match(quantityThRegex)
-      if (qtyMatch) {
+
+      if (unitMatch) {
+        const insertion = `${unitMatch[1]}${hasTaxHeader ? '' : taxTh}${hasDiscountHeader ? '' : discountTh}`
+        updatedHeaderRowInner = headerRowInner.replace(unitPriceThRegex, insertion)
+      } else if (qtyMatch) {
         const insertion = `${qtyMatch[1]}${hasTaxHeader ? '' : taxTh}${hasDiscountHeader ? '' : discountTh}`
         updatedHeaderRowInner = headerRowInner.replace(quantityThRegex, insertion)
       } else {
@@ -916,7 +935,10 @@ export default function ReceiptList() {
       }
     }
 
-    itemsColumns = ensureTaxDiscountAfterQuantity(itemsColumns)
+    if (!itemsColumns.includes('tax')) itemsColumns.push('tax')
+    if (!itemsColumns.includes('discount')) itemsColumns.push('discount')
+
+    itemsColumns = normalizeItemsColumns(itemsColumns)
     if (itemsColumnsMatch) {
       templateHtml = templateHtml.replace(itemsColumnsMatch[0], `data-items-columns="${itemsColumns.join(',')}"`)
       templateHtml = injectItemsHeaderColumns(templateHtml, itemsColumns)
@@ -926,18 +948,10 @@ export default function ReceiptList() {
     if (receipt.items && receipt.items.length > 0) {
       const hasDedicatedImeiColumn = itemsColumns.includes('imei_or_model')
       const hasDedicatedColorColumn = itemsColumns.includes('color')
-      const hasDedicatedDiscountColumn = itemsColumns.includes('discount')
-      const hasDedicatedTaxColumn = itemsColumns.includes('tax')
 
       itemsHTML = receipt.items
         .map((item) => {
-          const { lineDiscount, lineTax, lineTotal, taxEnabled, taxPercentage, discountType, discountValue } = getItemTotals(item)
-          const discountMetaForItem =
-            discountType === 'percentage'
-              ? `${clampPercent(discountValue).toFixed(2)}%`
-              : discountType === 'flat'
-                ? `৳${Math.max(0, Math.floor(discountValue)).toFixed(0)}/unit`
-                : ''
+          const { lineDiscount, lineTax, lineTotal, taxEnabled, taxPercentage } = getItemTotals(item)
 
           const cells = itemsColumns
             .map((col) => {
@@ -948,12 +962,6 @@ export default function ReceiptList() {
                 }
                 if (!hasDedicatedColorColumn && item.color) {
                   metaParts.push(`Color: ${item.color}`)
-                }
-                if (!hasDedicatedDiscountColumn && item.discount_enabled === true) {
-                  metaParts.push(`Discount: ${discountMetaForItem} (-৳${lineDiscount.toFixed(2)})`)
-                }
-                if (!hasDedicatedTaxColumn) {
-                  metaParts.push(taxEnabled ? `Tax: ${taxPercentage.toFixed(2)}% (+৳${lineTax.toFixed(2)})` : 'Tax: Off')
                 }
                 const metaHtml = metaParts.length
                   ? `<div style="margin-top: 2px; font-size: 11px; color: #666; line-height: 1.35;">${metaParts.join('<br/>')}</div>`
@@ -1026,7 +1034,7 @@ export default function ReceiptList() {
       'xReceipt'
 
     let html = templateHtml
-      .replace(/{{RECEIPT_ID}}/g, receipt.id)
+      .replace(/{{RECEIPT_ID}}/g, receipt.receipt_number || receipt.id)
       .replace(/{{DATE}}/g, new Date(receipt.created_at).toLocaleDateString())
       .replace(/{{DUE_DATE}}/g, '')
       .replace(/{{CUSTOMER_NAME}}/g, receipt.customer_name || '')
@@ -1055,8 +1063,60 @@ export default function ReceiptList() {
       .replace(/{{COMPANY_EMAIL}}/g, 'info@xreceipt.com')
       .replace(/{{FOOTER_MESSAGE}}/g, 'Thank you for your business!')
 
+    html = html.replace(/<div\s+class="total-row\s+items-total"[\s\S]*?<\/div>/gi, '')
+
     if (!hasTaxableItems) {
       html = html.replace(/Tax\s*\([^)]*\):[^<]*<[^>]*>[^<]*<\/[^^>]*>/g, '')
+    }
+
+    const normalizeReceiptStrip = (raw: string) => {
+      const stripMatch = raw.match(/<div\s+class=\"receipt-strip\"[^>]*>[\s\S]*?<\/div>/i)
+      if (!stripMatch) return raw
+
+      const stripHtml = stripMatch[0]
+      const metaMatch = stripHtml.match(
+        /<div\s+class=\"receipt-strip-meta\"[^>]*>([\s\S]*?)<\/div>/i,
+      )
+      if (!metaMatch) return raw
+
+      const metaHtml = metaMatch[1]
+      const metaItems = metaHtml
+        .match(/<div\s+class=\"meta-item\"[\s\S]*?<\/div>/gi)
+        ?.slice(0, 3)
+
+      if (!metaItems || metaItems.length === 0) return raw
+
+      const toSpan = (divHtml: string) => {
+        const inner = divHtml
+          .replace(/^<div[^>]*>/i, '')
+          .replace(/<\/div>$/i, '')
+        return `<span style=\"white-space:nowrap\">${inner}</span>`
+      }
+
+      const leftMeta = toSpan(metaItems[0])
+      const rightMeta = metaItems.slice(1).map(toSpan).join('<span style="width:16px;display:inline-block"></span>')
+
+      const normalizedStrip = `
+<div class=\"receipt-strip\" style=\"display:flex;justify-content:space-between;align-items:center;width:100%\">
+  <div style=\"flex:1;text-align:left;white-space:nowrap\">
+    <span style=\"font-weight:bold;color:#2563eb;\">RECEIPT</span>
+    <span style=\"margin-left:8px;\">${leftMeta}</span>
+  </div>
+  <div style=\"flex:1;text-align:right;white-space:nowrap\">${rightMeta}</div>
+</div>`
+
+      return raw.replace(stripHtml, normalizedStrip)
+    }
+
+    html = normalizeReceiptStrip(html)
+
+    const previewCss =
+      '<style>html,body{margin:0;padding:0;overflow-x:hidden;overflow-y:auto}.items-table tbody tr:nth-child(even){background-color:#f9fafb}table tbody tr:nth-child(even){background-color:#f9fafb}</style>'
+
+    if (/<head[^>]*>/i.test(html)) {
+      html = html.replace(/<head[^>]*>/i, (match) => `${match}${previewCss}`)
+    } else {
+      html = `${previewCss}${html}`
     }
 
     return html
@@ -1106,7 +1166,7 @@ export default function ReceiptList() {
         const imgWidth = 210
         const imgHeight = (canvas.height * imgWidth) / canvas.width
         pdf.addImage(imgData, 'PNG', 0, 0, imgWidth, imgHeight)
-        pdf.save(`receipt-${fullReceipt.id}.pdf`)
+        pdf.save(`receipt-${fullReceipt.receipt_number || fullReceipt.id}.pdf`)
         showToast('Download started', 'Your receipt PDF is being downloaded.', 'success')
       } finally {
         document.body.removeChild(container)
@@ -1268,183 +1328,287 @@ export default function ReceiptList() {
     )
   }
 
+  const getActiveFiltersCount = () => {
+    let count = 0
+    if (statusFilter !== 'all') count++
+    if (templateFilter !== 'all') count++
+    if (dateRangeFilter !== 'all') count++
+    if (minAmount || maxAmount) count++
+    return count
+  }
+
+  const clearAllFilters = () => {
+    setStatusFilter('all')
+    setTemplateFilter('all')
+    setDateRangeFilter('all')
+    setMinAmount('')
+    setMaxAmount('')
+    setSearchTerm('')
+  }
+
+  const getFilterLabel = (type: string, value: string) => {
+    switch (type) {
+      case 'status':
+        return value === 'draft' ? 'Draft' : value === 'sent' ? 'Sent' : 'Paid'
+      case 'template':
+        return templates.find(t => t.id === value)?.name || value
+      case 'date':
+        return value === 'today' ? 'Today' : value === '7d' ? 'Last 7 days' : 'Last 30 days'
+      default:
+        return value
+    }
+  }
+
   return (
     <div className="space-y-4">
-      {/* Header with Title and Buttons */}
+      {/* Header with Title and Filters */}
       <div className="bg-white p-4 rounded-lg border border-gray-200">
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
           <div>
             <h1 className="text-2xl font-bold text-gray-900">Receipts</h1>
             <p className="text-sm text-gray-500 mt-1">Create and manage your receipts</p>
           </div>
 
           {/* Search and Filters */}
-          <div className="w-full sm:w-auto flex flex-col sm:flex-row gap-3 sm:items-center">
-            <div className="flex-1 sm:w-64 bg-white rounded-lg border border-gray-200 h-9 px-3 flex items-center gap-2">
-              <Search size={18} className="text-gray-400" />
+          <div className="flex flex-col sm:flex-row gap-3 sm:items-center">
+            {/* Search Input */}
+            <div className="relative">
+              <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
               <Input
                 type="text"
                 placeholder="Search receipts..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="flex-1 h-9 border-0 focus:ring-0 px-0 py-0 text-sm"
+                className="pl-9 h-10 w-full sm:w-64 border-gray-200 rounded-full text-sm focus:ring-2 focus:ring-violet-500 focus:border-transparent"
               />
-            </div>
-
-            <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 sm:items-center">
-              <DropdownMenu.Root>
-                <DropdownMenu.Trigger asChild>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="h-9 px-3 flex items-center gap-2 border-gray-200 bg-white text-gray-700 hover:bg-gray-50"
-                  >
-                    <Funnel className="h-4 w-4" />
-                    <span className="text-xs font-medium">Filters</span>
-                  </Button>
-                </DropdownMenu.Trigger>
-                <DropdownMenu.Portal>
-                  <DropdownMenu.Content className="min-w-[260px] rounded-xl border border-gray-200 bg-white shadow-lg p-3 mr-1 mt-2 z-50 space-y-3">
-                    <div>
-                      <p className="text-[10px] font-semibold text-gray-500 uppercase mb-1.5">Status</p>
-                      <div className="flex flex-wrap gap-1.5">
-                        {[{ id: 'all', label: 'All' }, { id: 'draft', label: 'Draft' }, { id: 'sent', label: 'Sent' }, { id: 'paid', label: 'Paid' }].map((option) => (
-                          <button
-                            key={option.id}
-                            type="button"
-                            onClick={() => setStatusFilter(option.id as 'all' | 'draft' | 'sent' | 'paid')}
-                            className={cn(
-                              'px-2.5 py-1 rounded-full text-[11px] font-medium border cursor-pointer transition-colors',
-                              statusFilter === option.id
-                                ? 'bg-violet-50 text-violet-700 border-violet-200'
-                                : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50 hover:text-gray-900'
-                            )}
-                          >
-                            {option.label}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-
-                    <div>
-                      <p className="text-[10px] font-semibold text-gray-500 uppercase mb-1.5">Template</p>
-                      <div className="flex flex-col gap-1 max-h-40 overflow-y-auto">
-                        <button
-                          type="button"
-                          onClick={() => setTemplateFilter('all')}
-                          className={cn(
-                            'w-full text-left px-2.5 py-1 rounded-md text-[11px] font-medium cursor-pointer transition-colors',
-                            templateFilter === 'all'
-                              ? 'bg-violet-50 text-violet-700'
-                              : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
-                          )}
-                        >
-                          All templates
-                        </button>
-                        {templates.map((template) => (
-                          <button
-                            key={template.id}
-                            type="button"
-                            onClick={() => setTemplateFilter(template.id)}
-                            className={cn(
-                              'w-full text-left px-2.5 py-1 rounded-md text-[11px] font-medium cursor-pointer transition-colors',
-                              templateFilter === template.id
-                                ? 'bg-blue-50 text-blue-700'
-                                : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
-                            )}
-                          >
-                            {template.name}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-
-                    <div>
-                      <p className="text-[10px] font-semibold text-gray-500 uppercase mb-1.5">Date range</p>
-                      <div className="flex flex-wrap gap-1.5">
-                        {[
-                          { id: 'all', label: 'All time' },
-                          { id: 'today', label: 'Today' },
-                          { id: '7d', label: 'Last 7 days' },
-                          { id: '30d', label: 'Last 30 days' },
-                        ].map((option) => (
-                          <button
-                            key={option.id}
-                            type="button"
-                            onClick={() => setDateRangeFilter(option.id as 'all' | 'today' | '7d' | '30d')}
-                            className={cn(
-                              'px-2.5 py-1 rounded-full text-[11px] font-medium border cursor-pointer transition-colors',
-                              dateRangeFilter === option.id
-                                ? 'bg-violet-50 text-violet-700 border-violet-200'
-                                : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50 hover:text-gray-900'
-                            )}
-                          >
-                            {option.label}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-
-                    <div>
-                      <p className="text-[10px] font-semibold text-gray-500 uppercase mb-1.5">Amount</p>
-                      <div className="flex items-center gap-2">
-                        <Input
-                          type="number"
-                          inputMode="decimal"
-                          min="0"
-                          value={minAmount}
-                          onChange={(e) => setMinAmount(e.target.value)}
-                          placeholder="Min"
-                          className="h-8 w-20 text-[11px] border-gray-200"
-                        />
-                        <span className="text-[10px] text-gray-400">to</span>
-                        <Input
-                          type="number"
-                          inputMode="decimal"
-                          min="0"
-                          value={maxAmount}
-                          onChange={(e) => setMaxAmount(e.target.value)}
-                          placeholder="Max"
-                          className="h-8 w-20 text-[11px] border-gray-200"
-                        />
-                      </div>
-                    </div>
-
-                    <div className="pt-2 border-t border-gray-100 flex justify-between items-center">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setStatusFilter('all')
-                          setTemplateFilter('all')
-                          setDateRangeFilter('all')
-                          setMinAmount('')
-                          setMaxAmount('')
-                        }}
-                        className="text-[11px] font-medium text-gray-500 hover:text-gray-700 cursor-pointer"
-                      >
-                        Reset filters
-                      </button>
-                    </div>
-                  </DropdownMenu.Content>
-                </DropdownMenu.Portal>
-              </DropdownMenu.Root>
-
-              {/* Add Button */}
-              {canCreateReceipts && (
-                <span
-                  title={isGrandUserAllShops ? 'Select a shop first' : undefined}
-                  className="inline-flex"
+              {searchTerm && (
+                <button
+                  onClick={() => setSearchTerm('')}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
                 >
-                  <Button onClick={handleAddNew} size="sm" disabled={isGrandUserAllShops}>
-                    <Plus size={16} />
-                    New Receipt
-                  </Button>
-                </span>
+                  <X size={14} />
+                </button>
               )}
             </div>
+
+            {/* Filter Dropdown */}
+            <DropdownMenu.Root>
+              <DropdownMenu.Trigger asChild>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className={cn(
+                    'h-10 px-4 rounded-lg border-gray-200 flex items-center gap-2 transition-all',
+                    getActiveFiltersCount() > 0
+                      ? 'bg-violet-50 border-violet-200 text-violet-700'
+                      : 'bg-white text-gray-700 hover:bg-gray-50'
+                  )}
+                >
+                  <Funnel className="h-4 w-4" />
+                  <span className="text-sm font-medium">Filters</span>
+                  {getActiveFiltersCount() > 0 && (
+                    <span className="ml-1 px-1.5 py-0.5 bg-violet-600 text-white text-[10px] font-semibold rounded-full">
+                      {getActiveFiltersCount()}
+                    </span>
+                  )}
+                </Button>
+              </DropdownMenu.Trigger>
+              <DropdownMenu.Portal>
+                <DropdownMenu.Content className="min-w-[320px] rounded-xl border border-gray-200 bg-white shadow-xl p-4 mr-2 mt-2 z-50 space-y-4">
+                  {/* Status Filter */}
+                  <div>
+                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Status</p>
+                    <div className="flex flex-wrap gap-2">
+                      {[{ id: 'all', label: 'All' }, { id: 'draft', label: 'Draft' }, { id: 'sent', label: 'Sent' }, { id: 'paid', label: 'Paid' }].map((option) => (
+                        <button
+                          key={option.id}
+                          type="button"
+                          onClick={() => setStatusFilter(option.id as 'all' | 'draft' | 'sent' | 'paid')}
+                          className={cn(
+                            'px-3 py-1.5 rounded-full text-xs font-medium border transition-all',
+                            statusFilter === option.id
+                              ? 'bg-violet-100 text-violet-700 border-violet-300 shadow-sm'
+                              : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50 hover:border-gray-300'
+                          )}
+                        >
+                          {option.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Template Filter */}
+                  <div>
+                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Template</p>
+                    <div className="flex flex-col gap-1 max-h-48 overflow-y-auto pr-1">
+                      <button
+                        type="button"
+                        onClick={() => setTemplateFilter('all')}
+                        className={cn(
+                          'w-full text-left px-3 py-2 rounded-lg text-xs font-medium transition-colors',
+                          templateFilter === 'all'
+                            ? 'bg-violet-50 text-violet-700'
+                            : 'text-gray-600 hover:bg-gray-50'
+                        )}
+                      >
+                        All templates
+                      </button>
+                      {templates.map((template) => (
+                        <button
+                          key={template.id}
+                          type="button"
+                          onClick={() => setTemplateFilter(template.id)}
+                          className={cn(
+                            'w-full text-left px-3 py-2 rounded-lg text-xs font-medium transition-colors',
+                            templateFilter === template.id
+                              ? 'bg-violet-50 text-violet-700'
+                              : 'text-gray-600 hover:bg-gray-50'
+                          )}
+                        >
+                          {template.name}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Date Range Filter */}
+                  <div>
+                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Date Range</p>
+                    <div className="flex flex-wrap gap-2">
+                      {[
+                        { id: 'all', label: 'All time' },
+                        { id: 'today', label: 'Today' },
+                        { id: '7d', label: 'Last 7 days' },
+                        { id: '30d', label: 'Last 30 days' },
+                      ].map((option) => (
+                        <button
+                          key={option.id}
+                          type="button"
+                          onClick={() => setDateRangeFilter(option.id as 'all' | 'today' | '7d' | '30d')}
+                          className={cn(
+                            'px-3 py-1.5 rounded-full text-xs font-medium border transition-all',
+                            dateRangeFilter === option.id
+                              ? 'bg-violet-100 text-violet-700 border-violet-300 shadow-sm'
+                              : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50 hover:border-gray-300'
+                          )}
+                        >
+                          {option.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Amount Range */}
+                  <div>
+                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Amount Range</p>
+                    <div className="flex items-center gap-2">
+                      <Input
+                        type="number"
+                        inputMode="decimal"
+                        min="0"
+                        value={minAmount}
+                        onChange={(e) => setMinAmount(e.target.value)}
+                        placeholder="Min"
+                        className="h-9 w-24 text-xs border-gray-200 rounded-lg"
+                      />
+                      <span className="text-xs text-gray-400">to</span>
+                      <Input
+                        type="number"
+                        inputMode="decimal"
+                        min="0"
+                        value={maxAmount}
+                        onChange={(e) => setMaxAmount(e.target.value)}
+                        placeholder="Max"
+                        className="h-9 w-24 text-xs border-gray-200 rounded-lg"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Footer */}
+                  <div className="pt-3 border-t border-gray-100 flex justify-between items-center">
+                    <span className="text-xs text-gray-400">
+                      {getActiveFiltersCount()} active {getActiveFiltersCount() === 1 ? 'filter' : 'filters'}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={clearAllFilters}
+                      className="text-xs font-medium text-violet-600 hover:text-violet-700 transition-colors"
+                    >
+                      Clear all
+                    </button>
+                  </div>
+                </DropdownMenu.Content>
+              </DropdownMenu.Portal>
+            </DropdownMenu.Root>
+
+            {/* Add Button */}
+            {canCreateReceipts && (
+              <span
+                title={isGrandUserAllShops ? 'Select a shop first' : undefined}
+                className="inline-flex"
+              >
+                <Button onClick={handleAddNew} size="sm" disabled={isGrandUserAllShops} className="h-10 rounded-lg">
+                  <Plus size={16} className="mr-1" />
+                  New Receipt
+                </Button>
+              </span>
+            )}
           </div>
         </div>
+
+        {/* Active Filter Pills */}
+        {(statusFilter !== 'all' || templateFilter !== 'all' || dateRangeFilter !== 'all' || minAmount || maxAmount || searchTerm) && (
+          <div className="flex flex-wrap items-center gap-2 mt-4 pt-4 border-t border-gray-100">
+            <span className="text-xs text-gray-500 mr-1">Active filters:</span>
+            {searchTerm && (
+              <span className="inline-flex items-center gap-1 px-3 py-1 bg-gray-100 text-gray-700 text-xs font-medium rounded-full">
+                Search: "{searchTerm}"
+                <button onClick={() => setSearchTerm('')} className="hover:text-gray-900">
+                  <X size={12} />
+                </button>
+              </span>
+            )}
+            {statusFilter !== 'all' && (
+              <span className="inline-flex items-center gap-1 px-3 py-1 bg-violet-100 text-violet-700 text-xs font-medium rounded-full">
+                Status: {getFilterLabel('status', statusFilter)}
+                <button onClick={() => setStatusFilter('all')} className="hover:text-violet-900">
+                  <X size={12} />
+                </button>
+              </span>
+            )}
+            {templateFilter !== 'all' && (
+              <span className="inline-flex items-center gap-1 px-3 py-1 bg-violet-100 text-violet-700 text-xs font-medium rounded-full">
+                Template: {getFilterLabel('template', templateFilter)}
+                <button onClick={() => setTemplateFilter('all')} className="hover:text-violet-900">
+                  <X size={12} />
+                </button>
+              </span>
+            )}
+            {dateRangeFilter !== 'all' && (
+              <span className="inline-flex items-center gap-1 px-3 py-1 bg-violet-100 text-violet-700 text-xs font-medium rounded-full">
+                Date: {getFilterLabel('date', dateRangeFilter)}
+                <button onClick={() => setDateRangeFilter('all')} className="hover:text-violet-900">
+                  <X size={12} />
+                </button>
+              </span>
+            )}
+            {(minAmount || maxAmount) && (
+              <span className="inline-flex items-center gap-1 px-3 py-1 bg-violet-100 text-violet-700 text-xs font-medium rounded-full">
+                Amount: {minAmount || '0'} - {maxAmount || '∞'}
+                <button onClick={() => { setMinAmount(''); setMaxAmount('') }} className="hover:text-violet-900">
+                  <X size={12} />
+                </button>
+              </span>
+            )}
+            <button
+              onClick={clearAllFilters}
+              className="text-xs font-medium text-gray-500 hover:text-gray-700 ml-1"
+            >
+              Clear all
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Error Message */}
