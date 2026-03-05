@@ -4,6 +4,7 @@ import bcrypt from 'bcryptjs'
 import { supabase } from '@/lib/supabase'
 import type { User, UserRole, AdminPermissions } from '@/types'
 import { adminService } from '@/services/adminService'
+import { vendorAdminService } from '@/services/vendorAdminService'
 
 // JWT token helpers
 const TOKEN_KEY = 'xreceipt_auth_token'
@@ -86,6 +87,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return
       }
 
+      if (dbUser.status === 'inactive') {
+        setError('Account is disabled. Please contact administrator.')
+        setUser(null)
+        setRole(null)
+        setPermissions(null)
+        localStorage.removeItem(TOKEN_KEY)
+        localStorage.removeItem(USER_ID_KEY)
+        setLoading(false)
+        return
+      }
+
+      if (dbUser.role === 'admin' || dbUser.role === 'super_admin') {
+        const entries = await vendorAdminService.getVendorsForAdmin(dbUser.id)
+        const hasActiveVendor = entries.some((e) => e.vendor.status === 'active')
+        if (!hasActiveVendor) {
+          setError('Shop is disabled. Please contact administrator.')
+          setUser(null)
+          setRole(null)
+          setPermissions(null)
+          localStorage.removeItem(TOKEN_KEY)
+          localStorage.removeItem(USER_ID_KEY)
+          setLoading(false)
+          return
+        }
+      }
+
       setUser(dbUser)
       setRole(dbUser.role)
       // Permissions are loaded in VendorContext with vendor scope
@@ -131,6 +158,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       
       if (!isValidPassword) {
         throw new Error('Invalid email or password')
+      }
+
+      if (dbUser.status === 'inactive') {
+        throw new Error('Account is disabled. Please contact administrator.')
+      }
+
+      if (dbUser.role === 'admin' || dbUser.role === 'super_admin') {
+        const entries = await vendorAdminService.getVendorsForAdmin(dbUser.id)
+        const hasActiveVendor = entries.some((e) => e.vendor.status === 'active')
+        if (!hasActiveVendor) {
+          throw new Error('Shop is disabled. Please contact administrator.')
+        }
       }
 
       // Generate and store token

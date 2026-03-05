@@ -51,6 +51,13 @@ export const receiptService = {
 
     const vendorId = (receiptData as any).vendor_id as string | null | undefined
 
+    if (vendorId) {
+      const vendor = await vendorService.getVendorById(vendorId)
+      if (!vendor || vendor.status !== 'active') {
+        throw new Error('Shop is not found. Please contact to the author.')
+      }
+    }
+
     const buildPrefixFromVendorName = (nameRaw: string | null | undefined) => {
       const name = (nameRaw || '').trim()
       if (!name) return 'RC'

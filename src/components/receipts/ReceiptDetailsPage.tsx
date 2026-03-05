@@ -760,9 +760,9 @@ export default function ReceiptDetailsPage({ receiptId, onBack }: ReceiptDetails
       </div>
 
       {/* Main Content: Info on left (shrink), Receipt on right (max space) */}
-      <div className="grid gap-4 lg:grid-cols-[280px_1fr] items-start">
+      <div className="flex flex-col lg:flex-row gap-4 items-start">
         {/* Left: Info Cards */}
-        <div className="space-y-3 w-[280px] flex-shrink-0">
+        <div className="space-y-3 w-full lg:basis-2/5 lg:min-w-0">
           <div className="grid grid-cols-2 md:grid-cols-2 gap-3">
             <div className="bg-white p-4 rounded-lg border border-gray-200">
               <p className="text-xs text-gray-600 font-semibold uppercase mb-2">Customer</p>
@@ -842,9 +842,9 @@ export default function ReceiptDetailsPage({ receiptId, onBack }: ReceiptDetails
         </div>
 
         {/* Right: Receipt Content (max space) */}
-        <div className="bg-white rounded-lg border border-gray-200 overflow-hidden min-w-0">
+        <div className="bg-white rounded-lg border border-gray-200 overflow-hidden w-full lg:basis-3/5 lg:min-w-0">
           <div className="overflow-auto" style={{ maxHeight: 'calc(100vh - 200px)' }}>
-            <div className="flex justify-center min-w-fit p-4 md:p-6">
+            <div className="flex justify-start min-w-fit p-4 md:p-6">
               <iframe
                 ref={iframeRef}
                 title="Receipt preview"

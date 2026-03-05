@@ -7,12 +7,13 @@ import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Label } from '@/components/ui/Label'
 import { Dialog, DialogClose, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/Dialog'
-import { Plus, Edit, Trash2, AlertCircle, Store, Search, X } from 'lucide-react'
+import { Plus, Edit, Trash2, AlertCircle, Store, Search, X, Ban, ChevronDown, Check } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { useVendor } from '@/contexts/VendorContext'
 import { cn } from '@/lib/utils'
 import { supabase } from '@/lib/supabase'
 import { useToast } from '@/contexts/ToastContext'
+import * as Select from '@radix-ui/react-select'
 
 export default function VendorList() {
   const { role } = useAuth()
@@ -307,8 +308,8 @@ export default function VendorList() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
-    if (!formData.vendor_id || !formData.name || !formData.url) {
-      const message = 'Shop ID, name, and url are required'
+    if (!formData.vendor_id || !formData.name) {
+      const message = 'Shop ID and name are required'
       setError(message)
       toast('Missing fields', message, 'error')
       return
@@ -513,6 +514,7 @@ export default function VendorList() {
                                 : 'bg-gray-50 text-gray-700 border-gray-200',
                             )}
                           >
+                            {vendor.status === 'inactive' && <Ban size={12} className="mr-1 text-gray-400" />}
                             {vendor.status === 'active' ? 'Active' : 'Inactive'}
                           </span>
                         </div>
@@ -653,6 +655,7 @@ export default function VendorList() {
                                 : 'bg-gray-50 text-gray-700 border border-gray-200'
                             }`}
                           >
+                            {vendor.status === 'inactive' && <Ban size={12} className="mr-1 text-gray-400" />}
                             {vendor.status === 'active' ? 'Active' : 'Inactive'}
                           </span>
                         </td>
@@ -926,7 +929,7 @@ export default function VendorList() {
                     </div>
 
                     <div className="space-y-2 md:col-span-2">
-                      <Label htmlFor="url" className="text-sm font-semibold text-gray-900" required>
+                      <Label htmlFor="url" className="text-sm font-semibold text-gray-900">
                         Shop URL
                       </Label>
                       <Input
@@ -935,7 +938,6 @@ export default function VendorList() {
                         value={formData.url}
                         onChange={(e) => setFormData({ ...formData, url: e.target.value })}
                         placeholder="https://shop-site.com"
-                        required
                       />
                     </div>
 
@@ -956,15 +958,51 @@ export default function VendorList() {
                       <Label htmlFor="status" className="text-sm font-semibold text-gray-900">
                         Status
                       </Label>
-                      <select
-                        id="status"
+                      <Select.Root
                         value={formData.status}
-                        onChange={(e) => setFormData({ ...formData, status: e.target.value as 'active' | 'inactive' })}
-                        className="w-full h-10 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500 text-sm text-gray-900"
+                        onValueChange={(value) => setFormData({ ...formData, status: value as 'active' | 'inactive' })}
                       >
-                        <option value="active">Active</option>
-                        <option value="inactive">Inactive</option>
-                      </select>
+                        <Select.Trigger
+                          className="w-full h-10 px-4 py-2 border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-violet-500 text-sm text-gray-900 flex items-center justify-between"
+                          aria-label="Status"
+                        >
+                          <Select.Value />
+                          <Select.Icon>
+                            <ChevronDown size={16} className="text-gray-400" />
+                          </Select.Icon>
+                        </Select.Trigger>
+                        <Select.Portal>
+                          <Select.Content
+                            position="popper"
+                            sideOffset={6}
+                            className="z-50 min-w-[var(--radix-select-trigger-width)] rounded-lg border border-gray-200 bg-white shadow-lg overflow-hidden"
+                          >
+                            <Select.Viewport className="p-1">
+                              {(
+                                [
+                                  { value: 'active', label: 'Active' },
+                                  { value: 'inactive', label: 'Inactive' },
+                                ] as const
+                              ).map((item) => (
+                                <Select.Item
+                                  key={item.value}
+                                  value={item.value}
+                                  className={cn(
+                                    'px-3 py-2 text-sm text-gray-700 cursor-pointer flex items-center justify-between rounded-md outline-none',
+                                    'data-[highlighted]:bg-violet-50 data-[highlighted]:text-violet-700',
+                                    'data-[state=checked]:bg-violet-50 data-[state=checked]:text-violet-700',
+                                  )}
+                                >
+                                  <Select.ItemText>{item.label}</Select.ItemText>
+                                  <Select.ItemIndicator>
+                                    <Check size={16} className="text-violet-600" />
+                                  </Select.ItemIndicator>
+                                </Select.Item>
+                              ))}
+                            </Select.Viewport>
+                          </Select.Content>
+                        </Select.Portal>
+                      </Select.Root>
                     </div>
 
                     <div className="space-y-2 md:col-span-2">

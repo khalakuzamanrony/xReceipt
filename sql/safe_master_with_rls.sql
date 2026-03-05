@@ -9,6 +9,7 @@
 ALTER TABLE users ADD COLUMN IF NOT EXISTS phone VARCHAR(20);
 ALTER TABLE users ADD COLUMN IF NOT EXISTS profile_image_url VARCHAR(500);
 ALTER TABLE users ADD COLUMN IF NOT EXISTS password_hash VARCHAR(255);
+ALTER TABLE users ADD COLUMN IF NOT EXISTS status VARCHAR(50) NOT NULL DEFAULT 'active';
 ALTER TABLE users ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP;
 
 ALTER TABLE users DROP CONSTRAINT IF EXISTS users_role_check;
@@ -23,6 +24,12 @@ SET role = 'admin'
 WHERE role NOT IN ('grand_user', 'admin', 'super_admin') OR role IS NULL;
 
 ALTER TABLE users ADD CONSTRAINT users_role_check CHECK (role IN ('grand_user', 'admin', 'super_admin'));
+
+ALTER TABLE users DROP CONSTRAINT IF EXISTS users_status_check;
+UPDATE users
+SET status = 'active'
+WHERE status NOT IN ('active', 'inactive') OR status IS NULL;
+ALTER TABLE users ADD CONSTRAINT users_status_check CHECK (status IN ('active', 'inactive'));
 
 -- ============================================
 -- 2. CREATE NEW TABLES IF THEY DON'T EXIST
@@ -83,6 +90,41 @@ CREATE TABLE IF NOT EXISTS vendor_admins (
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
   UNIQUE (vendor_id, admin_id)
 );
+
+-- Keep associated users in sync with vendor status
+CREATE OR REPLACE FUNCTION sync_vendor_user_status()
+RETURNS TRIGGER AS $$
+BEGIN
+  IF TG_OP = 'UPDATE' AND NEW.status IS DISTINCT FROM OLD.status THEN
+    IF NEW.status = 'inactive' THEN
+      UPDATE users
+      SET status = 'inactive',
+          updated_at = CURRENT_TIMESTAMP
+      WHERE id IN (
+        SELECT va.admin_id
+        FROM vendor_admins va
+        WHERE va.vendor_id = NEW.id
+      );
+    ELSIF NEW.status = 'active' THEN
+      UPDATE users
+      SET status = 'active',
+          updated_at = CURRENT_TIMESTAMP
+      WHERE id IN (
+        SELECT va.admin_id
+        FROM vendor_admins va
+        WHERE va.vendor_id = NEW.id
+      );
+    END IF;
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS vendors_sync_user_status ON vendors;
+CREATE TRIGGER vendors_sync_user_status
+AFTER UPDATE OF status ON vendors
+FOR EACH ROW
+EXECUTE FUNCTION sync_vendor_user_status();
 
  -- Enforce single-shop-per-admin (an admin can only belong to one vendor)
  DO $$
@@ -646,6 +688,12 @@ DROP POLICY IF EXISTS "Public read access" ON brand_settings;
 DROP POLICY IF EXISTS "Public insert access" ON brand_settings;
 DROP POLICY IF EXISTS "Public update access" ON brand_settings;
 DROP POLICY IF EXISTS "Public delete access" ON brand_settings;
+
+-- Also drop newer policy names (this file may be re-run)
+DROP POLICY IF EXISTS "Allow public read" ON brand_settings;
+DROP POLICY IF EXISTS "Allow authenticated insert" ON brand_settings;
+DROP POLICY IF EXISTS "Allow authenticated update" ON brand_settings;
+DROP POLICY IF EXISTS "Allow authenticated delete" ON brand_settings;
 
 -- Allow anyone to read (needed for branded login pages)
 CREATE POLICY "Allow public read" ON brand_settings FOR SELECT USING (true);

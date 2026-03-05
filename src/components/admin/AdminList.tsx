@@ -640,7 +640,19 @@ export default function AdminList() {
                       )}
 
                       <div className="min-w-0">
-                        <p className="text-sm font-semibold text-gray-900 truncate">{admin.name}</p>
+                        <div className="flex items-center gap-2">
+                          <p className="text-sm font-semibold text-gray-900 truncate">{admin.name}</p>
+                          <span
+                            className={cn(
+                              'inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-medium border',
+                              admin.status === 'inactive'
+                                ? 'bg-gray-50 text-gray-700 border-gray-200'
+                                : 'bg-green-50 text-green-700 border-green-200',
+                            )}
+                          >
+                            {admin.status === 'inactive' ? 'Inactive' : 'Active'}
+                          </span>
+                        </div>
                         {isGrandUserView && (
                           <p className="text-xs text-gray-500 truncate">{getUserTypeLabel(admin)}</p>
                         )}
@@ -726,6 +738,7 @@ export default function AdminList() {
                   <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Admin</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Email</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Phone</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Status</th>
                   {isGrandUserView && (
                     <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">ASSIGNED SHOP</th>
                   )}
@@ -774,17 +787,33 @@ export default function AdminList() {
                         </div>
                       </td>
                       <td className="px-4 py-3">
-                        <p className="text-sm text-gray-600">{admin.email}</p>
+                        <p className="text-sm text-gray-900">{admin.email}</p>
                       </td>
                       <td className="px-4 py-3">
-                        <p className="text-sm text-gray-600">{admin.phone || '—'}</p>
+                        <p className="text-sm text-gray-900">{admin.phone || '—'}</p>
+                      </td>
+                      <td className="px-4 py-3">
+                        <span
+                          className={cn(
+                            'inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border',
+                            admin.status === 'inactive'
+                              ? 'bg-gray-50 text-gray-700 border-gray-200'
+                              : 'bg-green-50 text-green-700 border-green-200',
+                          )}
+                        >
+                          {admin.status === 'inactive' ? 'Inactive' : 'Active'}
+                        </span>
                       </td>
                       {isGrandUserView && (
                         <td className="px-4 py-3">
                           {(() => {
                             const assignedInfo = adminVendorInfo[admin.id] || []
                             const assigned = assignedInfo[0]?.vendorName || 'Unassigned'
-                            return <p className="text-sm text-gray-600">{assigned}</p>
+                            return (
+                              <span className="inline-flex items-center px-2.5 py-1.5 rounded-md border border-gray-200 bg-white text-xs text-gray-700">
+                                {assigned}
+                              </span>
+                            )
                           })()}
                         </td>
                       )}

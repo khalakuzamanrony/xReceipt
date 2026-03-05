@@ -14,6 +14,7 @@ interface VendorMembership {
 interface VendorContextValue {
   memberships: VendorMembership[]
   activeVendorId: string | null
+  activeVendor: Vendor | null
   setActiveVendorId: (vendorId: string | null) => void
   refreshMemberships: () => Promise<void>
   permissions: AdminVendorPermissions | null
@@ -27,7 +28,7 @@ const VendorContext = createContext<VendorContextValue | undefined>(undefined)
 export function VendorProvider({ children }: { children: ReactNode }) {
   const { user, role } = useAuth()
   const [memberships, setMemberships] = useState<VendorMembership[]>([])
-  const [activeVendorId, setActiveVendorId] = useState<string | null>(null)
+  const [activeVendorId, setActiveVendorIdState] = useState<string | null>(null)
   const [permissions, setPermissions] = useState<AdminVendorPermissions | null>(null)
   const [permissionsLoading, setPermissionsLoading] = useState(false)
   const [loading, setLoading] = useState(false)
@@ -36,7 +37,7 @@ export function VendorProvider({ children }: { children: ReactNode }) {
   const refreshMemberships = useCallback(async () => {
     if (!user || !role) {
       setMemberships([])
-      setActiveVendorId(null)
+      setActiveVendorIdState(null)
       return
     }
 
@@ -52,31 +53,74 @@ export function VendorProvider({ children }: { children: ReactNode }) {
             isVendorSuperAdmin: true,
           })),
         )
-        setActiveVendorId((prev) => prev ?? null)
+        setActiveVendorIdState((prev) => prev ?? null)
       } else {
         const entries = await vendorAdminService.getVendorsForAdmin(user.id)
-        setMemberships(entries)
+        const activeEntries = entries.filter((e) => e.vendor.status === 'active')
+        setMemberships(activeEntries)
 
-        setActiveVendorId((prev) => {
-          if (prev && entries.some((e) => e.vendor.id === prev)) {
+        setActiveVendorIdState((prev) => {
+          if (prev && activeEntries.some((e) => e.vendor.id === prev)) {
             return prev
           }
-          return entries.length > 0 ? entries[0].vendor.id : null
+          return activeEntries.length > 0 ? activeEntries[0].vendor.id : null
         })
+
+        if (entries.length > 0 && activeEntries.length === 0) {
+          setError('Shop is not found. Please contact to the author.')
+        }
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load vendors for user')
       setMemberships([])
-      setActiveVendorId(null)
+      setActiveVendorIdState(null)
     } finally {
       setLoading(false)
     }
   }, [role, user])
 
+  const setActiveVendorId = useCallback(
+    (vendorId: string | null) => {
+      if (!vendorId) {
+        setActiveVendorIdState(null)
+        return
+      }
+
+      const nextVendor = memberships.find((m) => m.vendor.id === vendorId)?.vendor
+      if (!nextVendor) {
+        setActiveVendorIdState(null)
+        return
+      }
+
+      if (nextVendor.status === 'inactive' && role !== 'grand_user') {
+        const fallbackVendor = memberships.find((m) => m.vendor.status === 'active')?.vendor ?? null
+        setActiveVendorIdState(fallbackVendor?.id ?? null)
+        setError('Shop is not found. Please contact to the author.')
+        return
+      }
+
+      setActiveVendorIdState(vendorId)
+    },
+    [memberships, role],
+  )
+
+  useEffect(() => {
+    if (!activeVendorId) return
+    const activeVendor = memberships.find((m) => m.vendor.id === activeVendorId)?.vendor
+    if (!activeVendor) return
+    if (activeVendor.status === 'inactive' && role !== 'grand_user') {
+      const nextActiveVendor = memberships.find((m) => m.vendor.status === 'active')?.vendor ?? null
+      setActiveVendorIdState(nextActiveVendor?.id ?? null)
+      setError('Shop is not found. Please contact to the author.')
+    }
+  }, [activeVendorId, memberships, role])
+
+  const activeVendor = activeVendorId ? memberships.find((m) => m.vendor.id === activeVendorId)?.vendor ?? null : null
+
   useEffect(() => {
     if (!user || !role) {
       setMemberships([])
-      setActiveVendorId(null)
+      setActiveVendorIdState(null)
       setPermissions(null)
       return
     }
@@ -130,6 +174,7 @@ export function VendorProvider({ children }: { children: ReactNode }) {
   const value: VendorContextValue = {
     memberships,
     activeVendorId,
+    activeVendor,
     setActiveVendorId,
     refreshMemberships,
     permissions,

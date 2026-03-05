@@ -1,4 +1,3 @@
-import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'
 import App from './App.tsx'
@@ -8,17 +7,15 @@ import { BrandSettingsProvider } from './contexts/BrandSettingsContext'
 import { ToastProvider } from './contexts/ToastContext'
 
 createRoot(document.getElementById('root')!).render(
-  <StrictMode>
-    <ToastProvider>
-      <AuthProvider>
-        <VendorProvider>
-          <BrandSettingsProvider>
-            <App />
-          </BrandSettingsProvider>
-        </VendorProvider>
-      </AuthProvider>
-    </ToastProvider>
-  </StrictMode>,
+  <ToastProvider>
+    <AuthProvider>
+      <VendorProvider>
+        <BrandSettingsProvider>
+          <App />
+        </BrandSettingsProvider>
+      </VendorProvider>
+    </AuthProvider>
+  </ToastProvider>,
 )
 
 // In development, make sure no service workers are controlling the app

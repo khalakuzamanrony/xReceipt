@@ -21,10 +21,11 @@ interface TemplateListProps {
 
 export default function TemplateList({ onNavigateToBuilder }: TemplateListProps) {
   const { role } = useAuth()
-  const { memberships, activeVendorId, loading: vendorLoading } = useVendor()
+  const { memberships, activeVendorId, activeVendor, loading: vendorLoading } = useVendor()
   const { toast } = useToast()
 
   const isGrandUserAllShops = role === 'grand_user' && !activeVendorId
+  const isPausedVendor = role === 'grand_user' && !!activeVendorId && activeVendor?.status === 'inactive'
 
   const isVendorSuperAdminForActiveVendor =
     (role === 'admin' || role === 'super_admin') &&
@@ -56,6 +57,17 @@ export default function TemplateList({ onNavigateToBuilder }: TemplateListProps)
   const [assignmentFilter, setAssignmentFilter] = useState<'all' | 'assigned' | 'unassigned'>('all')
   const [showTemplatePreview, setShowTemplatePreview] = useState(false)
   const [previewTemplate, setPreviewTemplate] = useState<ReceiptTemplate | null>(null)
+
+  const handleNavigateToBuilder = (templateId?: string) => {
+    if (isPausedVendor) {
+      const message = 'Shop is not found. Please contact to the author.'
+      setError(message)
+      toast('Shop unavailable', message, 'error')
+      return
+    }
+
+    onNavigateToBuilder?.(templateId)
+  }
 
   useEffect(() => {
     if (vendorLoading) return
@@ -620,10 +632,15 @@ export default function TemplateList({ onNavigateToBuilder }: TemplateListProps)
             {/* Add Button */}
             {canCreateTemplates && (
               <span
-                title={isGrandUserAllShops ? 'Select a shop first' : undefined}
+                title={isGrandUserAllShops ? 'Select a shop first' : isPausedVendor ? 'Shop is inactive' : undefined}
                 className="inline-flex"
               >
-                <Button onClick={() => onNavigateToBuilder?.()} size="sm" disabled={isGrandUserAllShops} className="h-10 rounded-lg">
+                <Button
+                  onClick={() => handleNavigateToBuilder()}
+                  size="sm"
+                  disabled={isGrandUserAllShops || isPausedVendor}
+                  className="h-10 rounded-lg"
+                >
                   <Plus size={16} className="mr-1" />
                   Template Builder
                 </Button>

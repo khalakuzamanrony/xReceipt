@@ -9,6 +9,7 @@ import {
   Users,
   Settings,
   Store,
+  Ban,
   ChevronDown,
   ChevronLeft,
   ChevronRight,
@@ -201,8 +202,7 @@ export default function Sidebar({ currentPage, onPageChange, collapsed, onCollap
                 title="Go to Dashboard"
               >
                 <BrandLogoIcon iconUrl={settings?.icon_url} className={cn(
-                  'w-10 h-10 rounded-xl shadow-sm',
-                  collapsed && 'w-10 h-10'
+                  'w-10 h-10 rounded-xl shadow-sm flex-shrink-0'
                 )} />
                 {!collapsed && (
                   <div className="flex flex-col items-start">
@@ -253,7 +253,7 @@ export default function Sidebar({ currentPage, onPageChange, collapsed, onCollap
               >
                 <Select.Trigger className="w-full flex items-center justify-between gap-2 px-3 py-2 rounded-lg border border-gray-200 bg-white hover:border-gray-300 transition-colors focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500">
                   <div className="flex items-center gap-2 min-w-0">
-                    <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center text-white text-xs font-medium flex-shrink-0">
+                    <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center text-white text-xs font-medium flex-shrink-0">
                       {(activeVendor?.name || 'W').charAt(0).toUpperCase()}
                     </div>
                     <span className="text-sm font-medium text-gray-700 truncate">
@@ -293,11 +293,20 @@ export default function Sidebar({ currentPage, onPageChange, collapsed, onCollap
                         <Select.Item
                           key={vendor.id}
                           value={vendor.id}
-                          className="px-3 py-2 text-sm text-gray-700 cursor-pointer flex items-center gap-2 hover:bg-violet-50 hover:text-violet-700 outline-none data-[state=checked]:bg-violet-50 data-[state=checked]:text-violet-700"
+                          disabled={!isGrandUser && vendor.status === 'inactive'}
+                          className={cn(
+                            'px-3 py-2 text-sm flex items-center gap-2 outline-none',
+                            vendor.status === 'inactive'
+                              ? isGrandUser
+                                ? 'text-gray-500 cursor-pointer hover:bg-violet-50 hover:text-violet-700 data-[state=checked]:bg-violet-50 data-[state=checked]:text-violet-700'
+                                : 'text-gray-400 cursor-not-allowed data-[state=checked]:bg-transparent data-[state=checked]:text-gray-400'
+                              : 'text-gray-700 cursor-pointer hover:bg-violet-50 hover:text-violet-700 data-[state=checked]:bg-violet-50 data-[state=checked]:text-violet-700'
+                          )}
                         >
                           <div className="w-5 h-5 rounded bg-gradient-to-br from-violet-400 to-purple-500 flex items-center justify-center text-white text-xs font-medium">
                             {vendor.name.charAt(0).toUpperCase()}
                           </div>
+                          {vendor.status === 'inactive' && <Ban size={14} className="text-gray-400" />}
                           <Select.ItemText>{vendor.name}</Select.ItemText>
                         </Select.Item>
                       ))}
@@ -357,11 +366,20 @@ export default function Sidebar({ currentPage, onPageChange, collapsed, onCollap
                         <Select.Item
                           key={vendor.id}
                           value={vendor.id}
-                          className="px-3 py-2 text-sm text-gray-700 cursor-pointer flex items-center gap-2 hover:bg-violet-50 hover:text-violet-700 outline-none data-[state=checked]:bg-violet-50 data-[state=checked]:text-violet-700"
+                          disabled={!isGrandUser && vendor.status === 'inactive'}
+                          className={cn(
+                            'px-3 py-2 text-sm flex items-center gap-2 outline-none',
+                            vendor.status === 'inactive'
+                              ? isGrandUser
+                                ? 'text-gray-500 cursor-pointer hover:bg-violet-50 hover:text-violet-700 data-[state=checked]:bg-violet-50 data-[state=checked]:text-violet-700'
+                                : 'text-gray-400 cursor-not-allowed data-[state=checked]:bg-transparent data-[state=checked]:text-gray-400'
+                              : 'text-gray-700 cursor-pointer hover:bg-violet-50 hover:text-violet-700 data-[state=checked]:bg-violet-50 data-[state=checked]:text-violet-700'
+                          )}
                         >
                           <div className="w-5 h-5 rounded bg-gradient-to-br from-violet-400 to-purple-500 flex items-center justify-center text-white text-xs font-medium">
                             {vendor.name.charAt(0).toUpperCase()}
                           </div>
+                          {vendor.status === 'inactive' && <Ban size={14} className="text-gray-400" />}
                           <Select.ItemText>{vendor.name}</Select.ItemText>
                         </Select.Item>
                       ))}

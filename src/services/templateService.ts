@@ -1,6 +1,7 @@
 import { supabase } from '@/lib/supabase'
 import type { ReceiptTemplate } from '@/types'
 import { adminService } from '@/services/adminService'
+import { vendorService } from '@/services/vendorService'
 
 export const templateService = {
   async getAllTemplates(vendorId?: string): Promise<ReceiptTemplate[]> {
@@ -102,6 +103,13 @@ export const templateService = {
       } catch (lookupError) {
         console.error('Failed to resolve app user for template created_by:', lookupError)
         createdBy = null
+      }
+    }
+
+    if (template.vendor_id) {
+      const vendor = await vendorService.getVendorById(template.vendor_id)
+      if (!vendor || vendor.status !== 'active') {
+        throw new Error('Shop is not found. Please contact to the author.')
       }
     }
 

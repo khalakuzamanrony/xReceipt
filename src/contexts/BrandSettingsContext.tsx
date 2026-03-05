@@ -21,6 +21,8 @@ const BrandSettingsContext = createContext<BrandSettingsContextValue | undefined
 const DEFAULT_APP_NAME = 'xReceipt'
 const DEFAULT_ICON_URL = '/vite.svg'
 
+let manifestObjectUrl: string | null = null
+
 const applyBrowserBranding = (settings: BrandSettings | null) => {
   if (typeof document === 'undefined') return
 
@@ -29,22 +31,86 @@ const applyBrowserBranding = (settings: BrandSettings | null) => {
   document.title = tagline ? `${appName} - ${tagline}` : appName
 
   const iconUrl = settings?.icon_url || DEFAULT_ICON_URL
+  const cacheKey = settings?.updated_at ? new Date(settings.updated_at).getTime() : Date.now()
+
+  const withCacheBust = (url: string) => {
+    if (!url) return url
+    const joiner = url.includes('?') ? '&' : '?'
+    return `${url}${joiner}v=${cacheKey}`
+  }
+
+  const iconHref = withCacheBust(iconUrl)
+
+  const setMeta = (name: string, content: string) => {
+    const selector = `meta[name="${name}"]`
+    const existing = document.querySelector(selector) as HTMLMetaElement | null
+    if (existing) {
+      existing.content = content
+      return
+    }
+    const meta = document.createElement('meta')
+    meta.name = name
+    meta.content = content
+    document.head.appendChild(meta)
+  }
+
+  setMeta('application-name', appName)
+  setMeta('apple-mobile-web-app-title', appName)
 
   const setLink = (rel: string) => {
     const selector = `link[rel="${rel}"]`
-    const existing = document.querySelector(selector) as HTMLLinkElement | null
-    if (existing) {
-      existing.href = iconUrl
+    const existingLinks = Array.from(document.querySelectorAll(selector)) as HTMLLinkElement[]
+    if (existingLinks.length > 0) {
+      existingLinks.forEach((link) => {
+        link.href = iconHref
+      })
       return
     }
     const link = document.createElement('link')
     link.rel = rel
-    link.href = iconUrl
+    link.href = iconHref
     document.head.appendChild(link)
   }
 
   setLink('icon')
+  setLink('shortcut icon')
   setLink('apple-touch-icon')
+
+  // Update PWA manifest dynamically (name + icons) so global branding reflects when all workspaces selected.
+  try {
+    const manifest = {
+      name: appName,
+      short_name: appName,
+      start_url: '/',
+      display: 'standalone',
+      background_color: '#ffffff',
+      theme_color: '#7c3aed',
+      icons: [
+        { src: iconHref, sizes: '192x192', type: 'image/png', purpose: 'any maskable' },
+        { src: iconHref, sizes: '512x512', type: 'image/png', purpose: 'any maskable' },
+      ],
+    }
+
+    const blob = new Blob([JSON.stringify(manifest)], { type: 'application/manifest+json' })
+    const nextUrl = URL.createObjectURL(blob)
+
+    const existing = document.querySelector('link[rel="manifest"]') as HTMLLinkElement | null
+    if (existing) {
+      existing.href = nextUrl
+    } else {
+      const link = document.createElement('link')
+      link.rel = 'manifest'
+      link.href = nextUrl
+      document.head.appendChild(link)
+    }
+
+    if (manifestObjectUrl) {
+      URL.revokeObjectURL(manifestObjectUrl)
+    }
+    manifestObjectUrl = nextUrl
+  } catch {
+    // Ignore manifest update failures.
+  }
 }
 
 export function BrandSettingsProvider({ children }: { children: ReactNode }) {

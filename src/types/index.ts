@@ -7,6 +7,7 @@ export interface User {
   name: string
   phone?: string
   role: UserRole
+  status?: 'active' | 'inactive'
   profile_image_url?: string
   password_hash?: string
   created_at: string

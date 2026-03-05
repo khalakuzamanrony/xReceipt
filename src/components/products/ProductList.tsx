@@ -18,10 +18,15 @@ import { useToast } from '@/contexts/ToastContext'
 
 export default function ProductList() {
   const { role } = useAuth()
-  const { memberships, activeVendorId, permissions, loading: vendorLoading } = useVendor()
+  const { memberships, activeVendorId, activeVendor, permissions, loading: vendorLoading } = useVendor()
   const { toast } = useToast()
 
+  const showToast = (title: string, description = '', variant: 'success' | 'error' = 'success') => {
+    toast(title, description, variant)
+  }
+
   const isGrandUserAllShops = role === 'grand_user' && !activeVendorId
+  const isPausedVendor = role === 'grand_user' && !!activeVendorId && activeVendor?.status === 'inactive'
 
   const isVendorSuperAdminForActiveVendor =
     role === 'admin' &&
@@ -207,7 +212,16 @@ export default function ProductList() {
   const handleAddNew = () => {
     // Require a vendor selection before creating products
     if (!activeVendorId) {
-      setError('Please select a shop from the header before creating products.')
+      const message = 'Please select a shop from the header before creating products.'
+      setError(message)
+      showToast('Missing shop', message, 'error')
+      return
+    }
+
+    if (isPausedVendor) {
+      const message = 'Shop is not found. Please contact to the author.'
+      setError(message)
+      showToast('Shop unavailable', message, 'error')
       return
     }
 
@@ -287,6 +301,13 @@ export default function ProductList() {
       const message = 'Please select a shop from the header before creating products.'
       setError(message)
       toast('Missing shop', message, 'error')
+      return
+    }
+
+    if (isPausedVendor && role === 'grand_user') {
+      const message = 'Shop is not found. Please contact to the author.'
+      setError(message)
+      toast('Shop unavailable', message, 'error')
       return
     }
 
@@ -572,10 +593,15 @@ export default function ProductList() {
             {/* Add Button */}
             {canCreateProducts && (
               <span
-                title={isGrandUserAllShops ? 'Select a shop first' : undefined}
+                title={isGrandUserAllShops ? 'Select a shop first' : isPausedVendor ? 'Shop is inactive' : undefined}
                 className="inline-flex"
               >
-                <Button onClick={handleAddNew} size="sm" disabled={isGrandUserAllShops} className="h-10 rounded-lg">
+                <Button
+                  onClick={handleAddNew}
+                  size="sm"
+                  disabled={isGrandUserAllShops || isPausedVendor}
+                  className="h-10 rounded-lg"
+                >
                   <Plus size={16} className="mr-1" />
                   Add Product
                 </Button>

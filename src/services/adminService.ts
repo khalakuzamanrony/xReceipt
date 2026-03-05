@@ -150,6 +150,7 @@ export const adminService = {
     profileImageUrl?: string,
     password?: string,
     role: 'admin' | 'super_admin' = 'admin',
+    status: 'active' | 'inactive' = 'active',
   ): Promise<User> {
     const passwordHash = password ? await hashPassword(password) : undefined
 
@@ -161,6 +162,7 @@ export const adminService = {
         phone,
         profile_image_url: profileImageUrl,
         role,
+        status,
         password_hash: passwordHash,
       })
       .select()
@@ -177,6 +179,7 @@ export const adminService = {
     phone?: string,
     profileImageUrl?: string,
     password?: string,
+    status: 'active' | 'inactive' = 'active',
   ): Promise<User> {
     const passwordHash = password ? await hashPassword(password) : undefined
 
@@ -188,6 +191,7 @@ export const adminService = {
         phone,
         profile_image_url: profileImageUrl,
         role: 'grand_user',
+        status,
         password_hash: passwordHash,
       })
       .select()

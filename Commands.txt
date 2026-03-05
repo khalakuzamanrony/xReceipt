@@ -49,3 +49,19 @@ when ther is only one show, no need to show shop selection dropdown, specially f
 10. on generated receipt the receipt id should be same as on portal and on the generated receipt, currently receipt id we are showing on the receipt list should be show on generated receipt and also on the header of the receipt details page .
 11. on receipt template builder page, sidebar should always collapsed mode by default , but user can expend if they want
 12. need an option to send the generated receipt to send on email and social media specially on email, whatsapp, messenger (this can be done like if email selected, a predefined email body will set , receipt pdf will be attached, customer email will be set to send , and a beautiful meaningful subject line should be added, it should be complete ready to send type, same goes for social share , if send , status will be sent
+
+
+
+Major
+1. if any shop is inactive status, all activity of that shop will be paused, no user can login to the shop(super admin, admin) rather they will see a notice while logging in to the shop saying shop is not found, please contact to the author,  nothing can be created (as grand user) for the shop but the shop data will still remain , frontend will show as disabled with disabled icon and making it active will resume everything like before.
+2. add active status for users and functionality will be same. if active he can access, if not hen while login if creds are correct shows notice, also add column on users table
+3. On receipt details page, i see the preview takes a lot of spaces and the other info section gets broken for that, so make 40/60 ration a month the two columns and if there is not enough space to show the preview we can already have scroll to show the receipt to keep its best form intact
+4. remove the text from add user modal "for Supabase user setup" and also the placeholder of the password
+5. for pwa icon and app name should be dynamic which would be the global brand data when all workspaces is selected
+6. on shop > add /edit shop. status dropdown data are not showing correct place
+7. as admin, after login, it reloads 2 times
+8. when sidebar is collapsed, the image is also srinking, rather the shop logo should remain same size on both expended and collapsed mode
+Minor
+1. on receipt table i see dollar sign, make it taka sign
+2. on add shop modal > the shop url should be not mandatory, make it optional 
+3. looged in as super admin, favicon is not updating, not seeng browser tab
