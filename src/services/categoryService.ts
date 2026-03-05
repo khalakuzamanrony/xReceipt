@@ -1,5 +1,6 @@
 import { supabase } from '@/lib/supabase'
 import type { Category } from '@/types'
+import { vendorService } from '@/services/vendorService'
 
 export const categoryService = {
   async getAllCategories(vendorId?: string): Promise<Category[]> {
@@ -30,6 +31,13 @@ export const categoryService = {
   },
 
   async createCategory(category: Omit<Category, 'id' | 'created_at' | 'updated_at'>): Promise<Category> {
+    if (category.vendor_id) {
+      const vendor = await vendorService.getVendorById(category.vendor_id)
+      if (!vendor || vendor.status !== 'active') {
+        throw new Error('Shop is not found. Please contact to the author.')
+      }
+    }
+
     const { data, error } = await supabase
       .from('categories')
       .insert(category)

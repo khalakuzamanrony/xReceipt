@@ -30,6 +30,7 @@ export default function AdminForm({ admin, onClose, canEditEmail = false }: Admi
     phone: '',
     profileImage: null as File | null,
     password: '',
+    status: 'active' as 'active' | 'inactive',
   })
   const [showPassword, setShowPassword] = useState(false)
   const [userType, setUserType] = useState<'grand_user' | 'super_admin' | 'admin'>('admin')
@@ -57,6 +58,7 @@ export default function AdminForm({ admin, onClose, canEditEmail = false }: Admi
         phone: admin.phone || '',
         profileImage: null,
         password: '',
+        status: admin.status === 'inactive' ? 'inactive' : 'active',
       })
       setUserType(admin.role === 'grand_user' ? 'grand_user' : admin.role === 'super_admin' ? 'super_admin' : 'admin')
       // Load the admin's vendor assignment first, then load permissions
@@ -148,6 +150,7 @@ export default function AdminForm({ admin, onClose, canEditEmail = false }: Admi
           name: formData.name,
           email: formData.email,
           phone: formData.phone,
+          status: formData.status,
         }
         if (role === 'grand_user') {
           if (userType === 'grand_user' || userType === 'admin' || userType === 'super_admin') {
@@ -184,6 +187,7 @@ export default function AdminForm({ admin, onClose, canEditEmail = false }: Admi
             formData.phone,
             undefined,
             formData.password,
+            formData.status,
           )
 
           if (formData.profileImage) {
@@ -212,6 +216,7 @@ export default function AdminForm({ admin, onClose, canEditEmail = false }: Admi
           undefined,
           formData.password,
           userType === 'super_admin' ? 'super_admin' : 'admin',
+          formData.status,
         )
 
         if (formData.profileImage) {
@@ -377,6 +382,21 @@ export default function AdminForm({ admin, onClose, canEditEmail = false }: Admi
                       </div>
 
                       <div className="space-y-2">
+                        <Label htmlFor="status" required>
+                          Status
+                        </Label>
+                        <select
+                          id="status"
+                          value={formData.status}
+                          onChange={(e) => setFormData((prev) => ({ ...prev, status: e.target.value as 'active' | 'inactive' }))}
+                          className="w-full h-10 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500 text-sm text-gray-900"
+                        >
+                          <option value="active">Active</option>
+                          <option value="inactive">Inactive</option>
+                        </select>
+                      </div>
+
+                      <div className="space-y-2">
                         <Label htmlFor="image">Profile Image</Label>
                         <Input id="image" type="file" accept="image/*" onChange={handleImageChange} />
                       </div>
@@ -385,14 +405,13 @@ export default function AdminForm({ admin, onClose, canEditEmail = false }: Admi
                     {!admin && (
                       <div className="space-y-2">
                         <Label htmlFor="password" required>
-                          Password (for Supabase user setup)
+                          Password
                         </Label>
                         <div className="relative">
                           <Input
                             id="password"
                             type={showPassword ? 'text' : 'password'}
                             name="password"
-                            placeholder="Temporary password for this admin"
                             value={formData.password}
                             onChange={handleInputChange}
                             required

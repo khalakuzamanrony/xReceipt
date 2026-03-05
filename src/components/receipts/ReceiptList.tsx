@@ -22,10 +22,11 @@ import { useToast } from '@/contexts/ToastContext'
 
 export default function ReceiptList() {
   const { role } = useAuth()
-  const { memberships, activeVendorId, permissions, loading: vendorLoading } = useVendor()
+  const { memberships, activeVendorId, activeVendor, permissions, loading: vendorLoading } = useVendor()
   const { toast } = useToast()
 
   const isGrandUserAllShops = role === 'grand_user' && !activeVendorId
+  const isPausedVendor = role === 'grand_user' && !!activeVendorId && activeVendor?.status === 'inactive'
 
   const isVendorSuperAdminForActiveVendor =
     role === 'admin' &&
@@ -431,6 +432,13 @@ export default function ReceiptList() {
       return
     }
 
+    if (isPausedVendor) {
+      const message = 'Shop is not found. Please contact to the author.'
+      setError(message)
+      showToast('Shop unavailable', message, 'error')
+      return
+    }
+
     setSelectedReceipt(null)
     setFormData({
       company_name: activeVendorName,
@@ -621,6 +629,11 @@ export default function ReceiptList() {
     const vendorId = activeVendorId || vendorIdForReceiptModal
     if (!vendorId) {
       setQuickProductError('Please select a shop from the header before creating products.')
+      return
+    }
+
+    if (isPausedVendor) {
+      setQuickProductError('Shop is not found. Please contact to the author.')
       return
     }
 
@@ -1545,10 +1558,15 @@ export default function ReceiptList() {
             {/* Add Button */}
             {canCreateReceipts && (
               <span
-                title={isGrandUserAllShops ? 'Select a shop first' : undefined}
+                title={isGrandUserAllShops ? 'Select a shop first' : isPausedVendor ? 'Shop is inactive' : undefined}
                 className="inline-flex"
               >
-                <Button onClick={handleAddNew} size="sm" disabled={isGrandUserAllShops} className="h-10 rounded-lg">
+                <Button
+                  onClick={handleAddNew}
+                  size="sm"
+                  disabled={isGrandUserAllShops || isPausedVendor}
+                  className="h-10 rounded-lg"
+                >
                   <Plus size={16} className="mr-1" />
                   New Receipt
                 </Button>
@@ -3110,7 +3128,7 @@ export default function ReceiptList() {
                     </td>
                     <td className="px-4 py-3 text-right">
                       <p className="text-sm font-semibold text-gray-900">
-                        ${ (receipt.total ?? 0).toFixed(2) }
+                        ৳{(receipt.total ?? 0).toFixed(2)}
                       </p>
                     </td>
                     <td className="px-4 py-3">

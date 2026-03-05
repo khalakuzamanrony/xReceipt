@@ -25,6 +25,7 @@ CREATE TABLE IF NOT EXISTS users (
   name VARCHAR(255) NOT NULL,
   phone VARCHAR(20),
   role VARCHAR(50) NOT NULL CHECK (role IN ('grand_user', 'admin', 'super_admin')),
+  status VARCHAR(50) NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'inactive')),
   profile_image_url VARCHAR(500),
   password_hash VARCHAR(255),
   created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
@@ -38,6 +39,10 @@ CREATE INDEX IF NOT EXISTS idx_users_role ON users(role);
 ALTER TABLE users DROP CONSTRAINT IF EXISTS users_role_check;
 UPDATE users SET role = 'grand_user' WHERE role IN ('god_user');
 ALTER TABLE users ADD CONSTRAINT users_role_check CHECK (role IN ('grand_user', 'admin', 'super_admin'));
+
+ALTER TABLE users DROP CONSTRAINT IF EXISTS users_status_check;
+UPDATE users SET status = 'active' WHERE status NOT IN ('active', 'inactive') OR status IS NULL;
+ALTER TABLE users ADD CONSTRAINT users_status_check CHECK (status IN ('active', 'inactive'));
 
 CREATE TABLE IF NOT EXISTS vendors (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -67,6 +72,41 @@ CREATE TABLE IF NOT EXISTS vendor_admins (
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
   UNIQUE (vendor_id, admin_id)
 );
+
+-- Keep associated users in sync with vendor status
+CREATE OR REPLACE FUNCTION sync_vendor_user_status()
+RETURNS TRIGGER AS $$
+BEGIN
+  IF TG_OP = 'UPDATE' AND NEW.status IS DISTINCT FROM OLD.status THEN
+    IF NEW.status = 'inactive' THEN
+      UPDATE users
+      SET status = 'inactive',
+          updated_at = CURRENT_TIMESTAMP
+      WHERE id IN (
+        SELECT va.admin_id
+        FROM vendor_admins va
+        WHERE va.vendor_id = NEW.id
+      );
+    ELSIF NEW.status = 'active' THEN
+      UPDATE users
+      SET status = 'active',
+          updated_at = CURRENT_TIMESTAMP
+      WHERE id IN (
+        SELECT va.admin_id
+        FROM vendor_admins va
+        WHERE va.vendor_id = NEW.id
+      );
+    END IF;
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS vendors_sync_user_status ON vendors;
+CREATE TRIGGER vendors_sync_user_status
+AFTER UPDATE OF status ON vendors
+FOR EACH ROW
+EXECUTE FUNCTION sync_vendor_user_status();
 
 -- Enforce single-shop-per-admin (an admin can only belong to one vendor)
 WITH ranked AS (

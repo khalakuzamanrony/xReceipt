@@ -14,10 +14,11 @@ import { useToast } from '@/contexts/ToastContext'
 
 export default function CategoryList() {
   const { role } = useAuth()
-  const { memberships, activeVendorId, permissions, loading: vendorLoading } = useVendor()
+  const { memberships, activeVendorId, activeVendor, permissions, loading: vendorLoading } = useVendor()
   const { toast } = useToast()
 
   const isGrandUserAllShops = role === 'grand_user' && !activeVendorId
+  const isPausedVendor = role === 'grand_user' && !!activeVendorId && activeVendor?.status === 'inactive'
 
   const isVendorSuperAdminForActiveVendor =
     role === 'admin' &&
@@ -80,6 +81,13 @@ export default function CategoryList() {
     // Require a vendor selection before creating categories
     if (!activeVendorId) {
       const message = 'Please select a shop from the header before creating categories.'
+      setError(message)
+      showToast('Error', message, 'error')
+      return
+    }
+
+    if (isPausedVendor) {
+      const message = 'Shop is not found. Please contact to the author.'
       setError(message)
       showToast('Error', message, 'error')
       return
@@ -381,10 +389,15 @@ export default function CategoryList() {
             {/* Add Button */}
             {canCreateCategories && (
               <span
-                title={isGrandUserAllShops ? 'Select a shop first' : undefined}
+                title={isGrandUserAllShops ? 'Select a shop first' : isPausedVendor ? 'Shop is inactive' : undefined}
                 className="inline-flex"
               >
-                <Button onClick={handleAddNew} size="sm" disabled={isGrandUserAllShops} className="h-10 rounded-lg">
+                <Button
+                  onClick={handleAddNew}
+                  size="sm"
+                  disabled={isGrandUserAllShops || isPausedVendor}
+                  className="h-10 rounded-lg"
+                >
                   <Plus size={16} className="mr-1" />
                   Add Category
                 </Button>

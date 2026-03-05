@@ -1,5 +1,6 @@
 import { supabase } from '@/lib/supabase'
 import type { Product } from '@/types'
+import { vendorService } from '@/services/vendorService'
 
 export const productService = {
   async getAllProducts(vendorId?: string): Promise<Product[]> {
@@ -30,6 +31,13 @@ export const productService = {
   },
 
   async createProduct(product: Omit<Product, 'id' | 'created_at' | 'updated_at'>): Promise<Product> {
+    if (product.vendor_id) {
+      const vendor = await vendorService.getVendorById(product.vendor_id)
+      if (!vendor || vendor.status !== 'active') {
+        throw new Error('Shop is not found. Please contact to the author.')
+      }
+    }
+
     const { data, error } = await supabase
       .from('products')
       .insert(product)
