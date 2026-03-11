@@ -3,6 +3,7 @@ import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Label } from '@/components/ui/Label'
 import { Checkbox } from '@/components/ui/Checkbox'
+import { Textarea } from '@/components/ui/Textarea'
 import { Dialog, DialogContent } from '@/components/ui/Dialog'
 import { templateService } from '@/services/templateService'
 import { useVendor } from '@/contexts/VendorContext'
@@ -387,15 +388,15 @@ export default function CustomTemplateBuilder({ open, onClose, onSave, isFullPag
         <!-- Company Information -->
         ${hasCompanyInfo ? `
         <div class="company-section">
-          ${data.companyLogo ? `<img src="${data.companyLogo}" alt="Company Logo" class="company-logo" />` : ''}
-          ${data.companyName ? `<div class="company-name">${data.companyName}</div>` : ''}
+          {{COMPANY_LOGO}}
+          {{COMPANY_NAME}}
           <div class="company-details">
-            ${data.companyAddress ? `<p>${data.companyAddress}</p>` : ''}
-            ${data.companyCity || data.companyZip ? `<p>${[data.companyCity, data.companyZip].filter(Boolean).join(', ')}</p>` : ''}
-            ${data.companyEmail ? `<p>Email: ${data.companyEmail}</p>` : ''}
-            ${data.companyPhone ? `<p>Phone: ${data.companyPhone}</p>` : ''}
-            ${data.companyWebsite ? `<p>Web: ${data.companyWebsite}</p>` : ''}
-            ${data.companyTaxId ? `<p>Tax ID: ${data.companyTaxId}</p>` : ''}
+            {{COMPANY_ADDRESS}}
+            {{COMPANY_CITY_ZIP}}
+            {{COMPANY_EMAIL}}
+            {{COMPANY_PHONE}}
+            {{COMPANY_WEBSITE}}
+            {{COMPANY_TAX_ID}}
           </div>
         </div>
         ` : '<div class="company-section"></div>'}
@@ -437,15 +438,15 @@ export default function CustomTemplateBuilder({ open, onClose, onSave, isFullPag
       <!-- Company Information -->
       ${hasCompanyInfo ? `
       <div class="company-section">
-        ${data.companyLogo ? `<img src="${data.companyLogo}" alt="Company Logo" class="company-logo" />` : ''}
-        ${data.companyName ? `<div class="company-name">${data.companyName}</div>` : ''}
+        {{COMPANY_LOGO}}
+        {{COMPANY_NAME}}
         <div class="company-details">
-          ${data.companyAddress ? `<p>${data.companyAddress}</p>` : ''}
-          ${data.companyCity || data.companyZip ? `<p>${[data.companyCity, data.companyZip].filter(Boolean).join(', ')}</p>` : ''}
-          ${data.companyEmail ? `<p>Email: ${data.companyEmail}</p>` : ''}
-          ${data.companyPhone ? `<p>Phone: ${data.companyPhone}</p>` : ''}
-          ${data.companyWebsite ? `<p>Web: ${data.companyWebsite}</p>` : ''}
-          ${data.companyTaxId ? `<p>Tax ID: ${data.companyTaxId}</p>` : ''}
+          {{COMPANY_ADDRESS}}
+          {{COMPANY_CITY_ZIP}}
+          {{COMPANY_EMAIL}}
+          {{COMPANY_PHONE}}
+          {{COMPANY_WEBSITE}}
+          {{COMPANY_TAX_ID}}
         </div>
       </div>
       ` : '<div class="company-section"></div>'}
@@ -470,15 +471,15 @@ export default function CustomTemplateBuilder({ open, onClose, onSave, isFullPag
       <!-- Company Information -->
       ${hasCompanyInfo ? `
       <div class="company-section">
-        ${data.companyLogo ? `<img src="${data.companyLogo}" alt="Company Logo" class="company-logo" />` : ''}
-        ${data.companyName ? `<div class="company-name">${data.companyName}</div>` : ''}
+        {{COMPANY_LOGO}}
+        {{COMPANY_NAME}}
         <div class="company-details">
-          ${data.companyAddress ? `<p>${data.companyAddress}</p>` : ''}
-          ${data.companyCity || data.companyZip ? `<p>${[data.companyCity, data.companyZip].filter(Boolean).join(', ')}</p>` : ''}
-          ${data.companyEmail ? `<p>Email: ${data.companyEmail}</p>` : ''}
-          ${data.companyPhone ? `<p>Phone: ${data.companyPhone}</p>` : ''}
-          ${data.companyWebsite ? `<p>Web: ${data.companyWebsite}</p>` : ''}
-          ${data.companyTaxId ? `<p>Tax ID: ${data.companyTaxId}</p>` : ''}
+          {{COMPANY_ADDRESS}}
+          {{COMPANY_CITY_ZIP}}
+          {{COMPANY_EMAIL}}
+          {{COMPANY_PHONE}}
+          {{COMPANY_WEBSITE}}
+          {{COMPANY_TAX_ID}}
         </div>
       </div>
       ` : '<div class="company-section"></div>'}
@@ -549,7 +550,7 @@ export default function CustomTemplateBuilder({ open, onClose, onSave, isFullPag
                 if (colId === 'price') return '<th class="text-right">Unit Price</th>'
                 if (colId === 'tax') return '<th class="text-right">Tax</th>'
                 if (colId === 'discount') return '<th class="text-right">Discount</th>'
-                if (colId === 'total') return '<th class="text-right">Total</th>'
+                if (colId === 'total') return '<th class="text-right">Amount</th>'
                 return ''
             })
             .join('')
@@ -642,13 +643,13 @@ export default function CustomTemplateBuilder({ open, onClose, onSave, isFullPag
                     return `
       <div class="footer-notes">
         <div class="footer-notes-title">Notes</div>
-        <div class="footer-notes-content">${data.footerNotes}</div>
+        <div class="footer-notes-content">{{NOTES}}</div>
       </div>
       `
                 }
                 if (moduleId === 'message' && data.footerMessage) {
                     return `
-      <div class="footer-message">${data.footerMessage}</div>
+      <div class="footer-message">{{FOOTER_MESSAGE}}</div>
       `
                 }
                 return ''
@@ -765,7 +766,7 @@ export default function CustomTemplateBuilder({ open, onClose, onSave, isFullPag
     }
     
     .company-logo {
-      max-width: 150px;
+      max-width: 80px;
       height: auto;
       margin-bottom: 15px;
     }
@@ -1104,12 +1105,16 @@ export default function CustomTemplateBuilder({ open, onClose, onSave, isFullPag
                     name: data.templateName,
                     description: data.templateDescription,
                     template_html: templateHtml,
+                    footer_message: data.footerMessage,
+                    footer_notes: data.footerNotes,
                 })
             } else {
                 await templateService.createTemplate({
                     name: data.templateName,
                     description: data.templateDescription,
                     template_html: templateHtml,
+                    footer_message: data.footerMessage,
+                    footer_notes: data.footerNotes,
                     vendor_id: activeVendorId,
                 })
             }
@@ -1751,11 +1756,24 @@ export default function CustomTemplateBuilder({ open, onClose, onSave, isFullPag
                                                 <Label className="text-sm font-semibold text-gray-900">
                                                     Notes / Terms
                                                 </Label>
-                                                <textarea
+                                                <Textarea
                                                     value={data.footerNotes}
                                                     onChange={e => updateData('footerNotes', e.target.value)}
                                                     placeholder="Add payment terms, notes, or special instructions..."
-                                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm min-h-[80px]"
+                                                    className="w-full min-h-[80px]"
+                                                />
+                                            </div>
+
+                                            {/* Footer Message */}
+                                            <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+                                                <Label className="text-sm font-semibold text-gray-900">
+                                                    Footer Message
+                                                </Label>
+                                                <Input
+                                                    value={data.footerMessage}
+                                                    onChange={e => updateData('footerMessage', e.target.value)}
+                                                    placeholder="Thank you for your business!"
+                                                    className="w-full"
                                                 />
                                             </div>
 

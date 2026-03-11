@@ -337,6 +337,11 @@ export default function ReceiptPreviewModal({
     const companyName = receipt.company_name || 'xReceipt'
 
     let html = templateHtml
+    // Priority: receipt values > template values > defaults
+    const footerMessage = receipt.footer_message || template.footer_message || 'Thank you for your business!'
+    const notes = receipt.notes || template.footer_notes || ''
+
+    html = html
       .replace(/{{RECEIPT_ID}}/g, receipt.receipt_number || receipt.id)
       .replace(/{{DATE}}/g, new Date(receipt.created_at).toLocaleDateString())
       .replace(/{{DUE_DATE}}/g, '')
@@ -364,7 +369,8 @@ export default function ReceiptPreviewModal({
       .replace(/{{STATUS}}/g, receipt.status)
       .replace(/{{COMPANY_NAME}}/g, companyName)
       .replace(/{{COMPANY_EMAIL}}/g, 'info@xreceipt.com')
-      .replace(/{{FOOTER_MESSAGE}}/g, 'Thank you for your business!')
+      .replace(/{{FOOTER_MESSAGE}}/g, footerMessage)
+      .replace(/{{NOTES}}/g, notes)
 
     html = html.replace(/<div\s+class="total-row\s+items-total"[\s\S]*?<\/div>/gi, '')
 

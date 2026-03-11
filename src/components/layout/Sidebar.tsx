@@ -16,7 +16,6 @@ import {
 } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { useVendor } from '@/contexts/VendorContext'
-import { useBrandSettings } from '@/contexts/BrandSettingsContext'
 import { Input } from '@/components/ui/Input'
 import * as Select from '@radix-ui/react-select'
 import { cn } from '@/lib/utils'
@@ -28,23 +27,33 @@ interface SidebarProps {
   onCollapsedChange: (collapsed: boolean) => void
 }
 
-// Brand icon component - shows uploaded brand icon or fallback
-function BrandLogoIcon({ iconUrl, className }: { iconUrl?: string | null; className?: string }) {
-  if (iconUrl) {
+function WorkspaceAvatar({
+  name,
+  imageUrl,
+  className,
+}: {
+  name: string
+  imageUrl?: string | null
+  className?: string
+}) {
+  if (imageUrl) {
     return (
       <img
-        src={iconUrl}
-        alt="Brand icon"
-        className={cn('w-full h-full object-cover', className)}
+        src={imageUrl}
+        alt={name}
+        className={cn('rounded-lg object-cover bg-gray-50 ring-1 ring-gray-200', className)}
       />
     )
   }
-  // Fallback: 3 dots on gray background
   return (
-    <div className={cn('flex items-center justify-center gap-0.5 bg-gray-100', className)}>
-      <div className="w-1.5 h-1.5 rounded-full bg-gray-600" />
-      <div className="w-1.5 h-1.5 rounded-full bg-gray-600" />
-      <div className="w-1.5 h-1.5 rounded-full bg-gray-600" />
+    <div
+      className={cn(
+        'rounded-lg bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center text-white text-xs font-medium',
+        className,
+      )}
+      aria-hidden
+    >
+      {name.charAt(0).toUpperCase()}
     </div>
   )
 }
@@ -53,7 +62,6 @@ export default function Sidebar({ currentPage, onPageChange, collapsed, onCollap
   const [isOpen, setIsOpen] = useState(false)
   const { user, role, loading: authLoading } = useAuth()
   const { memberships, activeVendorId, setActiveVendorId, permissions, permissionsLoading } = useVendor()
-  const { settings } = useBrandSettings()
   const [vendorSearch, setVendorSearch] = useState('')
 
   const showLabels = !collapsed || isOpen
@@ -161,232 +169,196 @@ export default function Sidebar({ currentPage, onPageChange, collapsed, onCollap
         )}
       >
         <div className="flex flex-col h-full">
-          {/* Mobile Header - App Name on left, X on right */}
-          {isOpen && (
-            <div className="md:hidden flex items-center justify-between px-4 py-3 border-b border-gray-200 bg-gradient-to-r from-violet-50/50 to-purple-50/50">
-              <div className="flex items-center gap-3">
-                <BrandLogoIcon iconUrl={settings?.icon_url} className="w-9 h-9 rounded-xl object-cover" />
-                <div className="flex flex-col">
-                  <span className="font-bold text-gray-900 text-sm leading-tight">
-                    {settings?.app_name?.trim() || 'xReceipt'}
-                  </span>
-                  {settings?.tagline?.trim() && (
-                    <span className="text-[10px] text-gray-500 leading-tight max-w-[140px] truncate">
-                      {settings.tagline}
-                    </span>
-                  )}
-                </div>
-              </div>
-              <button
-                onClick={() => setIsOpen(false)}
-                className="p-2 hover:bg-gray-200 rounded-lg transition-colors"
-                aria-label="Close menu"
-              >
-                <X size={20} className="text-gray-700" />
-              </button>
-            </div>
-          )}
-
-          {/* Desktop Header with Logo and Collapse Button */}
-          <div className="hidden md:flex flex-col">
-            <div className={cn(
-              'flex items-center justify-between px-4 py-4',
-              !collapsed && 'border-b border-gray-200/60'
-            )}>
-              <button
-                onClick={() => onPageChange('dashboard')}
+          {/* Sidebar Header: Workspace selector */}
+          {showVendorSelector && (
+            <div
+              className={cn(
+                'border-b border-gray-200/60 h-16 px-4 flex items-center relative',
+              )}
+            >
+              <div
                 className={cn(
-                  'flex items-center gap-3 hover:bg-gray-100 rounded-xl p-2 -m-2 transition-colors cursor-pointer',
-                  collapsed && 'justify-center w-full',
+                  'relative flex items-center gap-3',
+                  collapsed && !isOpen ? 'justify-center' : 'justify-between',
                 )}
-                title="Go to Dashboard"
+                style={{ width: '100%' }}
               >
-                <BrandLogoIcon iconUrl={settings?.icon_url} className={cn(
-                  'w-10 h-10 rounded-xl shadow-sm flex-shrink-0'
-                )} />
-                {!collapsed && (
-                  <div className="flex flex-col items-start">
-                    <span className="text-sm font-bold text-gray-900 leading-tight">
-                      {settings?.app_name?.trim() || 'xReceipt'}
-                    </span>
-                    {settings?.tagline?.trim() && (
-                      <span className="text-[10px] text-gray-500 leading-tight max-w-[120px] truncate">
-                        {settings.tagline}
-                      </span>
-                    )}
-                  </div>
+                {/* Selector */}
+                {collapsed && !isOpen ? (
+                  <Select.Root
+                    value={selectValue}
+                    onValueChange={(value) => {
+                      if (value === '__all__') {
+                        setActiveVendorId(null)
+                      } else {
+                        setActiveVendorId(value || null)
+                      }
+                    }}
+                  >
+                    <Select.Trigger
+                      className="w-8 h-8 rounded-md bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center text-white text-xs font-medium hover:from-violet-600 hover:to-purple-700 transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-violet-500/30"
+                      aria-label="Select workspace"
+                    >
+                      {activeVendor?.image_url ? (
+                        <img
+                          src={activeVendor.image_url}
+                          alt={activeVendor.name}
+                          className="w-8 h-8 rounded-md object-cover bg-gray-50"
+                        />
+                      ) : (
+                        (activeVendor?.name || 'W').charAt(0).toUpperCase()
+                      )}
+                    </Select.Trigger>
+                    <Select.Portal>
+                      <Select.Content
+                        position="popper"
+                        sideOffset={8}
+                        align="start"
+                        className="z-50 min-w-[180px] rounded-lg border border-gray-200 bg-white shadow-lg overflow-hidden"
+                      >
+                        <div className="px-3 py-2 border-b border-gray-100 bg-gray-50/50">
+                          <Input
+                            type="text"
+                            value={vendorSearch}
+                            onChange={(e) => setVendorSearch(e.target.value)}
+                            placeholder="Search workspaces..."
+                            className="h-8 text-xs"
+                          />
+                        </div>
+                        <Select.Viewport className="py-1 max-h-60 overflow-y-auto">
+                          {isGrandUser && (
+                            <Select.Item
+                              value="__all__"
+                              className="px-3 py-2 text-sm text-gray-700 cursor-pointer flex items-center gap-2 hover:bg-violet-50 hover:text-violet-700 outline-none data-[state=checked]:bg-violet-50 data-[state=checked]:text-violet-700"
+                            >
+                              <div className="w-5 h-5 rounded bg-gray-100 flex items-center justify-center text-xs">A</div>
+                              <Select.ItemText>All workspaces</Select.ItemText>
+                            </Select.Item>
+                          )}
+                          {filteredMemberships.map(({ vendor }) => (
+                            <Select.Item
+                              key={vendor.id}
+                              value={vendor.id}
+                              disabled={!isGrandUser && vendor.status === 'inactive'}
+                              className={cn(
+                                'px-3 py-2 text-sm flex items-center gap-2 outline-none',
+                                vendor.status === 'inactive'
+                                  ? isGrandUser
+                                    ? 'text-gray-500 cursor-pointer hover:bg-violet-50 hover:text-violet-700 data-[state=checked]:bg-violet-50 data-[state=checked]:text-violet-700'
+                                    : 'text-gray-400 cursor-not-allowed data-[state=checked]:bg-transparent data-[state=checked]:text-gray-400'
+                                  : 'text-gray-700 cursor-pointer hover:bg-violet-50 hover:text-violet-700 data-[state=checked]:bg-violet-50 data-[state=checked]:text-violet-700',
+                              )}
+                            >
+                              <WorkspaceAvatar name={vendor.name} imageUrl={vendor.image_url} className="w-5 h-5" />
+                              {vendor.status === 'inactive' && <Ban size={14} className="text-gray-400" />}
+                              <Select.ItemText>{vendor.name}</Select.ItemText>
+                            </Select.Item>
+                          ))}
+                        </Select.Viewport>
+                      </Select.Content>
+                    </Select.Portal>
+                  </Select.Root>
+                ) : (
+                  <Select.Root
+                    value={selectValue}
+                    onValueChange={(value) => {
+                      if (value === '__all__') {
+                        setActiveVendorId(null)
+                      } else {
+                        setActiveVendorId(value || null)
+                      }
+                    }}
+                  >
+                    <Select.Trigger className="w-full flex items-center justify-between gap-2 px-3 py-2 rounded-lg border border-gray-200 bg-white hover:border-gray-300 transition-colors focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <WorkspaceAvatar
+                          name={activeVendor?.name || 'Workspace'}
+                          imageUrl={activeVendor?.image_url}
+                          className="w-8 h-8 flex-shrink-0"
+                        />
+                        <span className="text-sm font-medium text-gray-700 truncate">
+                          <Select.Value placeholder="My Workspace" />
+                        </span>
+                      </div>
+                      <Select.Icon>
+                        <ChevronDown className="h-4 w-4 text-gray-400" />
+                      </Select.Icon>
+                    </Select.Trigger>
+                    <Select.Portal>
+                      <Select.Content
+                        position="popper"
+                        sideOffset={4}
+                        className="z-50 w-[var(--radix-select-trigger-width)] rounded-lg border border-gray-200 bg-white shadow-lg overflow-hidden"
+                      >
+                        <div className="px-3 py-2 border-b border-gray-100 bg-gray-50/50">
+                          <Input
+                            type="text"
+                            value={vendorSearch}
+                            onChange={(e) => setVendorSearch(e.target.value)}
+                            placeholder="Search workspaces..."
+                            className="h-8 text-xs"
+                          />
+                        </div>
+                        <Select.Viewport className="py-1 max-h-60 overflow-y-auto">
+                          {isGrandUser && (
+                            <Select.Item
+                              value="__all__"
+                              className="px-3 py-2 text-sm text-gray-700 cursor-pointer flex items-center gap-2 hover:bg-violet-50 hover:text-violet-700 outline-none data-[state=checked]:bg-violet-50 data-[state=checked]:text-violet-700"
+                            >
+                              <div className="w-5 h-5 rounded bg-gray-100 flex items-center justify-center text-xs">A</div>
+                              <Select.ItemText>All workspaces</Select.ItemText>
+                            </Select.Item>
+                          )}
+                          {filteredMemberships.map(({ vendor }) => (
+                            <Select.Item
+                              key={vendor.id}
+                              value={vendor.id}
+                              disabled={!isGrandUser && vendor.status === 'inactive'}
+                              className={cn(
+                                'px-3 py-2 text-sm flex items-center gap-2 outline-none',
+                                vendor.status === 'inactive'
+                                  ? isGrandUser
+                                    ? 'text-gray-500 cursor-pointer hover:bg-violet-50 hover:text-violet-700 data-[state=checked]:bg-violet-50 data-[state=checked]:text-violet-700'
+                                    : 'text-gray-400 cursor-not-allowed data-[state=checked]:bg-transparent data-[state=checked]:text-gray-400'
+                                  : 'text-gray-700 cursor-pointer hover:bg-violet-50 hover:text-violet-700 data-[state=checked]:bg-violet-50 data-[state=checked]:text-violet-700',
+                              )}
+                            >
+                              <WorkspaceAvatar name={vendor.name} imageUrl={vendor.image_url} className="w-5 h-5" />
+                              {vendor.status === 'inactive' && <Ban size={14} className="text-gray-400" />}
+                              <Select.ItemText>{vendor.name}</Select.ItemText>
+                            </Select.Item>
+                          ))}
+                        </Select.Viewport>
+                      </Select.Content>
+                    </Select.Portal>
+                  </Select.Root>
                 )}
-              </button>
-              {!collapsed && (
+
+                {/* Controls */}
+                {isOpen && (
+                  <button
+                    onClick={() => setIsOpen(false)}
+                    className="p-2 hover:bg-gray-200 rounded-lg transition-colors md:hidden"
+                    aria-label="Close menu"
+                  >
+                    <X size={20} className="text-gray-700" />
+                  </button>
+                )}
+              </div>
+
+              {!isOpen && (
                 <button
-                  onClick={() => onCollapsedChange(true)}
-                  className="p-1.5 hover:bg-gray-200 rounded-lg transition-colors"
-                  aria-label="Collapse sidebar"
+                  onClick={() => onCollapsedChange(!collapsed)}
+                  className="hidden md:flex items-center justify-center w-7 h-7 rounded-full border border-gray-200 bg-white shadow-sm absolute -right-3 top-1/2 -translate-y-1/2 hover:bg-gray-50 transition-colors"
+                  aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
                 >
-                  <ChevronLeft size={16} className="text-gray-500" />
+                  {collapsed ? (
+                    <ChevronRight size={14} className="text-gray-600" />
+                  ) : (
+                    <ChevronLeft size={14} className="text-gray-600" />
+                  )}
                 </button>
               )}
-              {collapsed && (
-                <button
-                  onClick={() => onCollapsedChange(false)}
-                  className="p-1.5 hover:bg-gray-200 rounded-md transition-colors absolute -right-3 top-4"
-                  aria-label="Expand sidebar"
-                >
-                  <ChevronRight size={14} className="text-gray-500" />
-                </button>
-              )}
-            </div>
-          </div>
-
-          {/* Workspace Selector - Full dropdown (desktop expanded + mobile) */}
-          {showVendorSelector && showLabels && (
-            <div className={cn('px-4', isOpen ? 'py-2' : 'py-4')}>
-              <Select.Root
-                value={selectValue}
-                onValueChange={(value) => {
-                  if (value === '__all__') {
-                    setActiveVendorId(null)
-                  } else {
-                    setActiveVendorId(value || null)
-                  }
-                }}
-              >
-                <Select.Trigger className="w-full flex items-center justify-between gap-2 px-3 py-2 rounded-lg border border-gray-200 bg-white hover:border-gray-300 transition-colors focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500">
-                  <div className="flex items-center gap-2 min-w-0">
-                    <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center text-white text-xs font-medium flex-shrink-0">
-                      {(activeVendor?.name || 'W').charAt(0).toUpperCase()}
-                    </div>
-                    <span className="text-sm font-medium text-gray-700 truncate">
-                      <Select.Value placeholder="My Workspace" />
-                    </span>
-                  </div>
-                  <Select.Icon>
-                    <ChevronDown className="h-4 w-4 text-gray-400" />
-                  </Select.Icon>
-                </Select.Trigger>
-                <Select.Portal>
-                  <Select.Content
-                    position="popper"
-                    sideOffset={4}
-                    className="z-50 w-[var(--radix-select-trigger-width)] rounded-lg border border-gray-200 bg-white shadow-lg overflow-hidden"
-                  >
-                    <div className="px-3 py-2 border-b border-gray-100 bg-gray-50/50">
-                      <Input
-                        type="text"
-                        value={vendorSearch}
-                        onChange={(e) => setVendorSearch(e.target.value)}
-                        placeholder="Search workspaces..."
-                        className="h-8 text-xs"
-                      />
-                    </div>
-                    <Select.Viewport className="py-1 max-h-60 overflow-y-auto">
-                      {isGrandUser && (
-                        <Select.Item
-                          value="__all__"
-                          className="px-3 py-2 text-sm text-gray-700 cursor-pointer flex items-center gap-2 hover:bg-violet-50 hover:text-violet-700 outline-none data-[state=checked]:bg-violet-50 data-[state=checked]:text-violet-700"
-                        >
-                          <div className="w-5 h-5 rounded bg-gray-100 flex items-center justify-center text-xs">A</div>
-                          <Select.ItemText>All workspaces</Select.ItemText>
-                        </Select.Item>
-                      )}
-                      {filteredMemberships.map(({ vendor }) => (
-                        <Select.Item
-                          key={vendor.id}
-                          value={vendor.id}
-                          disabled={!isGrandUser && vendor.status === 'inactive'}
-                          className={cn(
-                            'px-3 py-2 text-sm flex items-center gap-2 outline-none',
-                            vendor.status === 'inactive'
-                              ? isGrandUser
-                                ? 'text-gray-500 cursor-pointer hover:bg-violet-50 hover:text-violet-700 data-[state=checked]:bg-violet-50 data-[state=checked]:text-violet-700'
-                                : 'text-gray-400 cursor-not-allowed data-[state=checked]:bg-transparent data-[state=checked]:text-gray-400'
-                              : 'text-gray-700 cursor-pointer hover:bg-violet-50 hover:text-violet-700 data-[state=checked]:bg-violet-50 data-[state=checked]:text-violet-700'
-                          )}
-                        >
-                          <div className="w-5 h-5 rounded bg-gradient-to-br from-violet-400 to-purple-500 flex items-center justify-center text-white text-xs font-medium">
-                            {vendor.name.charAt(0).toUpperCase()}
-                          </div>
-                          {vendor.status === 'inactive' && <Ban size={14} className="text-gray-400" />}
-                          <Select.ItemText>{vendor.name}</Select.ItemText>
-                        </Select.Item>
-                      ))}
-                    </Select.Viewport>
-                  </Select.Content>
-                </Select.Portal>
-              </Select.Root>
-            </div>
-          )}
-
-          {/* Workspace Selector - Collapsed: clickable avatar dropdown (desktop only) */}
-          {collapsed && !isOpen && showVendorSelector && (
-            <div className="px-4 py-4 flex justify-center">
-              <Select.Root
-                value={selectValue}
-                onValueChange={(value) => {
-                  if (value === '__all__') {
-                    setActiveVendorId(null)
-                  } else {
-                    setActiveVendorId(value || null)
-                  }
-                }}
-              >
-                <Select.Trigger
-                  className="w-8 h-8 rounded-md bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center text-white text-xs font-medium hover:from-violet-600 hover:to-purple-700 transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-violet-500/30"
-                  aria-label="Select workspace"
-                >
-                  {(activeVendor?.name || 'W').charAt(0).toUpperCase()}
-                </Select.Trigger>
-                <Select.Portal>
-                  <Select.Content
-                    position="popper"
-                    sideOffset={8}
-                    align="start"
-                    className="z-50 min-w-[180px] rounded-lg border border-gray-200 bg-white shadow-lg overflow-hidden"
-                  >
-                    <div className="px-3 py-2 border-b border-gray-100 bg-gray-50/50">
-                      <Input
-                        type="text"
-                        value={vendorSearch}
-                        onChange={(e) => setVendorSearch(e.target.value)}
-                        placeholder="Search workspaces..."
-                        className="h-8 text-xs"
-                      />
-                    </div>
-                    <Select.Viewport className="py-1 max-h-60 overflow-y-auto">
-                      {isGrandUser && (
-                        <Select.Item
-                          value="__all__"
-                          className="px-3 py-2 text-sm text-gray-700 cursor-pointer flex items-center gap-2 hover:bg-violet-50 hover:text-violet-700 outline-none data-[state=checked]:bg-violet-50 data-[state=checked]:text-violet-700"
-                        >
-                          <div className="w-5 h-5 rounded bg-gray-100 flex items-center justify-center text-xs">A</div>
-                          <Select.ItemText>All workspaces</Select.ItemText>
-                        </Select.Item>
-                      )}
-                      {filteredMemberships.map(({ vendor }) => (
-                        <Select.Item
-                          key={vendor.id}
-                          value={vendor.id}
-                          disabled={!isGrandUser && vendor.status === 'inactive'}
-                          className={cn(
-                            'px-3 py-2 text-sm flex items-center gap-2 outline-none',
-                            vendor.status === 'inactive'
-                              ? isGrandUser
-                                ? 'text-gray-500 cursor-pointer hover:bg-violet-50 hover:text-violet-700 data-[state=checked]:bg-violet-50 data-[state=checked]:text-violet-700'
-                                : 'text-gray-400 cursor-not-allowed data-[state=checked]:bg-transparent data-[state=checked]:text-gray-400'
-                              : 'text-gray-700 cursor-pointer hover:bg-violet-50 hover:text-violet-700 data-[state=checked]:bg-violet-50 data-[state=checked]:text-violet-700'
-                          )}
-                        >
-                          <div className="w-5 h-5 rounded bg-gradient-to-br from-violet-400 to-purple-500 flex items-center justify-center text-white text-xs font-medium">
-                            {vendor.name.charAt(0).toUpperCase()}
-                          </div>
-                          {vendor.status === 'inactive' && <Ban size={14} className="text-gray-400" />}
-                          <Select.ItemText>{vendor.name}</Select.ItemText>
-                        </Select.Item>
-                      ))}
-                    </Select.Viewport>
-                  </Select.Content>
-                </Select.Portal>
-              </Select.Root>
             </div>
           )}
 

@@ -1,4 +1,5 @@
 import { useAuth } from '@/contexts/AuthContext'
+import { useBrandSettings } from '@/contexts/BrandSettingsContext'
 import { ChevronDown, LogOut } from 'lucide-react'
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
 import { useToast } from '@/contexts/ToastContext'
@@ -7,23 +8,13 @@ interface HeaderProps {
   currentPage: string
 }
 
-const PAGE_TITLES: Record<string, string> = {
-  dashboard: 'Dashboard',
-  receipts: 'Receipts',
-  templates: 'Receipt Templates',
-  'template-builder': 'Template Builder',
-  products: 'Products',
-  categories: 'Categories',
-  vendors: 'Shops',
-  settings: 'Settings',
-  admin: 'Admin Management',
-}
-
 export default function Header({ currentPage }: HeaderProps) {
   const { user, signOut } = useAuth()
   const { toast } = useToast()
+  const { settings } = useBrandSettings()
 
-  const pageTitle = PAGE_TITLES[currentPage] || 'xReceipt'
+  const appName = settings?.app_name?.trim() || 'xReceipt'
+  const tagline = settings?.tagline?.trim() || ''
 
   const userInitials = (() => {
     const source = user?.name || user?.email || 'U'
@@ -37,15 +28,26 @@ export default function Header({ currentPage }: HeaderProps) {
 
   return (
     <header className="bg-white border-b border-gray-200 sticky top-0 z-30">
-      <div className="pl-14 pr-6 md:px-8 py-3 flex items-center justify-between gap-4">
-        <span className="text-lg font-bold text-gray-900 truncate">{pageTitle}</span>
+      <div className="pl-14 pr-6 md:px-8 h-16 flex items-center justify-between gap-4">
+        <div className="flex flex-col min-w-0" title={currentPage}>
+          <span className="text-lg font-bold text-gray-900 truncate">{appName}</span>
+          {tagline && <span className="text-xs text-gray-500 truncate">{tagline}</span>}
+        </div>
         {user && (
           <DropdownMenu.Root>
             <DropdownMenu.Trigger asChild>
               <button className="flex items-center gap-2 p-1.5 rounded-lg hover:bg-gray-100 transition-colors">
-                <div className="h-8 w-8 rounded-xl bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center text-white text-xs font-medium shadow-sm">
-                  {userInitials}
-                </div>
+                {user.profile_image_url ? (
+                  <img
+                    src={user.profile_image_url}
+                    alt={user.name || user.email || 'User'}
+                    className="h-8 w-8 rounded-xl object-cover bg-gray-50 ring-1 ring-gray-200 shadow-sm"
+                  />
+                ) : (
+                  <div className="h-8 w-8 rounded-xl bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center text-white text-xs font-medium shadow-sm">
+                    {userInitials}
+                  </div>
+                )}
                 <ChevronDown className="h-4 w-4 text-gray-400" />
               </button>
             </DropdownMenu.Trigger>
