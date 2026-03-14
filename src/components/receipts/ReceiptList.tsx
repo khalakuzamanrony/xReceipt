@@ -19,6 +19,7 @@ import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
 import * as Select from '@radix-ui/react-select'
 import { cn } from '@/lib/utils'
 import { useToast } from '@/contexts/ToastContext'
+import { Skeleton } from '@/components/ui/Skeleton'
 
 export default function ReceiptList() {
   const { role } = useAuth()
@@ -67,6 +68,7 @@ export default function ReceiptList() {
   const [page, setPage] = useState(1)
   const [rowsPerPage, setRowsPerPage] = useState(10)
   const [autoDownloadMode, setAutoDownloadMode] = useState<'none' | 'pdf' | 'png'>('none')
+  const [previewLoadingId, setPreviewLoadingId] = useState<string | null>(null)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [receiptToDelete, setReceiptToDelete] = useState<Receipt | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
@@ -347,20 +349,32 @@ export default function ReceiptList() {
       setLoading(true)
       setError(null)
       const vendorFilter = vendorId ?? undefined
-      const [receiptsData, templatesData, productsData] = await Promise.all([
-        receiptService.getAllReceipts(vendorFilter),
-        templateService.getAllTemplates(vendorFilter),
-        productService.getAllProducts(vendorFilter),
-      ])
+
+      // Fast path: load receipts first so the page becomes usable quickly.
+      const receiptsData = await receiptService.getAllReceipts(vendorFilter)
       setReceipts(receiptsData)
-      setTemplates(templatesData)
-      setProducts(productsData)
+      setLoading(false)
+
+      // Background: templates/products are needed mainly for names + create modal.
+      void (async () => {
+        try {
+          const [templatesData, productsData] = await Promise.all([
+            templateService.getAllTemplates(vendorFilter),
+            productService.getAllProducts(vendorFilter),
+          ])
+          setTemplates(templatesData)
+          setProducts(productsData)
+        } catch (bgErr) {
+          console.warn('Background load failed:', bgErr)
+        }
+      })()
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to load data'
       setError(errorMessage)
       showToast('Failed to load receipts', errorMessage, 'error')
       setReceipts([])
-    } finally {
+      setTemplates([])
+      setProducts([])
       setLoading(false)
     }
   }
@@ -495,6 +509,18 @@ export default function ReceiptList() {
     setItemQuantity('1')
     setShowForm(true)
   }
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    if (loading || vendorLoading) return
+
+    const quickCreate = window.localStorage.getItem('xreceipt.quickCreate')
+    if (quickCreate !== 'receipt') return
+
+    window.localStorage.removeItem('xreceipt.quickCreate')
+    handleAddNew()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading, vendorLoading, activeVendorId])
 
   const handleEdit = async (receipt: Receipt) => {
     try {
@@ -813,6 +839,7 @@ export default function ReceiptList() {
 
   const openPreview = async (receipt: Receipt, mode: 'view' | 'download') => {
     try {
+      setPreviewLoadingId(receipt.id)
       const fullReceipt = await receiptService.getReceiptById(receipt.id)
       if (!fullReceipt) {
         setError('Receipt not found')
@@ -826,6 +853,8 @@ export default function ReceiptList() {
       setError(err instanceof Error ? err.message : 'Failed to load receipt preview')
       const message = err instanceof Error ? err.message : 'Failed to load receipt preview'
       showToast('Failed to load preview', message, 'error')
+    } finally {
+      setPreviewLoadingId(null)
     }
   }
 
@@ -1127,29 +1156,32 @@ export default function ReceiptList() {
     const notes = receipt.notes || template?.footer_notes || ''
 
     // Build company info HTML blocks
+    const toBlock = (content: string) =>
+      content ? `<span style="display:block">${content}</span>` : ''
+
     const companyLogo = (receipt as any).company_logo
-      ? `<img src="${(receipt as any).company_logo}" alt="Company Logo" class="company-logo" />`
+      ? toBlock(`<img src="${(receipt as any).company_logo}" alt="Company Logo" class="company-logo" />`)
       : ''
     const companyNameHTML = (receipt as any).company_name || companyName
-      ? `<div class="company-name">${(receipt as any).company_name || companyName}</div>`
+      ? toBlock(`<span style="font-weight:700">${(receipt as any).company_name || companyName}</span>`)
       : ''
     const companyEmail = (receipt as any).company_email
-      ? `<p>Email: ${(receipt as any).company_email}</p>`
+      ? toBlock(`${(receipt as any).company_email}`)
       : ''
     const companyPhone = (receipt as any).company_phone
-      ? `<p>Phone: ${(receipt as any).company_phone}</p>`
+      ? toBlock(`${(receipt as any).company_phone}`)
       : ''
     const companyAddress = (receipt as any).company_address
-      ? `<p>${(receipt as any).company_address}</p>`
+      ? toBlock(`${(receipt as any).company_address}`)
       : ''
     const companyCityZip = ((receipt as any).company_city || (receipt as any).company_zip)
-      ? `<p>${[(receipt as any).company_city, (receipt as any).company_zip].filter(Boolean).join(', ')}</p>`
+      ? toBlock(`${[(receipt as any).company_city, (receipt as any).company_zip].filter(Boolean).join(' ')}`)
       : ''
     const companyWebsite = (receipt as any).company_website
-      ? `<p>Web: ${(receipt as any).company_website}</p>`
+      ? toBlock(`${(receipt as any).company_website}`)
       : ''
     const companyTaxId = (receipt as any).company_tax_id
-      ? `<p>Tax ID: ${(receipt as any).company_tax_id}</p>`
+      ? toBlock(`${(receipt as any).company_tax_id}`)
       : ''
 
     let html = templateHtml
@@ -1424,9 +1456,40 @@ export default function ReceiptList() {
 
   if (loading || vendorLoading) {
     return (
-      <div className="flex flex-col items-center justify-center h-96 gap-4">
-        <div className="animate-spin rounded-full h-16 w-16 border-4 border-violet-200 border-t-violet-600"></div>
-        <p className="text-gray-600 font-medium">Loading receipts...</p>
+      <div className="space-y-4">
+        <div className="bg-white p-4 rounded-lg border border-gray-200">
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+            <div className="space-y-2">
+              <Skeleton className="h-8 w-40" />
+              <Skeleton className="h-4 w-64" />
+            </div>
+            <div className="flex items-center gap-2">
+              <Skeleton className="h-9 w-56" />
+              <Skeleton className="h-9 w-24" />
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+          <div className="p-4 border-b border-gray-200 flex items-center justify-between">
+            <Skeleton className="h-5 w-32" />
+            <div className="flex items-center gap-2">
+              <Skeleton className="h-9 w-28" />
+              <Skeleton className="h-9 w-28" />
+            </div>
+          </div>
+          <div className="p-4 space-y-3">
+            {Array.from({ length: 8 }).map((_, i) => (
+              <div key={i} className="flex items-center gap-3">
+                <Skeleton className="h-5 w-32" />
+                <Skeleton className="h-5 w-44" />
+                <Skeleton className="h-5 w-28" />
+                <Skeleton className="h-5 w-24" />
+                <Skeleton className="h-5 w-20 ml-auto" />
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
     )
   }
@@ -3310,10 +3373,15 @@ export default function ReceiptList() {
                           e.stopPropagation()
                           void openPreview(receipt, 'view')
                         }}
+                        disabled={previewLoadingId === receipt.id}
                         title="Preview"
                         className="h-9 w-9 p-0 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-full"
                       >
-                        <Eye size={16} />
+                        {previewLoadingId === receipt.id ? (
+                          <span className="h-4 w-4 rounded-full border-2 border-gray-300 border-t-gray-700 animate-spin" />
+                        ) : (
+                          <Eye size={16} />
+                        )}
                       </Button>
                       <Button
                         variant="ghost"
@@ -3450,10 +3518,15 @@ export default function ReceiptList() {
                             e.stopPropagation()
                             void openPreview(receipt, 'view')
                           }}
+                          disabled={previewLoadingId === receipt.id}
                           title="Preview"
                           className="h-8 w-8 p-0 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-full"
                         >
-                          <Eye size={16} />
+                          {previewLoadingId === receipt.id ? (
+                            <span className="h-4 w-4 rounded-full border-2 border-gray-300 border-t-gray-700 animate-spin" />
+                          ) : (
+                            <Eye size={16} />
+                          )}
                         </Button>
                         <Button
                           variant="ghost"

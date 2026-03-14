@@ -5,7 +5,8 @@ import { templateService } from '@/services/templateService'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/Dialog'
-import { ArrowLeft, Download, Mail, Copy, Loader, Image } from 'lucide-react'
+import { ArrowLeft, Download, Mail, Copy, Image } from 'lucide-react'
+import { Skeleton } from '@/components/ui/Skeleton'
 import html2canvas from 'html2canvas'
 import jsPDF from 'jspdf'
 
@@ -203,6 +204,14 @@ export default function ReceiptDetailsPage({ receiptId, onBack }: ReceiptDetails
           ? `(৳${discountValue.toFixed(2)})`
           : ''
 
+    const fmtSigned = (amount: number, kind: 'tax' | 'discount') => {
+      const n = Math.max(0, amount)
+      if (!Number.isFinite(n) || n <= 0) return '0.00'
+      const sign = kind === 'tax' ? '+' : '-'
+      const color = kind === 'tax' ? '#16a34a' : '#dc2626'
+      return `<span style="color:${color};font-weight:600">${sign}${n.toFixed(2)}</span>`
+    }
+
     type ItemCol =
       | 'description'
       | 'imei_or_model'
@@ -341,10 +350,10 @@ export default function ReceiptDetailsPage({ receiptId, onBack }: ReceiptDetails
                 return `<td style="padding: 8px; border-bottom: 1px solid #eee;">${item.color || ''}</td>`
               }
               if (col === 'discount') {
-                return `<td style="padding: 8px; border-bottom: 1px solid #eee; text-align: right;">${item.discount_enabled === true ? `-৳${lineDiscount.toFixed(2)}` : ''}</td>`
+                return `<td style="padding: 8px; border-bottom: 1px solid #eee; text-align: right;">${item.discount_enabled === true ? `<span style=\"color:#dc2626;font-weight:600\">-৳${lineDiscount.toFixed(2)}</span>` : ''}</td>`
               }
               if (col === 'tax') {
-                return `<td style="padding: 8px; border-bottom: 1px solid #eee; text-align: right;">${taxEnabled ? `+৳${lineTax.toFixed(2)}` : ''}</td>`
+                return `<td style="padding: 8px; border-bottom: 1px solid #eee; text-align: right;">${taxEnabled ? `<span style=\"color:#16a34a;font-weight:600\">+৳${lineTax.toFixed(2)}</span>` : ''}</td>`
               }
               if (col === 'quantity') {
                 return `<td style="padding: 8px; border-bottom: 1px solid #eee; text-align: center;">${item.quantity}</td>`
@@ -379,6 +388,31 @@ export default function ReceiptDetailsPage({ receiptId, onBack }: ReceiptDetails
     const hasTaxableItems = receipt.items && receipt.items.length > 0 && Math.max(0, tax, totalTax) > 0
 
     const companyName = receipt.company_name || 'Company Name'
+    const companyLogo = String((receipt as any).company_logo || '')
+    const companyEmail = String((receipt as any).company_email || '')
+    const companyPhone = String((receipt as any).company_phone || '')
+    const companyAddress = String((receipt as any).company_address || '')
+    const companyCity = String((receipt as any).company_city || '')
+    const companyZip = String((receipt as any).company_zip || '')
+    const companyWebsite = String((receipt as any).company_website || '')
+    const companyTaxId = String((receipt as any).company_tax_id || '')
+
+    const companyCityZip = [companyCity, companyZip].filter(Boolean).join(' ')
+    const toBlock = (content: string) =>
+      content ? `<span style="display:block">${content}</span>` : ''
+
+    const companyLogoHtml = companyLogo
+      ? toBlock(
+          `<img src="${companyLogo}" alt="Company Logo" style="max-height: 60px; max-width: 160px; object-fit: contain; display: block;" />`,
+        )
+      : ''
+    const companyNameHtml = toBlock(`<span style="font-weight:700">${companyName}</span>`)
+    const companyEmailHtml = companyEmail ? toBlock(companyEmail) : ''
+    const companyPhoneHtml = companyPhone ? toBlock(companyPhone) : ''
+    const companyAddressHtml = companyAddress ? toBlock(companyAddress) : ''
+    const companyCityZipHtml = companyCityZip ? toBlock(companyCityZip) : ''
+    const companyWebsiteHtml = companyWebsite ? toBlock(companyWebsite) : ''
+    const companyTaxIdHtml = companyTaxId ? toBlock(companyTaxId) : ''
 
     const displayReceiptId = receipt.receipt_number || receipt.id
 
@@ -394,22 +428,30 @@ export default function ReceiptDetailsPage({ receiptId, onBack }: ReceiptDetails
       .replace(/{{ITEMS}}/g, itemsHTML)
       .replace(/{{TOTAL}}/g, total.toFixed(2))
       .replace(/{{SUBTOTAL}}/g, subtotal.toFixed(2))
-      .replace(/{{TAX}}/g, hasTaxableItems ? tax.toFixed(2) : '0.00')
+      .replace(/{{TAX}}/g, hasTaxableItems ? fmtSigned(tax, 'tax') : '0.00')
       .replace(/{{TAX_PERCENT}}/g, safeTaxPercent.toFixed(2))
       .replace(/{{TAX_META}}/g, taxMeta)
-      .replace(/{{DISCOUNT}}/g, discount.toFixed(2))
+      .replace(/{{DISCOUNT}}/g, fmtSigned(discount, 'discount'))
       .replace(/{{DISCOUNT_TYPE}}/g, discountType)
       .replace(/{{DISCOUNT_VALUE}}/g, Number.isFinite(discountValue) ? discountValue.toFixed(2) : '0.00')
       .replace(/{{DISCOUNT_META}}/g, discountMeta)
-      .replace(/{{ITEMS_DISCOUNT}}/g, itemsDiscount.toFixed(2))
-      .replace(/{{RECEIPT_DISCOUNT}}/g, receiptDiscount.toFixed(2))
-      .replace(/{{TOTAL_DISCOUNT}}/g, totalDiscount.toFixed(2))
-      .replace(/{{ITEMS_TAX}}/g, itemsTax.toFixed(2))
-      .replace(/{{RECEIPT_TAX}}/g, receiptTax.toFixed(2))
-      .replace(/{{TOTAL_TAX}}/g, totalTax.toFixed(2))
+      .replace(/{{ITEMS_DISCOUNT}}/g, fmtSigned(itemsDiscount, 'discount'))
+      .replace(/{{RECEIPT_DISCOUNT}}/g, fmtSigned(receiptDiscount, 'discount'))
+      .replace(/{{TOTAL_DISCOUNT}}/g, fmtSigned(totalDiscount, 'discount'))
+      .replace(/{{ITEMS_TAX}}/g, fmtSigned(itemsTax, 'tax'))
+      .replace(/{{RECEIPT_TAX}}/g, fmtSigned(receiptTax, 'tax'))
+      .replace(/{{TOTAL_TAX}}/g, fmtSigned(totalTax, 'tax'))
       .replace(/{{STATUS}}/g, receipt.status)
-      .replace(/{{COMPANY_NAME}}/g, companyName)
-      .replace(/{{COMPANY_EMAIL}}/g, 'contact@company.com')
+      .replace(/{{COMPANY_NAME}}/g, companyNameHtml)
+      .replace(/{{COMPANY_LOGO}}/g, companyLogoHtml)
+      .replace(/{{COMPANY_EMAIL}}/g, companyEmailHtml || toBlock('contact@company.com'))
+      .replace(/{{COMPANY_PHONE}}/g, companyPhoneHtml)
+      .replace(/{{COMPANY_ADDRESS}}/g, companyAddressHtml)
+      .replace(/{{COMPANY_CITY_ZIP}}/g, companyCityZipHtml)
+      .replace(/{{COMPANY_CITY}}/g, companyCity ? toBlock(companyCity) : '')
+      .replace(/{{COMPANY_ZIP}}/g, companyZip ? toBlock(companyZip) : '')
+      .replace(/{{COMPANY_WEBSITE}}/g, companyWebsiteHtml)
+      .replace(/{{COMPANY_TAX_ID}}/g, companyTaxIdHtml)
       .replace(/{{FOOTER_MESSAGE}}/g, 'Thank you for your business!')
 
     html = html.replace(/<div\s+class="total-row\s+items-total"[\s\S]*?<\/div>/gi, '')
@@ -664,8 +706,54 @@ export default function ReceiptDetailsPage({ receiptId, onBack }: ReceiptDetails
 
   if (loading) {
     return (
-      <div className="flex justify-center items-center py-20">
-        <Loader className="w-8 h-8 animate-spin text-blue-600" />
+      <div className="space-y-4">
+        <div className="flex items-center justify-between gap-4 bg-white p-4 rounded-lg border border-gray-200">
+          <div className="flex items-center gap-3">
+            <Skeleton className="h-9 w-20" />
+            <div className="space-y-2">
+              <Skeleton className="h-6 w-40" />
+              <Skeleton className="h-4 w-56" />
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <Skeleton className="h-9 w-28" />
+            <Skeleton className="h-9 w-28" />
+            <Skeleton className="h-9 w-28" />
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="bg-white p-4 rounded-lg border border-gray-200 space-y-2">
+            <Skeleton className="h-4 w-24" />
+            <Skeleton className="h-7 w-32" />
+          </div>
+          <div className="bg-white p-4 rounded-lg border border-gray-200 space-y-2">
+            <Skeleton className="h-4 w-24" />
+            <Skeleton className="h-7 w-32" />
+          </div>
+          <div className="bg-white p-4 rounded-lg border border-gray-200 space-y-2">
+            <Skeleton className="h-4 w-24" />
+            <Skeleton className="h-7 w-32" />
+          </div>
+        </div>
+
+        <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+          <div className="p-4 border-b border-gray-200 flex items-center justify-between">
+            <Skeleton className="h-5 w-40" />
+            <Skeleton className="h-9 w-28" />
+          </div>
+          <div className="p-4 space-y-3">
+            {Array.from({ length: 10 }).map((_, i) => (
+              <div key={i} className="flex items-center gap-3">
+                <Skeleton className="h-5 w-48" />
+                <Skeleton className="h-5 w-24" />
+                <Skeleton className="h-5 w-24" />
+                <Skeleton className="h-5 w-24" />
+                <Skeleton className="h-5 w-20 ml-auto" />
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
     )
   }

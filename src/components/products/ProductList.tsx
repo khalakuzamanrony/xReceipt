@@ -15,6 +15,7 @@ import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
 import * as Select from '@radix-ui/react-select'
 import { cn } from '@/lib/utils'
 import { useToast } from '@/contexts/ToastContext'
+import { Skeleton } from '@/components/ui/Skeleton'
 
 export default function ProductList() {
   const { role } = useAuth()
@@ -242,6 +243,18 @@ export default function ProductList() {
     setShowForm(true)
   }
 
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    if (loading || vendorLoading) return
+
+    const quickCreate = window.localStorage.getItem('xreceipt.quickCreate')
+    if (quickCreate !== 'product') return
+
+    window.localStorage.removeItem('xreceipt.quickCreate')
+    handleAddNew()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading, vendorLoading, activeVendorId])
+
   const handleEdit = (product: Product) => {
     setSelectedProduct(product)
     setFormData({
@@ -380,9 +393,40 @@ export default function ProductList() {
 
   if (loading || vendorLoading) {
     return (
-      <div className="flex flex-col items-center justify-center h-96 gap-4">
-        <div className="animate-spin rounded-full h-16 w-16 border-4 border-violet-200 border-t-violet-600"></div>
-        <p className="text-gray-600 font-medium">Loading products...</p>
+      <div className="space-y-4">
+        <div className="bg-white p-4 rounded-lg border border-gray-200">
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+            <div className="space-y-2">
+              <Skeleton className="h-8 w-40" />
+              <Skeleton className="h-4 w-64" />
+            </div>
+            <div className="flex items-center gap-2">
+              <Skeleton className="h-9 w-56" />
+              <Skeleton className="h-9 w-24" />
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+          <div className="p-4 border-b border-gray-200 flex items-center justify-between">
+            <Skeleton className="h-5 w-32" />
+            <div className="flex items-center gap-2">
+              <Skeleton className="h-9 w-28" />
+              <Skeleton className="h-9 w-28" />
+            </div>
+          </div>
+          <div className="p-4 space-y-3">
+            {Array.from({ length: 8 }).map((_, i) => (
+              <div key={i} className="flex items-center gap-3">
+                <Skeleton className="h-5 w-40" />
+                <Skeleton className="h-5 w-28" />
+                <Skeleton className="h-5 w-24" />
+                <Skeleton className="h-5 w-24" />
+                <Skeleton className="h-5 w-20 ml-auto" />
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
     )
   }
@@ -732,7 +776,10 @@ export default function ProductList() {
 
               <div className="space-y-2">
                 <Label htmlFor="category" className="text-sm font-semibold text-gray-900">Category</Label>
-                <Select.Root value={formData.category_id} onValueChange={(value) => setFormData({ ...formData, category_id: value })}>
+                <Select.Root
+                  value={formData.category_id}
+                  onValueChange={(value: string) => setFormData({ ...formData, category_id: value })}
+                >
                   <Select.Trigger
                     id="category"
                     className="w-full h-10 px-4 py-2 border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-violet-500 text-sm text-gray-900 flex items-center justify-between"

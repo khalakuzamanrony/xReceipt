@@ -6,6 +6,7 @@ import {
   Package,
   Folder,
   FileText,
+  FileCode,
   Users,
   Settings,
   Store,
@@ -69,7 +70,7 @@ export default function Sidebar({ currentPage, onPageChange, collapsed, onCollap
   const baseMenuItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { id: 'receipts', label: 'Receipts', icon: FileText },
-    { id: 'templates', label: 'Templates', icon: FileText },
+    { id: 'templates', label: 'Templates', icon: FileCode },
     { id: 'products', label: 'Products', icon: Package },
     { id: 'categories', label: 'Categories', icon: Folder },
     { id: 'vendors', label: 'Shops', icon: Store },

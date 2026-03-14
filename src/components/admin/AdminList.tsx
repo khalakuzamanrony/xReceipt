@@ -10,9 +10,10 @@ import { Plus, Edit, Trash2, AlertCircle, Users, Search, Key, Funnel, X } from '
 import { useAuth } from '@/contexts/AuthContext'
 import { useVendor } from '@/contexts/VendorContext'
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
-import { supabase } from '@/lib/supabase'
 import { useToast } from '@/contexts/ToastContext'
 import { cn } from '@/lib/utils'
+import { Skeleton } from '@/components/ui/Skeleton'
+import { supabase } from '@/lib/supabase'
 
 export default function AdminList() {
   const { role, user } = useAuth()
@@ -183,6 +184,18 @@ export default function AdminList() {
     setSelectedAdmin(null)
     setShowForm(true)
   }
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    if (loading) return
+
+    const quickCreate = window.localStorage.getItem('xreceipt.quickCreate')
+    if (quickCreate !== 'user') return
+
+    window.localStorage.removeItem('xreceipt.quickCreate')
+    handleAddNew()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading, activeVendorId])
 
   const handleEdit = (admin: User) => {
     setSelectedAdmin(admin)
@@ -376,9 +389,39 @@ export default function AdminList() {
 
   if (loading) {
     return (
-      <div className="flex flex-col items-center justify-center h-96 gap-4">
-        <div className="animate-spin rounded-full h-16 w-16 border-4 border-blue-200 border-t-blue-600"></div>
-        <p className="text-gray-600 font-medium">Loading admins...</p>
+      <div className="space-y-4">
+        <div className="bg-white p-4 rounded-lg border border-gray-200">
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+            <div className="space-y-2">
+              <Skeleton className="h-8 w-44" />
+              <Skeleton className="h-4 w-72" />
+            </div>
+            <div className="flex items-center gap-2">
+              <Skeleton className="h-9 w-56" />
+              <Skeleton className="h-9 w-28" />
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+          <div className="p-4 border-b border-gray-200 flex items-center justify-between">
+            <Skeleton className="h-5 w-40" />
+            <div className="flex items-center gap-2">
+              <Skeleton className="h-9 w-28" />
+              <Skeleton className="h-9 w-28" />
+            </div>
+          </div>
+          <div className="p-4 space-y-3">
+            {Array.from({ length: 8 }).map((_, i) => (
+              <div key={i} className="flex items-center gap-3">
+                <Skeleton className="h-5 w-40" />
+                <Skeleton className="h-5 w-44" />
+                <Skeleton className="h-5 w-28" />
+                <Skeleton className="h-5 w-20 ml-auto" />
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
     )
   }

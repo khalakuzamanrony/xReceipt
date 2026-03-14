@@ -8,9 +8,10 @@ import { Dialog, DialogClose, DialogContent, DialogHeader, DialogTitle, DialogFo
 import { Plus, Edit, Trash2, FolderOpen, Search, Funnel, X } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { useVendor } from '@/contexts/VendorContext'
+import { useToast } from '@/contexts/ToastContext'
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
 import { cn } from '@/lib/utils'
-import { useToast } from '@/contexts/ToastContext'
+import { Skeleton } from '@/components/ui/Skeleton'
 
 export default function CategoryList() {
   const { role } = useAuth()
@@ -243,9 +244,38 @@ export default function CategoryList() {
 
   if (loading || vendorLoading) {
     return (
-      <div className="flex flex-col items-center justify-center h-96 gap-4">
-        <div className="animate-spin rounded-full h-16 w-16 border-4 border-blue-200 border-t-blue-600"></div>
-        <p className="text-gray-600 font-medium">Loading categories...</p>
+      <div className="space-y-4">
+        <div className="bg-white p-4 rounded-lg border border-gray-200">
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+            <div className="space-y-2">
+              <Skeleton className="h-8 w-44" />
+              <Skeleton className="h-4 w-72" />
+            </div>
+            <div className="flex items-center gap-2">
+              <Skeleton className="h-9 w-56" />
+              <Skeleton className="h-9 w-28" />
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+          <div className="p-4 border-b border-gray-200 flex items-center justify-between">
+            <Skeleton className="h-5 w-40" />
+            <div className="flex items-center gap-2">
+              <Skeleton className="h-9 w-28" />
+              <Skeleton className="h-9 w-28" />
+            </div>
+          </div>
+          <div className="p-4 space-y-3">
+            {Array.from({ length: 8 }).map((_, i) => (
+              <div key={i} className="flex items-center gap-3">
+                <Skeleton className="h-5 w-44" />
+                <Skeleton className="h-5 w-28" />
+                <Skeleton className="h-5 w-24 ml-auto" />
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
     )
   }
