@@ -48,6 +48,37 @@ button:not(:disabled),
   cursor: pointer;
 }
 
+/* Ensure Radix popper portals (Select/DropdownMenu/Popover) render above the app and dialogs */
+[data-radix-popper-content-wrapper] {
+  z-index: 9999 !important;
+}
+
+/* Ensure Radix portals are not clipped by parent containers */
+[data-radix-portal] {
+  position: fixed !important;
+  z-index: 9999 !important;
+  pointer-events: auto !important;
+}
+
+/* Ensure body allows proper portal mounting */
+body {
+  position: relative;
+  overflow-x: hidden;
+}
+
+/* Fix for Radix Select/DropdownMenu content visibility */
+[role="listbox"],
+[role="menu"] {
+  z-index: 9999 !important;
+  pointer-events: auto !important;
+}
+
+/* Ensure pointer events work on Radix trigger elements */
+[data-radix-select-trigger],
+[data-radix-dropdown-menu-trigger] {
+  pointer-events: auto !important;
+}
+
 a[href]:disabled,
 button:disabled,
 [role="button"][aria-disabled="true"] {

@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/Input'
 import { Label } from '@/components/ui/Label'
 import { Checkbox } from '@/components/ui/Checkbox'
 import { Dialog, DialogClose, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/Dialog'
-import { Plus, AlertCircle, FileText, Search, Edit, Trash2, Eye, Download, ArrowUpDown, Funnel, ChevronDown, Check, X, Building2, User, Package } from 'lucide-react'
+import { Plus, AlertCircle, FileText, Search, Edit, Trash2, Eye, Download, ArrowUpDown, Funnel, ChevronDown, Check, X, Building2, User, Package, Loader2 } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { useVendor } from '@/contexts/VendorContext'
 import ReceiptPreviewModal from './ReceiptPreviewModal'
@@ -72,6 +72,7 @@ export default function ReceiptList() {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [receiptToDelete, setReceiptToDelete] = useState<Receipt | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
+  const [isSubmitting, setIsSubmitting] = useState(false)
   const [items, setItems] = useState<ReceiptItem[]>([])
   const [editingItemId, setEditingItemId] = useState<string | null>(null)
   const [selectedProductId, setSelectedProductId] = useState('')
@@ -113,6 +114,7 @@ export default function ReceiptList() {
     footer_message: '',
   })
   const [companyInfoEdited, setCompanyInfoEdited] = useState(false)
+  const [footerNotesEdited, setFooterNotesEdited] = useState(false)
   const showToast = (title: string, description = '', variant: 'success' | 'error' = 'success') => {
     toast(title, description, variant)
   }
@@ -482,6 +484,7 @@ export default function ReceiptList() {
 
     setSelectedReceipt(null)
     setCompanyInfoEdited(false)
+    setFooterNotesEdited(false)
     setFormData({
       company_name: activeVendorName,
       company_logo: '',
@@ -537,6 +540,7 @@ export default function ReceiptList() {
         ? vendors.find((v) => v.id === fullReceipt.vendor_id)?.name || ''
         : ''
       setCompanyInfoEdited(true) // Mark as edited since we're loading existing receipt data
+      setFooterNotesEdited(true) // Mark as edited since we're loading existing receipt data
       setFormData({
         company_name: fullReceipt.company_name || vendorNameForReceipt,
         company_logo: (fullReceipt as any).company_logo || '',
@@ -660,6 +664,16 @@ export default function ReceiptList() {
     const selectedTemplate = modalTemplates.find((t) => t.id === formData.template_id)
     if (!selectedTemplate?.template_html) return
 
+    // Prefill footer message and notes from template data for new receipts,
+    // but don't overwrite user edits.
+    if (!footerNotesEdited) {
+      setFormData((prev) => ({
+        ...prev,
+        footer_message: selectedTemplate.footer_message || prev.footer_message,
+        notes: selectedTemplate.footer_notes || prev.notes,
+      }))
+    }
+
     // Only prefill if user hasn't manually edited company info
     if (companyInfoEdited) return
 
@@ -679,7 +693,7 @@ export default function ReceiptList() {
       company_website: builderData.companyWebsite || prev.company_website,
       company_tax_id: builderData.companyTaxId || prev.company_tax_id,
     }))
-  }, [formData.template_id, modalTemplates, showForm, companyInfoEdited, activeVendorName])
+  }, [formData.template_id, modalTemplates, showForm, companyInfoEdited, footerNotesEdited, activeVendorName])
 
   const addItem = () => {
     if (!selectedProductId || !itemQuantity) return
@@ -1184,7 +1198,12 @@ export default function ReceiptList() {
       ? toBlock(`${(receipt as any).company_tax_id}`)
       : ''
 
+    const totalTaxHtml = `<span style="color:#059669">৳ ${totalTax.toFixed(2)}</span>`
+    const totalDiscountHtml = `<span style="color:#dc2626">৳ ${totalDiscount.toFixed(2)}</span>`
+
     let html = templateHtml
+      .replace(/৳\s*{{TOTAL_TAX}}/g, '{{TOTAL_TAX_COLORED}}')
+      .replace(/৳\s*{{TOTAL_DISCOUNT}}/g, '{{TOTAL_DISCOUNT_COLORED}}')
       .replace(/{{RECEIPT_ID}}/g, receipt.receipt_number || receipt.id)
       .replace(/{{DATE}}/g, new Date(receipt.created_at).toLocaleDateString())
       .replace(/{{DUE_DATE}}/g, '')
@@ -1205,10 +1224,12 @@ export default function ReceiptList() {
       .replace(/{{DISCOUNT_META}}/g, discountMeta)
       .replace(/{{ITEMS_DISCOUNT}}/g, itemsDiscount.toFixed(2))
       .replace(/{{RECEIPT_DISCOUNT}}/g, receiptDiscount.toFixed(2))
-      .replace(/{{TOTAL_DISCOUNT}}/g, totalDiscount.toFixed(2))
+      .replace(/{{TOTAL_DISCOUNT_COLORED}}/g, totalDiscountHtml)
+      .replace(/{{TOTAL_DISCOUNT}}/g, totalDiscountHtml)
       .replace(/{{ITEMS_TAX}}/g, itemsTax.toFixed(2))
       .replace(/{{RECEIPT_TAX}}/g, receiptTax.toFixed(2))
-      .replace(/{{TOTAL_TAX}}/g, totalTax.toFixed(2))
+      .replace(/{{TOTAL_TAX_COLORED}}/g, totalTaxHtml)
+      .replace(/{{TOTAL_TAX}}/g, totalTaxHtml)
       .replace(/{{STATUS}}/g, receipt.status)
       .replace(/{{COMPANY_LOGO}}/g, companyLogo)
       .replace(/{{COMPANY_NAME}}/g, companyNameHTML)
@@ -1220,6 +1241,16 @@ export default function ReceiptList() {
       .replace(/{{COMPANY_TAX_ID}}/g, companyTaxId)
       .replace(/{{FOOTER_MESSAGE}}/g, footerMessage)
       .replace(/{{NOTES}}/g, notes)
+
+    // Some templates include a standalone black currency symbol before the colored tax/discount value.
+    // Strip any plain '৳' right before our colored spans so only the colored currency remains.
+    // This handles: ৳ <span style="color:...">, ৳<span>, and <span>৳ </span><span color...>
+    html = html
+      .replace(/(?:<span[^>]*>)?\s*৳\s*(?:<\/span>)?\s*(?=<span[^>]*color:#059669[^>]*>)/gi, '')
+      .replace(/(?:<span[^>]*>)?\s*৳\s*(?:<\/span>)?\s*(?=<span[^>]*color:#dc2626[^>]*>)/gi, '')
+      // Also handle patterns like: text ৳ <span> or text ৳ <b><span>
+      .replace(/\s*৳\s*(?=<[^>]*>.*?<span[^>]*color:#059669)/gi, '')
+      .replace(/\s*৳\s*(?=<[^>]*>.*?<span[^>]*color:#dc2626)/gi, '')
 
     html = html.replace(/<div\s+class="total-row\s+items-total"[\s\S]*?<\/div>/gi, '')
 
@@ -1339,6 +1370,8 @@ export default function ReceiptList() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
+    if (isSubmitting) return
+
     if (!formData.customer_name || !formData.customer_email || !formData.template_id) {
       const message = 'Please fill in all required fields'
       setError(message)
@@ -1362,6 +1395,7 @@ export default function ReceiptList() {
     }
 
     try {
+      setIsSubmitting(true)
       const subtotal = receiptItemTotals.itemsSubtotal
       const discountValue = safeNumber(formData.discount_value)
       const safeDiscountValue = Math.max(0, discountValue)
@@ -1432,6 +1466,8 @@ export default function ReceiptList() {
       const message = err instanceof Error ? err.message : 'Failed to save receipt'
       setError(message)
       showToast('Failed to save receipt', message, 'error')
+    } finally {
+      setIsSubmitting(false)
     }
   }
 
@@ -1868,9 +1904,10 @@ export default function ReceiptList() {
                           value={formData.template_id}
                           onValueChange={(value) => {
                             setFormData((prev) => ({ ...prev, template_id: value }))
-                            // Reset companyInfoEdited when changing template for new receipts
+                            // Reset flags when changing template for new receipts only
                             if (!selectedReceipt) {
                               setCompanyInfoEdited(false)
+                              setFooterNotesEdited(false)
                             }
                           }}
                         >
@@ -3259,7 +3296,10 @@ export default function ReceiptList() {
                   <textarea
                     id="notes"
                     value={formData.notes}
-                    onChange={(e) => setFormData((prev) => ({ ...prev, notes: e.target.value }))}
+                    onChange={(e) => {
+                      setFormData((prev) => ({ ...prev, notes: e.target.value }))
+                      setFooterNotesEdited(true)
+                    }}
                     placeholder="Add payment terms, special instructions, or notes..."
                     className="mt-1 w-full px-3 py-2 border border-gray-200 bg-white rounded-md focus:outline-none focus:ring-2 focus:ring-violet-500 text-sm min-h-[80px] resize-y"
                   />
@@ -3271,7 +3311,10 @@ export default function ReceiptList() {
                     id="footer_message"
                     type="text"
                     value={formData.footer_message}
-                    onChange={(e) => setFormData((prev) => ({ ...prev, footer_message: e.target.value }))}
+                    onChange={(e) => {
+                      setFormData((prev) => ({ ...prev, footer_message: e.target.value }))
+                      setFooterNotesEdited(true)
+                    }}
                     placeholder="Thank you for your business!"
                     className="mt-1 border border-gray-200 bg-white focus:border-violet-500"
                   />
@@ -3290,9 +3333,16 @@ export default function ReceiptList() {
                 </Button>
                 <Button
                   type="submit"
-                  disabled={items.length === 0}
+                  disabled={items.length === 0 || isSubmitting}
                 >
-                  {selectedReceipt ? 'Update' : 'Create'}
+                  {isSubmitting ? (
+                    <span className="inline-flex items-center gap-2">
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      {selectedReceipt ? 'Updating...' : 'Creating...'}
+                    </span>
+                  ) : (
+                    (selectedReceipt ? 'Update' : 'Create')
+                  )}
                 </Button>
               </DialogFooter>
             </form>

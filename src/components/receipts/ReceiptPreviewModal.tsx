@@ -417,6 +417,13 @@ export default function ReceiptPreviewModal({
       .replace(/{{FOOTER_MESSAGE}}/g, footerMessage)
       .replace(/{{NOTES}}/g, notes)
 
+    // Remove any black ৳ before colored tax/discount values
+    html = html
+      .replace(/(?:<span[^>]*>)?\s*৳\s*(?:<\/span>)?\s*(?=<span[^>]*color:#16a34a[^>]*>)/gi, '')
+      .replace(/(?:<span[^>]*>)?\s*৳\s*(?:<\/span>)?\s*(?=<span[^>]*color:#dc2626[^>]*>)/gi, '')
+      .replace(/\s*৳\s*(?=<[^>]*>.*?<span[^>]*color:#16a34a)/gi, '')
+      .replace(/\s*৳\s*(?=<[^>]*>.*?<span[^>]*color:#dc2626)/gi, '')
+
     html = html.replace(/<div\s+class="total-row\s+items-total"[\s\S]*?<\/div>/gi, '')
 
     // Hide tax row if no taxable items

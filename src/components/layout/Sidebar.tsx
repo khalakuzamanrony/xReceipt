@@ -210,13 +210,12 @@ export default function Sidebar({ currentPage, onPageChange, collapsed, onCollap
                         (activeVendor?.name || 'W').charAt(0).toUpperCase()
                       )}
                     </Select.Trigger>
-                    <Select.Portal>
-                      <Select.Content
-                        position="popper"
-                        sideOffset={8}
-                        align="start"
-                        className="z-50 min-w-[180px] rounded-lg border border-gray-200 bg-white shadow-lg overflow-hidden"
-                      >
+                    <Select.Content
+                      position="popper"
+                      sideOffset={8}
+                      align="start"
+                      className="z-50 min-w-[180px] rounded-lg border border-gray-200 bg-white shadow-lg overflow-hidden"
+                    >
                         <div className="px-3 py-2 border-b border-gray-100 bg-gray-50/50">
                           <Input
                             type="text"
@@ -257,7 +256,6 @@ export default function Sidebar({ currentPage, onPageChange, collapsed, onCollap
                           ))}
                         </Select.Viewport>
                       </Select.Content>
-                    </Select.Portal>
                   </Select.Root>
                 ) : (
                   <Select.Root
@@ -285,12 +283,11 @@ export default function Sidebar({ currentPage, onPageChange, collapsed, onCollap
                         <ChevronDown className="h-4 w-4 text-gray-400" />
                       </Select.Icon>
                     </Select.Trigger>
-                    <Select.Portal>
-                      <Select.Content
-                        position="popper"
-                        sideOffset={4}
-                        className="z-50 w-[var(--radix-select-trigger-width)] rounded-lg border border-gray-200 bg-white shadow-lg overflow-hidden"
-                      >
+                    <Select.Content
+                      position="popper"
+                      sideOffset={4}
+                      className="z-50 w-[var(--radix-select-trigger-width)] rounded-lg border border-gray-200 bg-white shadow-lg overflow-hidden"
+                    >
                         <div className="px-3 py-2 border-b border-gray-100 bg-gray-50/50">
                           <Input
                             type="text"
@@ -331,7 +328,6 @@ export default function Sidebar({ currentPage, onPageChange, collapsed, onCollap
                           ))}
                         </Select.Viewport>
                       </Select.Content>
-                    </Select.Portal>
                   </Select.Root>
                 )}
 
