@@ -79,6 +79,8 @@ export interface ReceiptTemplate {
   name: string
   description?: string
   template_html: string
+  footer_message?: string
+  footer_notes?: string
   created_by: string
   vendor_id?: string | null
   created_at: string

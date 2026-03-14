@@ -210,11 +210,17 @@ CREATE TABLE IF NOT EXISTS receipt_templates (
   name VARCHAR(255) NOT NULL,
   description TEXT,
   template_html TEXT NOT NULL,
+  footer_message TEXT,
+  footer_notes TEXT,
   created_by UUID REFERENCES users(id) ON DELETE SET NULL,
   vendor_id UUID REFERENCES vendors(id) ON DELETE CASCADE,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
+
+-- Add footer columns to existing receipt_templates table
+ALTER TABLE receipt_templates ADD COLUMN IF NOT EXISTS footer_message TEXT;
+ALTER TABLE receipt_templates ADD COLUMN IF NOT EXISTS footer_notes TEXT;
 
 -- Join table for many-to-many assignment of templates to vendors
 CREATE TABLE IF NOT EXISTS receipt_template_vendors (
@@ -380,6 +386,14 @@ CREATE TABLE IF NOT EXISTS receipts (
   created_by UUID REFERENCES users(id) ON DELETE SET NULL,
   vendor_id UUID REFERENCES vendors(id) ON DELETE CASCADE,
   company_name VARCHAR(255),
+  company_logo TEXT,
+  company_email VARCHAR(255),
+  company_phone VARCHAR(50),
+  company_address TEXT,
+  company_city VARCHAR(255),
+  company_zip VARCHAR(50),
+  company_website VARCHAR(255),
+  company_tax_id VARCHAR(100),
   customer_name VARCHAR(255),
   customer_email VARCHAR(255),
   customer_company VARCHAR(255),
@@ -401,6 +415,14 @@ CREATE TABLE IF NOT EXISTS receipts (
 -- Add status column to existing receipts table if it doesn't exist
 ALTER TABLE receipts ADD COLUMN IF NOT EXISTS status VARCHAR(50) DEFAULT 'draft' CHECK (status IN ('draft', 'sent', 'paid'));
 ALTER TABLE receipts ADD COLUMN IF NOT EXISTS company_name VARCHAR(255);
+ALTER TABLE receipts ADD COLUMN IF NOT EXISTS company_logo TEXT;
+ALTER TABLE receipts ADD COLUMN IF NOT EXISTS company_email VARCHAR(255);
+ALTER TABLE receipts ADD COLUMN IF NOT EXISTS company_phone VARCHAR(50);
+ALTER TABLE receipts ADD COLUMN IF NOT EXISTS company_address TEXT;
+ALTER TABLE receipts ADD COLUMN IF NOT EXISTS company_city VARCHAR(255);
+ALTER TABLE receipts ADD COLUMN IF NOT EXISTS company_zip VARCHAR(50);
+ALTER TABLE receipts ADD COLUMN IF NOT EXISTS company_website VARCHAR(255);
+ALTER TABLE receipts ADD COLUMN IF NOT EXISTS company_tax_id VARCHAR(100);
 ALTER TABLE receipts ADD COLUMN IF NOT EXISTS customer_company VARCHAR(255);
 ALTER TABLE receipts ADD COLUMN IF NOT EXISTS customer_phone VARCHAR(50);
 ALTER TABLE receipts ADD COLUMN IF NOT EXISTS customer_address TEXT;
@@ -410,6 +432,7 @@ ALTER TABLE receipts ADD COLUMN IF NOT EXISTS discount_value DECIMAL(10, 2) DEFA
 ALTER TABLE receipts ADD COLUMN IF NOT EXISTS tax_percent DECIMAL(5, 2) DEFAULT 0;
 ALTER TABLE receipt_templates ADD COLUMN IF NOT EXISTS vendor_id UUID REFERENCES vendors(id) ON DELETE CASCADE;
 ALTER TABLE receipts ADD COLUMN IF NOT EXISTS vendor_id UUID REFERENCES vendors(id) ON DELETE CASCADE;
+ALTER TABLE receipts ADD COLUMN IF NOT EXISTS footer_message TEXT;
 
 DO $$
 BEGIN
@@ -878,6 +901,12 @@ $$;
 -- Grant execute permission to authenticated users
 GRANT EXECUTE ON FUNCTION assign_admin_vendor_permissions TO authenticated;
 GRANT EXECUTE ON FUNCTION assign_admin_vendor_permissions TO anon;
+
+-- ============================================
+-- REFRESH SCHEMA CACHE
+-- ============================================
+-- Force PostgREST to reload the schema cache after schema changes
+SELECT pg_notify('pgrst', 'reload schema');
 
 -- ============================================
 -- END OF SAFE MIGRATION

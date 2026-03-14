@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/Input'
 import { Label } from '@/components/ui/Label'
 import { Checkbox } from '@/components/ui/Checkbox'
 import { Dialog, DialogClose, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/Dialog'
-import { Plus, AlertCircle, FileText, Search, Edit, Trash2, Eye, Download, ArrowUpDown, Funnel, ChevronDown, Check, X } from 'lucide-react'
+import { Plus, AlertCircle, FileText, Search, Edit, Trash2, Eye, Download, ArrowUpDown, Funnel, ChevronDown, Check, X, Building2, User, Package } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { useVendor } from '@/contexts/VendorContext'
 import ReceiptPreviewModal from './ReceiptPreviewModal'
@@ -19,6 +19,7 @@ import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
 import * as Select from '@radix-ui/react-select'
 import { cn } from '@/lib/utils'
 import { useToast } from '@/contexts/ToastContext'
+import { Skeleton } from '@/components/ui/Skeleton'
 
 export default function ReceiptList() {
   const { role } = useAuth()
@@ -67,6 +68,7 @@ export default function ReceiptList() {
   const [page, setPage] = useState(1)
   const [rowsPerPage, setRowsPerPage] = useState(10)
   const [autoDownloadMode, setAutoDownloadMode] = useState<'none' | 'pdf' | 'png'>('none')
+  const [previewLoadingId, setPreviewLoadingId] = useState<string | null>(null)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [receiptToDelete, setReceiptToDelete] = useState<Receipt | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
@@ -90,6 +92,14 @@ export default function ReceiptList() {
   >({})
   const [formData, setFormData] = useState({
     company_name: '',
+    company_logo: '',
+    company_email: '',
+    company_phone: '',
+    company_address: '',
+    company_city: '',
+    company_zip: '',
+    company_website: '',
+    company_tax_id: '',
     customer_name: '',
     customer_email: '',
     customer_company: '',
@@ -102,6 +112,7 @@ export default function ReceiptList() {
     notes: '',
     footer_message: '',
   })
+  const [companyInfoEdited, setCompanyInfoEdited] = useState(false)
   const showToast = (title: string, description = '', variant: 'success' | 'error' = 'success') => {
     toast(title, description, variant)
   }
@@ -136,6 +147,24 @@ export default function ReceiptList() {
   const clampPercent = (value: unknown) => {
     const n = safeNumber(value)
     return Math.min(100, Math.max(0, n))
+  }
+
+  // Helper functions to extract builder data from template HTML
+  const decodeBuilderData = (encoded: string): any | null => {
+    try {
+      const json = decodeURIComponent(escape(atob(encoded)))
+      return JSON.parse(json)
+    } catch {
+      return null
+    }
+  }
+
+  const extractBuilderData = (templateHtml: string): any | null => {
+    const match = templateHtml.match(
+      /<!--\s*XRECEIPT_CUSTOM_TEMPLATE_BUILDER:([A-Za-z0-9+/=]+)\s*-->/,
+    )
+    if (!match || !match[1]) return null
+    return decodeBuilderData(match[1])
   }
 
   const getItemBreakdown = (item: ReceiptItem) => {
@@ -320,20 +349,32 @@ export default function ReceiptList() {
       setLoading(true)
       setError(null)
       const vendorFilter = vendorId ?? undefined
-      const [receiptsData, templatesData, productsData] = await Promise.all([
-        receiptService.getAllReceipts(vendorFilter),
-        templateService.getAllTemplates(vendorFilter),
-        productService.getAllProducts(vendorFilter),
-      ])
+
+      // Fast path: load receipts first so the page becomes usable quickly.
+      const receiptsData = await receiptService.getAllReceipts(vendorFilter)
       setReceipts(receiptsData)
-      setTemplates(templatesData)
-      setProducts(productsData)
+      setLoading(false)
+
+      // Background: templates/products are needed mainly for names + create modal.
+      void (async () => {
+        try {
+          const [templatesData, productsData] = await Promise.all([
+            templateService.getAllTemplates(vendorFilter),
+            productService.getAllProducts(vendorFilter),
+          ])
+          setTemplates(templatesData)
+          setProducts(productsData)
+        } catch (bgErr) {
+          console.warn('Background load failed:', bgErr)
+        }
+      })()
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to load data'
       setError(errorMessage)
       showToast('Failed to load receipts', errorMessage, 'error')
       setReceipts([])
-    } finally {
+      setTemplates([])
+      setProducts([])
       setLoading(false)
     }
   }
@@ -440,8 +481,17 @@ export default function ReceiptList() {
     }
 
     setSelectedReceipt(null)
+    setCompanyInfoEdited(false)
     setFormData({
       company_name: activeVendorName,
+      company_logo: '',
+      company_email: '',
+      company_phone: '',
+      company_address: '',
+      company_city: '',
+      company_zip: '',
+      company_website: '',
+      company_tax_id: '',
       customer_name: '',
       customer_email: '',
       customer_company: '',
@@ -460,6 +510,18 @@ export default function ReceiptList() {
     setShowForm(true)
   }
 
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    if (loading || vendorLoading) return
+
+    const quickCreate = window.localStorage.getItem('xreceipt.quickCreate')
+    if (quickCreate !== 'receipt') return
+
+    window.localStorage.removeItem('xreceipt.quickCreate')
+    handleAddNew()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading, vendorLoading, activeVendorId])
+
   const handleEdit = async (receipt: Receipt) => {
     try {
       // Fetch the full receipt with items
@@ -474,8 +536,17 @@ export default function ReceiptList() {
       const vendorNameForReceipt = fullReceipt.vendor_id
         ? vendors.find((v) => v.id === fullReceipt.vendor_id)?.name || ''
         : ''
+      setCompanyInfoEdited(true) // Mark as edited since we're loading existing receipt data
       setFormData({
         company_name: fullReceipt.company_name || vendorNameForReceipt,
+        company_logo: (fullReceipt as any).company_logo || '',
+        company_email: (fullReceipt as any).company_email || '',
+        company_phone: (fullReceipt as any).company_phone || '',
+        company_address: (fullReceipt as any).company_address || '',
+        company_city: (fullReceipt as any).company_city || '',
+        company_zip: (fullReceipt as any).company_zip || '',
+        company_website: (fullReceipt as any).company_website || '',
+        company_tax_id: (fullReceipt as any).company_tax_id || '',
         customer_name: fullReceipt.customer_name,
         customer_email: fullReceipt.customer_email,
         customer_company: fullReceipt.customer_company || '',
@@ -581,6 +652,34 @@ export default function ReceiptList() {
         // Keep fallback
       })
   }, [showForm, vendorIdForReceiptModal])
+
+  // Handle template selection change - prefill company info from template
+  useEffect(() => {
+    if (!showForm || !formData.template_id) return
+
+    const selectedTemplate = modalTemplates.find((t) => t.id === formData.template_id)
+    if (!selectedTemplate?.template_html) return
+
+    // Only prefill if user hasn't manually edited company info
+    if (companyInfoEdited) return
+
+    const builderData = extractBuilderData(selectedTemplate.template_html)
+    if (!builderData) return
+
+    // Prefill company info from template data
+    setFormData((prev) => ({
+      ...prev,
+      company_name: builderData.companyName || prev.company_name || activeVendorName,
+      company_logo: builderData.companyLogo || prev.company_logo,
+      company_email: builderData.companyEmail || prev.company_email,
+      company_phone: builderData.companyPhone || prev.company_phone,
+      company_address: builderData.companyAddress || prev.company_address,
+      company_city: builderData.companyCity || prev.company_city,
+      company_zip: builderData.companyZip || prev.company_zip,
+      company_website: builderData.companyWebsite || prev.company_website,
+      company_tax_id: builderData.companyTaxId || prev.company_tax_id,
+    }))
+  }, [formData.template_id, modalTemplates, showForm, companyInfoEdited, activeVendorName])
 
   const addItem = () => {
     if (!selectedProductId || !itemQuantity) return
@@ -740,6 +839,7 @@ export default function ReceiptList() {
 
   const openPreview = async (receipt: Receipt, mode: 'view' | 'download') => {
     try {
+      setPreviewLoadingId(receipt.id)
       const fullReceipt = await receiptService.getReceiptById(receipt.id)
       if (!fullReceipt) {
         setError('Receipt not found')
@@ -753,6 +853,8 @@ export default function ReceiptList() {
       setError(err instanceof Error ? err.message : 'Failed to load receipt preview')
       const message = err instanceof Error ? err.message : 'Failed to load receipt preview'
       showToast('Failed to load preview', message, 'error')
+    } finally {
+      setPreviewLoadingId(null)
     }
   }
 
@@ -1046,6 +1148,42 @@ export default function ReceiptList() {
       (receipt.vendor_id ? vendors.find((v) => v.id === receipt.vendor_id)?.name : null) ||
       'xReceipt'
 
+    // Get template for fallback values
+    const template = receipt.template_id ? templates.find((t) => t.id === receipt.template_id) : null
+
+    // Priority: receipt values > template values > defaults
+    const footerMessage = receipt.footer_message || template?.footer_message || 'Thank you for your business!'
+    const notes = receipt.notes || template?.footer_notes || ''
+
+    // Build company info HTML blocks
+    const toBlock = (content: string) =>
+      content ? `<span style="display:block">${content}</span>` : ''
+
+    const companyLogo = (receipt as any).company_logo
+      ? toBlock(`<img src="${(receipt as any).company_logo}" alt="Company Logo" class="company-logo" />`)
+      : ''
+    const companyNameHTML = (receipt as any).company_name || companyName
+      ? toBlock(`<span style="font-weight:700">${(receipt as any).company_name || companyName}</span>`)
+      : ''
+    const companyEmail = (receipt as any).company_email
+      ? toBlock(`${(receipt as any).company_email}`)
+      : ''
+    const companyPhone = (receipt as any).company_phone
+      ? toBlock(`${(receipt as any).company_phone}`)
+      : ''
+    const companyAddress = (receipt as any).company_address
+      ? toBlock(`${(receipt as any).company_address}`)
+      : ''
+    const companyCityZip = ((receipt as any).company_city || (receipt as any).company_zip)
+      ? toBlock(`${[(receipt as any).company_city, (receipt as any).company_zip].filter(Boolean).join(' ')}`)
+      : ''
+    const companyWebsite = (receipt as any).company_website
+      ? toBlock(`${(receipt as any).company_website}`)
+      : ''
+    const companyTaxId = (receipt as any).company_tax_id
+      ? toBlock(`${(receipt as any).company_tax_id}`)
+      : ''
+
     let html = templateHtml
       .replace(/{{RECEIPT_ID}}/g, receipt.receipt_number || receipt.id)
       .replace(/{{DATE}}/g, new Date(receipt.created_at).toLocaleDateString())
@@ -1072,9 +1210,16 @@ export default function ReceiptList() {
       .replace(/{{RECEIPT_TAX}}/g, receiptTax.toFixed(2))
       .replace(/{{TOTAL_TAX}}/g, totalTax.toFixed(2))
       .replace(/{{STATUS}}/g, receipt.status)
-      .replace(/{{COMPANY_NAME}}/g, companyName)
-      .replace(/{{COMPANY_EMAIL}}/g, 'info@xreceipt.com')
-      .replace(/{{FOOTER_MESSAGE}}/g, 'Thank you for your business!')
+      .replace(/{{COMPANY_LOGO}}/g, companyLogo)
+      .replace(/{{COMPANY_NAME}}/g, companyNameHTML)
+      .replace(/{{COMPANY_EMAIL}}/g, companyEmail)
+      .replace(/{{COMPANY_PHONE}}/g, companyPhone)
+      .replace(/{{COMPANY_ADDRESS}}/g, companyAddress)
+      .replace(/{{COMPANY_CITY_ZIP}}/g, companyCityZip)
+      .replace(/{{COMPANY_WEBSITE}}/g, companyWebsite)
+      .replace(/{{COMPANY_TAX_ID}}/g, companyTaxId)
+      .replace(/{{FOOTER_MESSAGE}}/g, footerMessage)
+      .replace(/{{NOTES}}/g, notes)
 
     html = html.replace(/<div\s+class="total-row\s+items-total"[\s\S]*?<\/div>/gi, '')
 
@@ -1229,6 +1374,14 @@ export default function ReceiptList() {
 
       const receiptData: any = {
         company_name: formData.company_name || activeVendorName || undefined,
+        company_logo: formData.company_logo || undefined,
+        company_email: formData.company_email || undefined,
+        company_phone: formData.company_phone || undefined,
+        company_address: formData.company_address || undefined,
+        company_city: formData.company_city || undefined,
+        company_zip: formData.company_zip || undefined,
+        company_website: formData.company_website || undefined,
+        company_tax_id: formData.company_tax_id || undefined,
         customer_name: formData.customer_name,
         customer_email: formData.customer_email,
         customer_company: formData.customer_company || undefined,
@@ -1242,6 +1395,8 @@ export default function ReceiptList() {
         tax_percent: safeTaxPercent,
         tax: totalTax,
         total: totalAmount,
+        notes: formData.notes || undefined,
+        footer_message: formData.footer_message || undefined,
         items: items.map((it) => recalculateItemTotal(it)), // Include items in the receipt data
       }
 
@@ -1301,9 +1456,40 @@ export default function ReceiptList() {
 
   if (loading || vendorLoading) {
     return (
-      <div className="flex flex-col items-center justify-center h-96 gap-4">
-        <div className="animate-spin rounded-full h-16 w-16 border-4 border-violet-200 border-t-violet-600"></div>
-        <p className="text-gray-600 font-medium">Loading receipts...</p>
+      <div className="space-y-4">
+        <div className="bg-white p-4 rounded-lg border border-gray-200">
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+            <div className="space-y-2">
+              <Skeleton className="h-8 w-40" />
+              <Skeleton className="h-4 w-64" />
+            </div>
+            <div className="flex items-center gap-2">
+              <Skeleton className="h-9 w-56" />
+              <Skeleton className="h-9 w-24" />
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+          <div className="p-4 border-b border-gray-200 flex items-center justify-between">
+            <Skeleton className="h-5 w-32" />
+            <div className="flex items-center gap-2">
+              <Skeleton className="h-9 w-28" />
+              <Skeleton className="h-9 w-28" />
+            </div>
+          </div>
+          <div className="p-4 space-y-3">
+            {Array.from({ length: 8 }).map((_, i) => (
+              <div key={i} className="flex items-center gap-3">
+                <Skeleton className="h-5 w-32" />
+                <Skeleton className="h-5 w-44" />
+                <Skeleton className="h-5 w-28" />
+                <Skeleton className="h-5 w-24" />
+                <Skeleton className="h-5 w-20 ml-auto" />
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
     )
   }
@@ -1666,138 +1852,321 @@ export default function ReceiptList() {
               </DialogHeader>
 
               <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-4 bg-gray-50/40 space-y-6 min-h-0">
-              <div>
-                <Label htmlFor="company_name" className="text-sm font-medium text-gray-700">Company Name</Label>
-                <Input
-                  id="company_name"
-                  type="text"
-                  value={formData.company_name}
-                  onChange={(e) => setFormData({ ...formData, company_name: e.target.value })}
-                  placeholder={activeVendorName || 'Company name on receipt'}
-                  className="mt-1 border-0 bg-gray-50 focus:bg-white"
-                />
-              </div>
-
-              {/* Customer Info Section */}
-              <div className="space-y-3">
-                <h3 className="text-sm font-semibold text-gray-900">Customer Info</h3>
-                <div>
-                  <Label htmlFor="customer_name" className="text-sm font-medium text-gray-700" required>Customer Name</Label>
-                  <Input
-                    id="customer_name"
-                    type="text"
-                    value={formData.customer_name}
-                    onChange={(e) => setFormData({ ...formData, customer_name: e.target.value })}
-                    placeholder="John Doe"
-                    required
-                    className="mt-1 border-0 bg-gray-50 focus:bg-white"
-                  />
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <Label htmlFor="customer_email" className="text-sm font-medium text-gray-700" required>Email Address</Label>
-                    <Input
-                      id="customer_email"
-                      type="email"
-                      value={formData.customer_email}
-                      onChange={(e) => setFormData({ ...formData, customer_email: e.target.value })}
-                      placeholder="john@example.com"
-                      required
-                      className="mt-1 border-0 bg-gray-50 focus:bg-white"
-                    />
+                {/* Template Selection Section - First */}
+                <div className="bg-white rounded-lg border border-gray-200 p-4 space-y-3">
+                  <div className="flex items-center gap-2 pb-2 border-b border-gray-100">
+                    <FileText size={16} className="text-violet-600" />
+                    <h3 className="text-sm font-semibold text-gray-900">Receipt Template</h3>
                   </div>
-
                   <div>
-                    <Label htmlFor="customer_phone" className="text-sm font-medium text-gray-700">Phone</Label>
-                    <Input
-                      id="customer_phone"
-                      type="tel"
-                      value={formData.customer_phone}
-                      onChange={(e) => setFormData({ ...formData, customer_phone: e.target.value })}
-                      placeholder="+1 (555) 000-0000"
-                      className="mt-1 border-0 bg-gray-50 focus:bg-white"
-                    />
-                  </div>
-                </div>
+                    <Label htmlFor="template" className="text-sm font-medium text-gray-700" required>Select Template</Label>
+                    {(() => {
+                      const templatesToShow = vendorIdForReceiptModal ? modalTemplates : templatesForReceiptModal
 
-                <div>
-                  <Label htmlFor="customer_company" className="text-sm font-medium text-gray-700">Company</Label>
-                  <Input
-                    id="customer_company"
-                    type="text"
-                    value={formData.customer_company}
-                    onChange={(e) => setFormData({ ...formData, customer_company: e.target.value })}
-                    placeholder="Client company name"
-                    className="mt-1 border-0 bg-gray-50 focus:bg-white"
-                  />
-                </div>
-
-                <div>
-                  <Label htmlFor="customer_address" className="text-sm font-medium text-gray-700">Address</Label>
-                  <Input
-                    id="customer_address"
-                    type="text"
-                    value={formData.customer_address}
-                    onChange={(e) => setFormData({ ...formData, customer_address: e.target.value })}
-                    placeholder="Street, City, ZIP"
-                    className="mt-1 border-0 bg-gray-50 focus:bg-white"
-                  />
-                </div>
-              </div>
-
-              {/* Template Selection */}
-              <div>
-                <Label htmlFor="template" className="text-sm font-medium text-gray-700" required>Receipt Template</Label>
-                {(() => {
-                  const templatesToShow = vendorIdForReceiptModal ? modalTemplates : templatesForReceiptModal
-
-                  return (
-                    <Select.Root
-                      value={formData.template_id}
-                      onValueChange={(value) => setFormData({ ...formData, template_id: value })}
-                    >
-                      <Select.Trigger
-                        id="template"
-                        className="w-full mt-1 px-3 py-2 border-0 bg-gray-50 rounded-md focus:outline-none focus:ring-2 focus:ring-violet-500 text-sm text-gray-900 flex items-center justify-between"
-                        aria-required
-                      >
-                        <Select.Value placeholder="Select a template" />
-                        <Select.Icon>
-                          <ChevronDown className="h-4 w-4 text-gray-500" />
-                        </Select.Icon>
-                      </Select.Trigger>
-                      <Select.Portal>
-                        <Select.Content
-                          position="popper"
-                          sideOffset={6}
-                          className="z-50 rounded-xl border border-gray-200 bg-white shadow-lg overflow-hidden"
-                          style={{ minWidth: 'var(--radix-select-trigger-width)' }}
+                      return (
+                        <Select.Root
+                          value={formData.template_id}
+                          onValueChange={(value) => {
+                            setFormData((prev) => ({ ...prev, template_id: value }))
+                            // Reset companyInfoEdited when changing template for new receipts
+                            if (!selectedReceipt) {
+                              setCompanyInfoEdited(false)
+                            }
+                          }}
                         >
-                          <Select.Viewport className="py-1 max-h-60 overflow-y-auto">
-                            {templatesToShow.map((template: any) => (
-                              <Select.Item
-                                key={template.id}
-                                value={template.id}
-                                className="px-3 py-2 text-sm text-gray-800 rounded-md cursor-pointer flex items-center gap-2 data-[highlighted]:bg-blue-50 data-[highlighted]:text-blue-700 outline-none"
-                              >
-                                <Select.ItemText>{template.name}</Select.ItemText>
-                              </Select.Item>
-                            ))}
-                          </Select.Viewport>
-                        </Select.Content>
-                      </Select.Portal>
-                    </Select.Root>
-                  )
-                })()}
-              </div>
+                          <Select.Trigger
+                            id="template"
+                            className="w-full mt-1 px-3 py-2 border border-gray-200 bg-white rounded-md focus:outline-none focus:ring-2 focus:ring-violet-500 text-sm text-gray-900 flex items-center justify-between"
+                            aria-required
+                          >
+                            <Select.Value placeholder="Select a template" />
+                            <Select.Icon>
+                              <ChevronDown className="h-4 w-4 text-gray-500" />
+                            </Select.Icon>
+                          </Select.Trigger>
+                          <Select.Portal>
+                            <Select.Content
+                              position="popper"
+                              sideOffset={6}
+                              className="z-50 rounded-xl border border-gray-200 bg-white shadow-lg overflow-hidden"
+                              style={{ minWidth: 'var(--radix-select-trigger-width)' }}
+                            >
+                              <Select.Viewport className="py-1 max-h-60 overflow-y-auto">
+                                {templatesToShow.map((template: any) => (
+                                  <Select.Item
+                                    key={template.id}
+                                    value={template.id}
+                                    className="px-3 py-2 text-sm text-gray-800 rounded-md cursor-pointer flex items-center gap-2 data-[highlighted]:bg-blue-50 data-[highlighted]:text-blue-700 outline-none"
+                                  >
+                                    <Select.ItemText>{template.name}</Select.ItemText>
+                                  </Select.Item>
+                                ))}
+                              </Select.Viewport>
+                            </Select.Content>
+                          </Select.Portal>
+                        </Select.Root>
+                      )
+                    })()}
+                  </div>
+                </div>
+
+                {/* My Company Information Section */}
+                <div className="bg-white rounded-lg border border-gray-200 p-4 space-y-3">
+                  <div className="flex items-center gap-2 pb-2 border-b border-gray-100">
+                    <Building2 size={16} className="text-violet-600" />
+                    <h3 className="text-sm font-semibold text-gray-900">My Company Information</h3>
+                  </div>
+
+                  {/* Company Logo */}
+                  <div>
+                    <Label htmlFor="company_logo" className="text-sm font-medium text-gray-700">Company Logo</Label>
+                    <div className="mt-1 flex items-center gap-3">
+                      {formData.company_logo && (
+                        <img
+                          src={formData.company_logo}
+                          alt="Company Logo"
+                          className="h-16 w-16 object-contain rounded-md border border-gray-200"
+                        />
+                      )}
+                      <div className="flex-1">
+                        <Input
+                          id="company_logo"
+                          type="text"
+                          value={formData.company_logo}
+                          onChange={(e) => {
+                            setFormData((prev) => ({ ...prev, company_logo: e.target.value }))
+                            setCompanyInfoEdited(true)
+                          }}
+                          placeholder="https://example.com/logo.png or upload below"
+                          className="border border-gray-200 bg-white focus:border-violet-500"
+                        />
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0]
+                            if (!file) return
+                            const reader = new FileReader()
+                            reader.onload = () => {
+                              const result = reader.result
+                              if (typeof result === 'string') {
+                                setFormData((prev) => ({ ...prev, company_logo: result }))
+                                setCompanyInfoEdited(true)
+                              }
+                            }
+                            reader.readAsDataURL(file)
+                          }}
+                          className="mt-2 text-xs text-gray-600 file:mr-3 file:py-1.5 file:px-3 file:rounded-md file:border-0 file:text-xs file:font-medium file:bg-violet-50 file:text-violet-700 hover:file:bg-violet-100"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <Label htmlFor="company_name" className="text-sm font-medium text-gray-700">Company Name</Label>
+                      <Input
+                        id="company_name"
+                        type="text"
+                        value={formData.company_name}
+                        onChange={(e) => {
+                          setFormData((prev) => ({ ...prev, company_name: e.target.value }))
+                          setCompanyInfoEdited(true)
+                        }}
+                        placeholder={activeVendorName || 'Company name on receipt'}
+                        className="mt-1 border border-gray-200 bg-white focus:border-violet-500"
+                      />
+                    </div>
+
+                    <div>
+                      <Label htmlFor="company_email" className="text-sm font-medium text-gray-700">Email</Label>
+                      <Input
+                        id="company_email"
+                        type="email"
+                        value={formData.company_email}
+                        onChange={(e) => {
+                          setFormData((prev) => ({ ...prev, company_email: e.target.value }))
+                          setCompanyInfoEdited(true)
+                        }}
+                        placeholder="company@example.com"
+                        className="mt-1 border border-gray-200 bg-white focus:border-violet-500"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <Label htmlFor="company_phone" className="text-sm font-medium text-gray-700">Phone</Label>
+                      <Input
+                        id="company_phone"
+                        type="tel"
+                        value={formData.company_phone}
+                        onChange={(e) => {
+                          setFormData((prev) => ({ ...prev, company_phone: e.target.value }))
+                          setCompanyInfoEdited(true)
+                        }}
+                        placeholder="+1 (555) 000-0000"
+                        className="mt-1 border border-gray-200 bg-white focus:border-violet-500"
+                      />
+                    </div>
+
+                    <div>
+                      <Label htmlFor="company_tax_id" className="text-sm font-medium text-gray-700">Tax ID</Label>
+                      <Input
+                        id="company_tax_id"
+                        type="text"
+                        value={formData.company_tax_id}
+                        onChange={(e) => {
+                          setFormData((prev) => ({ ...prev, company_tax_id: e.target.value }))
+                          setCompanyInfoEdited(true)
+                        }}
+                        placeholder="Tax ID / VAT Number"
+                        className="mt-1 border border-gray-200 bg-white focus:border-violet-500"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <Label htmlFor="company_address" className="text-sm font-medium text-gray-700">Address</Label>
+                    <Input
+                      id="company_address"
+                      type="text"
+                      value={formData.company_address}
+                      onChange={(e) => {
+                        setFormData((prev) => ({ ...prev, company_address: e.target.value }))
+                        setCompanyInfoEdited(true)
+                      }}
+                      placeholder="Street address"
+                      className="mt-1 border border-gray-200 bg-white focus:border-violet-500"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div>
+                      <Label htmlFor="company_city" className="text-sm font-medium text-gray-700">City</Label>
+                      <Input
+                        id="company_city"
+                        type="text"
+                        value={formData.company_city}
+                        onChange={(e) => {
+                          setFormData((prev) => ({ ...prev, company_city: e.target.value }))
+                          setCompanyInfoEdited(true)
+                        }}
+                        placeholder="City"
+                        className="mt-1 border border-gray-200 bg-white focus:border-violet-500"
+                      />
+                    </div>
+
+                    <div>
+                      <Label htmlFor="company_zip" className="text-sm font-medium text-gray-700">ZIP / Postal</Label>
+                      <Input
+                        id="company_zip"
+                        type="text"
+                        value={formData.company_zip}
+                        onChange={(e) => {
+                          setFormData((prev) => ({ ...prev, company_zip: e.target.value }))
+                          setCompanyInfoEdited(true)
+                        }}
+                        placeholder="ZIP Code"
+                        className="mt-1 border border-gray-200 bg-white focus:border-violet-500"
+                      />
+                    </div>
+
+                    <div>
+                      <Label htmlFor="company_website" className="text-sm font-medium text-gray-700">Website</Label>
+                      <Input
+                        id="company_website"
+                        type="text"
+                        value={formData.company_website}
+                        onChange={(e) => {
+                          setFormData((prev) => ({ ...prev, company_website: e.target.value }))
+                          setCompanyInfoEdited(true)
+                        }}
+                        placeholder="www.example.com"
+                        className="mt-1 border border-gray-200 bg-white focus:border-violet-500"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Customer Info Section */}
+                <div className="bg-white rounded-lg border border-gray-200 p-4 space-y-3">
+                  <div className="flex items-center gap-2 pb-2 border-b border-gray-100">
+                    <User size={16} className="text-violet-600" />
+                    <h3 className="text-sm font-semibold text-gray-900">Customer Information</h3>
+                  </div>
+                  <div>
+                    <Label htmlFor="customer_name" className="text-sm font-medium text-gray-700" required>Customer Name</Label>
+                    <Input
+                      id="customer_name"
+                      type="text"
+                      value={formData.customer_name}
+                      onChange={(e) => setFormData((prev) => ({ ...prev, customer_name: e.target.value }))}
+                      placeholder="John Doe"
+                      required
+                      className="mt-1 border border-gray-200 bg-white focus:border-violet-500"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <Label htmlFor="customer_email" className="text-sm font-medium text-gray-700" required>Email Address</Label>
+                      <Input
+                        id="customer_email"
+                        type="email"
+                        value={formData.customer_email}
+                        onChange={(e) => setFormData((prev) => ({ ...prev, customer_email: e.target.value }))}
+                        placeholder="john@example.com"
+                        required
+                        className="mt-1 border border-gray-200 bg-white focus:border-violet-500"
+                      />
+                    </div>
+
+                    <div>
+                      <Label htmlFor="customer_phone" className="text-sm font-medium text-gray-700">Phone</Label>
+                      <Input
+                        id="customer_phone"
+                        type="tel"
+                        value={formData.customer_phone}
+                        onChange={(e) => setFormData((prev) => ({ ...prev, customer_phone: e.target.value }))}
+                        placeholder="+1 (555) 000-0000"
+                        className="mt-1 border border-gray-200 bg-white focus:border-violet-500"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <Label htmlFor="customer_company" className="text-sm font-medium text-gray-700">Company</Label>
+                    <Input
+                      id="customer_company"
+                      type="text"
+                      value={formData.customer_company}
+                      onChange={(e) => setFormData((prev) => ({ ...prev, customer_company: e.target.value }))}
+                      placeholder="Client company name"
+                      className="mt-1 border border-gray-200 bg-white focus:border-violet-500"
+                    />
+                  </div>
+
+                  <div>
+                    <Label htmlFor="customer_address" className="text-sm font-medium text-gray-700">Address</Label>
+                    <Input
+                      id="customer_address"
+                      type="text"
+                      value={formData.customer_address}
+                      onChange={(e) => setFormData((prev) => ({ ...prev, customer_address: e.target.value }))}
+                      placeholder="Street, City, ZIP"
+                      className="mt-1 border border-gray-200 bg-white focus:border-violet-500"
+                    />
+                  </div>
+                </div>
 
               {/* Add Products Section */}
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
+              <div className="bg-white rounded-lg border border-gray-200 p-4 space-y-3">
+                <div className="flex items-center gap-2 pb-2 border-b border-gray-100">
+                  <Package size={16} className="text-violet-600" />
                   <h3 className="text-sm font-semibold text-gray-900">Products</h3>
                   {items.length > 0 && (
-                    <span className="text-xs font-medium text-gray-600 bg-gray-100 px-2.5 py-1 rounded-full">
+                    <span className="ml-auto text-xs font-medium text-gray-600 bg-gray-100 px-2.5 py-1 rounded-full">
                       {items.length} {items.length === 1 ? 'product' : 'products'}
                     </span>
                   )}
@@ -2872,7 +3241,7 @@ export default function ReceiptList() {
 
                 {/* Empty State */}
                 {items.length === 0 && (
-                  <div className="text-center py-6 bg-gray-50 rounded-md">
+                  <div className="text-center py-6 bg-gray-50 rounded-md border border-dashed border-gray-200">
                     <p className="text-sm text-gray-600">No products added yet</p>
                     <p className="text-xs text-gray-500 mt-1">Add products below to create receipt</p>
                   </div>
@@ -2880,15 +3249,19 @@ export default function ReceiptList() {
               </div>
 
               {/* Notes and Footer Message Section */}
-              <div className="space-y-4">
+              <div className="bg-white rounded-lg border border-gray-200 p-4 space-y-4">
+                <div className="flex items-center gap-2 pb-2 border-b border-gray-100">
+                  <FileText size={16} className="text-violet-600" />
+                  <h3 className="text-sm font-semibold text-gray-900">Notes & Footer</h3>
+                </div>
                 <div>
                   <Label htmlFor="notes" className="text-sm font-medium text-gray-700">Notes / Terms</Label>
                   <textarea
                     id="notes"
                     value={formData.notes}
-                    onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+                    onChange={(e) => setFormData((prev) => ({ ...prev, notes: e.target.value }))}
                     placeholder="Add payment terms, special instructions, or notes..."
-                    className="mt-1 w-full px-3 py-2 border-0 bg-gray-50 rounded-md focus:outline-none focus:ring-2 focus:ring-violet-500 text-sm min-h-[80px] resize-y"
+                    className="mt-1 w-full px-3 py-2 border border-gray-200 bg-white rounded-md focus:outline-none focus:ring-2 focus:ring-violet-500 text-sm min-h-[80px] resize-y"
                   />
                 </div>
 
@@ -2898,9 +3271,9 @@ export default function ReceiptList() {
                     id="footer_message"
                     type="text"
                     value={formData.footer_message}
-                    onChange={(e) => setFormData({ ...formData, footer_message: e.target.value })}
+                    onChange={(e) => setFormData((prev) => ({ ...prev, footer_message: e.target.value }))}
                     placeholder="Thank you for your business!"
-                    className="mt-1 border-0 bg-gray-50 focus:bg-white"
+                    className="mt-1 border border-gray-200 bg-white focus:border-violet-500"
                   />
                 </div>
               </div>
@@ -3000,10 +3373,15 @@ export default function ReceiptList() {
                           e.stopPropagation()
                           void openPreview(receipt, 'view')
                         }}
+                        disabled={previewLoadingId === receipt.id}
                         title="Preview"
                         className="h-9 w-9 p-0 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-full"
                       >
-                        <Eye size={16} />
+                        {previewLoadingId === receipt.id ? (
+                          <span className="h-4 w-4 rounded-full border-2 border-gray-300 border-t-gray-700 animate-spin" />
+                        ) : (
+                          <Eye size={16} />
+                        )}
                       </Button>
                       <Button
                         variant="ghost"
@@ -3140,10 +3518,15 @@ export default function ReceiptList() {
                             e.stopPropagation()
                             void openPreview(receipt, 'view')
                           }}
+                          disabled={previewLoadingId === receipt.id}
                           title="Preview"
                           className="h-8 w-8 p-0 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-full"
                         >
-                          <Eye size={16} />
+                          {previewLoadingId === receipt.id ? (
+                            <span className="h-4 w-4 rounded-full border-2 border-gray-300 border-t-gray-700 animate-spin" />
+                          ) : (
+                            <Eye size={16} />
+                          )}
                         </Button>
                         <Button
                           variant="ghost"
