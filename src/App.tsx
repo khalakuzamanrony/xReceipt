@@ -12,6 +12,7 @@ import VendorList from '@/components/vendors/VendorList'
 import SettingsPage from '@/components/settings/SettingsPage'
 import { useAuth } from '@/contexts/AuthContext'
 import SignInPage from '@/components/auth/SignInPage'
+import { Skeleton } from '@/components/ui/Skeleton'
 
 export default function App() {
   const { user, loading, role } = useAuth()
@@ -20,6 +21,21 @@ export default function App() {
     const stored = window.localStorage.getItem('xreceipt.currentPage')
     return stored || 'dashboard'
   })
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+
+    const handler = (e: Event) => {
+      const ce = e as CustomEvent<{ page?: string }>
+      const page = ce?.detail?.page
+      if (typeof page === 'string' && page.trim()) {
+        setCurrentPage(page)
+      }
+    }
+
+    window.addEventListener('xreceipt:navigate', handler)
+    return () => window.removeEventListener('xreceipt:navigate', handler)
+  }, [])
 
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
     if (typeof window === 'undefined') return false
@@ -70,10 +86,23 @@ export default function App() {
 
   if (loading) {
     return (
-      <div className="h-screen flex items-center justify-center bg-gray-50">
-        <div className="flex flex-col items-center gap-3">
-          <div className="animate-spin rounded-full h-12 w-12 border-4 border-blue-200 border-t-blue-600" />
-          <p className="text-gray-600 text-sm font-medium">Loading your workspace...</p>
+      <div className="h-screen flex flex-col bg-gray-50">
+        <div className="fixed left-0 top-0 h-screen w-64 bg-white border-r border-gray-200 hidden md:block" />
+        <div className="md:ml-64 flex flex-col flex-1 overflow-hidden">
+          <div className="h-16 bg-white border-b border-gray-200 flex items-center px-6">
+            <Skeleton className="h-8 w-40" />
+          </div>
+          <main className="flex-1 overflow-auto px-6 md:px-8 py-6">
+            <div className="space-y-4">
+              <Skeleton className="h-10 w-72" />
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <Skeleton className="h-28 w-full" />
+                <Skeleton className="h-28 w-full" />
+                <Skeleton className="h-28 w-full" />
+              </div>
+              <Skeleton className="h-72 w-full" />
+            </div>
+          </main>
         </div>
       </div>
     )

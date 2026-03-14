@@ -14,6 +14,7 @@ import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
 import * as Select from '@radix-ui/react-select'
 import { cn } from '@/lib/utils'
 import { useToast } from '@/contexts/ToastContext'
+import { Skeleton } from '@/components/ui/Skeleton'
 
 interface TemplateListProps {
   onNavigateToBuilder?: (templateId?: string) => void
@@ -112,38 +113,41 @@ export default function TemplateList({ onNavigateToBuilder }: TemplateListProps)
       const data = await templateService.getAllTemplates(vendorFilter)
       setTemplates(data)
 
-      // Load many-to-many vendor assignments for these templates so we can
-      // show stacked avatars and pre-select saved vendors in the dropdown.
+      // Do not block the main page render on meta lookups (assignments + usage counts).
+      // These can be slow on large datasets.
       const templateIds = data.map((t) => t.id)
+      setTemplateVendorAssignments({})
+      setTemplateUsageCounts({})
+
       if (templateIds.length > 0) {
-        try {
-          const assignments = await templateVendorService.getAssignmentsForTemplates(templateIds)
-          const map: Record<string, string[]> = {}
+        void (async () => {
+          try {
+            const assignments = await templateVendorService.getAssignmentsForTemplates(templateIds)
+            const map: Record<string, string[]> = {}
 
-          assignments.forEach((row) => {
-            if (!map[row.template_id]) {
-              map[row.template_id] = []
-            }
-            if (!map[row.template_id].includes(row.vendor_id)) {
-              map[row.template_id].push(row.vendor_id)
-            }
-          })
+            assignments.forEach((row) => {
+              if (!map[row.template_id]) {
+                map[row.template_id] = []
+              }
+              if (!map[row.template_id].includes(row.vendor_id)) {
+                map[row.template_id].push(row.vendor_id)
+              }
+            })
 
-          setTemplateVendorAssignments(map)
-        } catch (assignErr) {
-          console.error('Failed to load template vendor assignments', assignErr)
-          setTemplateVendorAssignments({})
-        }
-      } else {
-        setTemplateVendorAssignments({})
-      }
+            setTemplateVendorAssignments(map)
+          } catch (assignErr) {
+            console.error('Failed to load template vendor assignments', assignErr)
+            setTemplateVendorAssignments({})
+          }
 
-      try {
-        const counts = await receiptService.getReceiptCountsByTemplateIds(templateIds, vendorId ?? null)
-        setTemplateUsageCounts(counts)
-      } catch (countErr) {
-        console.error('Failed to load template usage counts', countErr)
-        setTemplateUsageCounts({})
+          try {
+            const counts = await receiptService.getReceiptCountsByTemplateIds(templateIds, vendorId ?? null)
+            setTemplateUsageCounts(counts)
+          } catch (countErr) {
+            console.error('Failed to load template usage counts', countErr)
+            setTemplateUsageCounts({})
+          }
+        })()
       }
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to load templates'
@@ -409,9 +413,39 @@ export default function TemplateList({ onNavigateToBuilder }: TemplateListProps)
 
   if (loading || vendorLoading) {
     return (
-      <div className="flex flex-col items-center justify-center h-96 gap-4">
-        <div className="animate-spin rounded-full h-16 w-16 border-4 border-violet-200 border-t-violet-600"></div>
-        <p className="text-gray-600 font-medium">Loading templates...</p>
+      <div className="space-y-4">
+        <div className="bg-white p-4 rounded-lg border border-gray-200">
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+            <div className="space-y-2">
+              <Skeleton className="h-8 w-40" />
+              <Skeleton className="h-4 w-64" />
+            </div>
+            <div className="flex items-center gap-2">
+              <Skeleton className="h-9 w-56" />
+              <Skeleton className="h-9 w-24" />
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+          <div className="p-4 border-b border-gray-200 flex items-center justify-between">
+            <Skeleton className="h-5 w-32" />
+            <div className="flex items-center gap-2">
+              <Skeleton className="h-9 w-28" />
+              <Skeleton className="h-9 w-28" />
+            </div>
+          </div>
+          <div className="p-4 space-y-3">
+            {Array.from({ length: 8 }).map((_, i) => (
+              <div key={i} className="flex items-center gap-3">
+                <Skeleton className="h-5 w-44" />
+                <Skeleton className="h-5 w-56" />
+                <Skeleton className="h-5 w-28" />
+                <Skeleton className="h-5 w-20 ml-auto" />
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
     )
   }

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { cn } from '@/lib/utils'
+import { Skeleton } from '@/components/ui/Skeleton'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/contexts/AuthContext'
 import { useVendor } from '@/contexts/VendorContext'
@@ -66,6 +67,18 @@ export default function Dashboard() {
   const canViewProducts = role === 'grand_user' || isAdmin || permissions?.can_view_products || adminPermissionFallback
   const canViewCategories = role === 'grand_user' || isAdmin || permissions?.can_view_categories || adminPermissionFallback
   const canViewTemplates = role === 'grand_user' || isAdmin || adminPermissionFallback
+
+  const canCreateReceipts = role === 'grand_user' || isAdmin || permissions?.can_create_receipts || adminPermissionFallback
+  const canCreateProducts = role === 'grand_user' || isAdmin || permissions?.can_create_products || adminPermissionFallback
+  const canCreateUsers = role === 'grand_user'
+
+  const runQuickCreate = (type: 'receipt' | 'product' | 'user') => {
+    if (typeof window === 'undefined') return
+
+    const page = type === 'receipt' ? 'receipts' : type === 'product' ? 'products' : 'admin'
+    window.localStorage.setItem('xreceipt.quickCreate', type)
+    window.dispatchEvent(new CustomEvent('xreceipt:navigate', { detail: { page } }))
+  }
 
   useEffect(() => {
     void loadDashboard()
@@ -238,9 +251,54 @@ export default function Dashboard() {
 
   if (vendorLoading || loading) {
     return (
-      <div className="flex flex-col items-center justify-center h-96 gap-4">
-        <div className="animate-spin rounded-full h-16 w-16 border-4 border-violet-200 border-t-violet-600"></div>
-        <p className="text-gray-600 font-medium">Loading dashboard...</p>
+      <div className="space-y-6">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div className="space-y-2">
+            <Skeleton className="h-8 w-40" />
+            <Skeleton className="h-4 w-72" />
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <Skeleton key={i} className="h-9 w-20" />
+            ))}
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="bg-white rounded-lg border border-gray-200 p-4 space-y-3">
+            <Skeleton className="h-4 w-28" />
+            <Skeleton className="h-8 w-32" />
+            <Skeleton className="h-4 w-24" />
+          </div>
+          <div className="bg-white rounded-lg border border-gray-200 p-4 space-y-3">
+            <Skeleton className="h-4 w-28" />
+            <Skeleton className="h-8 w-32" />
+            <Skeleton className="h-4 w-24" />
+          </div>
+          <div className="bg-white rounded-lg border border-gray-200 p-4 space-y-3">
+            <Skeleton className="h-4 w-28" />
+            <Skeleton className="h-8 w-32" />
+            <Skeleton className="h-4 w-24" />
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <div className="bg-white rounded-lg border border-gray-200 p-4 space-y-3">
+            <Skeleton className="h-5 w-40" />
+            <Skeleton className="h-64 w-full" />
+          </div>
+          <div className="bg-white rounded-lg border border-gray-200 p-4 space-y-3">
+            <Skeleton className="h-5 w-40" />
+            <div className="space-y-3">
+              {Array.from({ length: 6 }).map((_, i) => (
+                <div key={i} className="flex items-center gap-3">
+                  <Skeleton className="h-5 w-44" />
+                  <Skeleton className="h-5 w-16 ml-auto" />
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
       </div>
     )
   }
@@ -297,6 +355,40 @@ export default function Dashboard() {
             Select a shop from the header to view receipts, revenue, and catalog metrics for that shop.
           </p>
         </div>
+      )}
+
+      {(canCreateReceipts || canCreateProducts || canCreateUsers) && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg">Quick actions</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex flex-wrap gap-2">
+              {canCreateReceipts && (
+                <Button
+                  type="button"
+                  onClick={() => runQuickCreate('receipt')}
+                  className="bg-violet-600 hover:bg-violet-700 text-white"
+                >
+                  <FileText className="h-4 w-4 mr-2" />
+                  Create receipt
+                </Button>
+              )}
+              {canCreateProducts && (
+                <Button type="button" variant="outline" onClick={() => runQuickCreate('product')}>
+                  <Package className="h-4 w-4 mr-2" />
+                  Create product
+                </Button>
+              )}
+              {canCreateUsers && (
+                <Button type="button" variant="outline" onClick={() => runQuickCreate('user')}>
+                  <Users className="h-4 w-4 mr-2" />
+                  Create user
+                </Button>
+              )}
+            </div>
+          </CardContent>
+        </Card>
       )}
 
       {/* KPI Grid */}

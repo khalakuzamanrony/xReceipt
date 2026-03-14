@@ -27,6 +27,8 @@ export default function ReceiptPreviewModal({
   const [isDownloading, setIsDownloading] = useState(false)
   const [iframeLoaded, setIframeLoaded] = useState(false)
   const [hasAutoDownloaded, setHasAutoDownloaded] = useState(false)
+  const [previewHtml, setPreviewHtml] = useState('')
+  const [isGeneratingPreview, setIsGeneratingPreview] = useState(false)
 
   const getPreviewHTML = () => {
     if (!receipt || !template) return ''
@@ -141,6 +143,14 @@ export default function ReceiptPreviewModal({
         : discountType === 'flat' && discountValue > 0
           ? `(৳${discountValue.toFixed(2)})`
           : ''
+
+    const fmtSigned = (amount: number, kind: 'tax' | 'discount') => {
+      const n = Math.max(0, amount)
+      if (!Number.isFinite(n) || n <= 0) return '0.00'
+      const sign = kind === 'tax' ? '+' : '-'
+      const color = kind === 'tax' ? '#16a34a' : '#dc2626'
+      return `<span style="color:${color};font-weight:600">${sign}৳${n.toFixed(2)}</span>`
+    }
 
     type ItemCol =
       | 'description'
@@ -282,30 +292,32 @@ export default function ReceiptPreviewModal({
               if (col === 'color') {
                 return `<td style="padding: 8px; border-bottom: 1px solid #eee;">${item.color || ''}</td>`
               }
-              if (col === 'discount') {
-                const discountMetaText =
-                  item.discount_type === 'percentage' && item.discount_enabled
-                    ? `${clampPercent(item.discount_value).toFixed(0)}%`
-                    : item.discount_type === 'flat' && item.discount_enabled
-                      ? `৳${Math.max(0, Math.floor(item.discount_value || 0)).toFixed(0)} flat`
-                      : ''
-                return `<td style="padding: 8px; border-bottom: 1px solid #eee; text-align: right;">
-                  ${item.discount_enabled === true ? `<div>-৳${lineDiscount.toFixed(2)}</div>` : '<div></div>'}
-                  ${discountMetaText ? `<div style="font-size: 10px; color: #6b7280; margin-top: 2px;">${discountMetaText}</div>` : ''}
-                </td>`
-              }
-              if (col === 'tax') {
-                const taxMetaText = taxEnabled ? `${taxPercentage.toFixed(0)}%` : ''
-                return `<td style="padding: 8px; border-bottom: 1px solid #eee; text-align: right;">
-                  ${taxEnabled ? `<div>+৳${lineTax.toFixed(2)}</div>` : '<div></div>'}
-                  ${taxMetaText ? `<div style="font-size: 10px; color: #6b7280; margin-top: 2px;">${taxMetaText}</div>` : ''}
-                </td>`
-              }
               if (col === 'quantity') {
                 return `<td style="padding: 8px; border-bottom: 1px solid #eee; text-align: center;">${item.quantity}</td>`
               }
               if (col === 'price') {
-                return `<td style="padding: 8px; border-bottom: 1px solid #eee; text-align: right;">৳${item.unit_price.toFixed(2)}</td>`
+                return `<td style="padding: 8px; border-bottom: 1px solid #eee; text-align: right;">৳${Number(item.unit_price || 0).toFixed(2)}</td>`
+              }
+              if (col === 'tax') {
+                const taxMetaText = taxEnabled ? `${taxPercentage.toFixed(0)}%` : ''
+                return `<td style="padding: 8px; border-bottom: 1px solid #eee; text-align: right;">
+                  ${taxEnabled ? `<div style=\"color:#16a34a;font-weight:600\">+৳${lineTax.toFixed(2)}</div>` : '<div></div>'}
+                  ${taxMetaText ? `<div style=\"font-size: 10px; color: #6b7280; margin-top: 2px;\">${taxMetaText}</div>` : ''}
+                </td>`
+              }
+              if (col === 'discount') {
+                const discountMetaText =
+                  item.discount_enabled === true
+                    ? item.discount_type === 'percentage'
+                      ? `${clampPercent(item.discount_value || 0).toFixed(0)}%`
+                      : item.discount_type === 'flat'
+                        ? `৳${Math.max(0, Math.floor(item.discount_value || 0)).toFixed(0)} flat`
+                        : ''
+                    : ''
+                return `<td style="padding: 8px; border-bottom: 1px solid #eee; text-align: right;">
+                  ${item.discount_enabled === true ? `<div style=\"color:#dc2626;font-weight:600\">-৳${lineDiscount.toFixed(2)}</div>` : '<div></div>'}
+                  ${discountMetaText ? `<div style=\"font-size: 10px; color: #6b7280; margin-top: 2px;\">${discountMetaText}</div>` : ''}
+                </td>`
               }
               if (col === 'total') {
                 return `<td style="padding: 8px; border-bottom: 1px solid #eee; text-align: right;">৳${lineTotal.toFixed(2)}</td>`
@@ -335,6 +347,31 @@ export default function ReceiptPreviewModal({
     const hasTaxableItems = receipt.items && receipt.items.length > 0 && Math.max(0, tax, totalTax) > 0
 
     const companyName = receipt.company_name || 'xReceipt'
+    const companyLogo = String((receipt as any).company_logo || '')
+    const companyEmail = String((receipt as any).company_email || '')
+    const companyPhone = String((receipt as any).company_phone || '')
+    const companyAddress = String((receipt as any).company_address || '')
+    const companyCity = String((receipt as any).company_city || '')
+    const companyZip = String((receipt as any).company_zip || '')
+    const companyWebsite = String((receipt as any).company_website || '')
+    const companyTaxId = String((receipt as any).company_tax_id || '')
+
+    const companyCityZip = [companyCity, companyZip].filter(Boolean).join(' ')
+    const toBlock = (content: string) =>
+      content ? `<span style="display:block">${content}</span>` : ''
+
+    const companyLogoHtml = companyLogo
+      ? toBlock(
+          `<img src="${companyLogo}" alt="Company Logo" style="max-height: 60px; max-width: 160px; object-fit: contain; display: block;" />`,
+        )
+      : ''
+    const companyNameHtml = toBlock(`<span style="font-weight:700">${companyName}</span>`)
+    const companyEmailHtml = companyEmail ? toBlock(companyEmail) : ''
+    const companyPhoneHtml = companyPhone ? toBlock(companyPhone) : ''
+    const companyAddressHtml = companyAddress ? toBlock(companyAddress) : ''
+    const companyCityZipHtml = companyCityZip ? toBlock(companyCityZip) : ''
+    const companyWebsiteHtml = companyWebsite ? toBlock(companyWebsite) : ''
+    const companyTaxIdHtml = companyTaxId ? toBlock(companyTaxId) : ''
 
     let html = templateHtml
     // Priority: receipt values > template values > defaults
@@ -353,22 +390,30 @@ export default function ReceiptPreviewModal({
       .replace(/{{ITEMS}}/g, itemsHTML)
       .replace(/{{TOTAL}}/g, total.toFixed(2))
       .replace(/{{SUBTOTAL}}/g, subtotal.toFixed(2))
-      .replace(/{{TAX}}/g, hasTaxableItems ? tax.toFixed(2) : '0.00')
+      .replace(/{{TAX}}/g, hasTaxableItems ? fmtSigned(tax, 'tax') : '0.00')
       .replace(/{{TAX_PERCENT}}/g, safeTaxPercent.toFixed(2))
       .replace(/{{TAX_META}}/g, taxMeta)
-      .replace(/{{DISCOUNT}}/g, discount.toFixed(2))
+      .replace(/{{DISCOUNT}}/g, fmtSigned(discount, 'discount'))
       .replace(/{{DISCOUNT_TYPE}}/g, discountType)
       .replace(/{{DISCOUNT_VALUE}}/g, Number.isFinite(discountValue) ? discountValue.toFixed(2) : '0.00')
       .replace(/{{DISCOUNT_META}}/g, discountMeta)
-      .replace(/{{ITEMS_DISCOUNT}}/g, itemsDiscount.toFixed(2))
-      .replace(/{{RECEIPT_DISCOUNT}}/g, receiptDiscount.toFixed(2))
-      .replace(/{{TOTAL_DISCOUNT}}/g, totalDiscount.toFixed(2))
-      .replace(/{{ITEMS_TAX}}/g, itemsTax.toFixed(2))
-      .replace(/{{RECEIPT_TAX}}/g, receiptTax.toFixed(2))
-      .replace(/{{TOTAL_TAX}}/g, totalTax.toFixed(2))
+      .replace(/{{ITEMS_DISCOUNT}}/g, fmtSigned(itemsDiscount, 'discount'))
+      .replace(/{{RECEIPT_DISCOUNT}}/g, fmtSigned(receiptDiscount, 'discount'))
+      .replace(/{{TOTAL_DISCOUNT}}/g, fmtSigned(totalDiscount, 'discount'))
+      .replace(/{{ITEMS_TAX}}/g, fmtSigned(itemsTax, 'tax'))
+      .replace(/{{RECEIPT_TAX}}/g, fmtSigned(receiptTax, 'tax'))
+      .replace(/{{TOTAL_TAX}}/g, fmtSigned(totalTax, 'tax'))
       .replace(/{{STATUS}}/g, receipt.status)
-      .replace(/{{COMPANY_NAME}}/g, companyName)
-      .replace(/{{COMPANY_EMAIL}}/g, 'info@xreceipt.com')
+      .replace(/{{COMPANY_NAME}}/g, companyNameHtml)
+      .replace(/{{COMPANY_LOGO}}/g, companyLogoHtml)
+      .replace(/{{COMPANY_EMAIL}}/g, companyEmailHtml || toBlock('info@xreceipt.com'))
+      .replace(/{{COMPANY_PHONE}}/g, companyPhoneHtml)
+      .replace(/{{COMPANY_ADDRESS}}/g, companyAddressHtml)
+      .replace(/{{COMPANY_CITY_ZIP}}/g, companyCityZipHtml)
+      .replace(/{{COMPANY_CITY}}/g, companyCity ? toBlock(companyCity) : '')
+      .replace(/{{COMPANY_ZIP}}/g, companyZip ? toBlock(companyZip) : '')
+      .replace(/{{COMPANY_WEBSITE}}/g, companyWebsiteHtml)
+      .replace(/{{COMPANY_TAX_ID}}/g, companyTaxIdHtml)
       .replace(/{{FOOTER_MESSAGE}}/g, footerMessage)
       .replace(/{{NOTES}}/g, notes)
 
@@ -480,10 +525,33 @@ export default function ReceiptPreviewModal({
     if (!open) {
       setIframeLoaded(false)
       setHasAutoDownloaded(false)
+      setPreviewHtml('')
+      setIsGeneratingPreview(false)
     } else {
       setHasAutoDownloaded(false)
     }
   }, [open, receipt?.id])
+
+  // Generate preview HTML (can be slow on some machines/templates)
+  useEffect(() => {
+    if (!open || !receipt || !template) return
+
+    setIsGeneratingPreview(true)
+    setIframeLoaded(false)
+
+    let cancelled = false
+    const t = window.setTimeout(() => {
+      if (cancelled) return
+      const html = getPreviewHTML()
+      setPreviewHtml(html)
+      setIsGeneratingPreview(false)
+    }, 0)
+
+    return () => {
+      cancelled = true
+      window.clearTimeout(t)
+    }
+  }, [open, receipt?.id, template?.id])
 
   // Automatically trigger download when requested (e.g. from list Download icon)
   useEffect(() => {
@@ -541,13 +609,20 @@ export default function ReceiptPreviewModal({
         </DialogHeader>
 
         <div className="flex-1 min-h-0 overflow-auto bg-white">
-          <div className="flex justify-center min-w-fit">
+          <div className="flex justify-center min-w-fit relative">
+            {(isGeneratingPreview || !iframeLoaded) && (
+              <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-white/80">
+                <div className="h-10 w-10 rounded-full border-4 border-gray-200 border-t-gray-600 animate-spin" />
+                <div className="mt-3 text-sm text-gray-700">Generating receipt…</div>
+              </div>
+            )}
+
             <iframe
               ref={iframeRef}
               title="Receipt preview"
               className="border-0 bg-white block flex-shrink-0"
               style={{ minHeight: '600px', width: '794px', overflowX: 'hidden', overflowY: 'auto' }}
-              srcDoc={getPreviewHTML()}
+              srcDoc={previewHtml}
               onLoad={() => setIframeLoaded(true)}
             />
           </div>

@@ -386,6 +386,14 @@ CREATE TABLE IF NOT EXISTS receipts (
   created_by UUID REFERENCES users(id) ON DELETE SET NULL,
   vendor_id UUID REFERENCES vendors(id) ON DELETE CASCADE,
   company_name VARCHAR(255),
+  company_logo TEXT,
+  company_email VARCHAR(255),
+  company_phone VARCHAR(50),
+  company_address TEXT,
+  company_city VARCHAR(255),
+  company_zip VARCHAR(50),
+  company_website VARCHAR(255),
+  company_tax_id VARCHAR(100),
   customer_name VARCHAR(255),
   customer_email VARCHAR(255),
   customer_company VARCHAR(255),
@@ -407,6 +415,14 @@ CREATE TABLE IF NOT EXISTS receipts (
 -- Add status column to existing receipts table if it doesn't exist
 ALTER TABLE receipts ADD COLUMN IF NOT EXISTS status VARCHAR(50) DEFAULT 'draft' CHECK (status IN ('draft', 'sent', 'paid'));
 ALTER TABLE receipts ADD COLUMN IF NOT EXISTS company_name VARCHAR(255);
+ALTER TABLE receipts ADD COLUMN IF NOT EXISTS company_logo TEXT;
+ALTER TABLE receipts ADD COLUMN IF NOT EXISTS company_email VARCHAR(255);
+ALTER TABLE receipts ADD COLUMN IF NOT EXISTS company_phone VARCHAR(50);
+ALTER TABLE receipts ADD COLUMN IF NOT EXISTS company_address TEXT;
+ALTER TABLE receipts ADD COLUMN IF NOT EXISTS company_city VARCHAR(255);
+ALTER TABLE receipts ADD COLUMN IF NOT EXISTS company_zip VARCHAR(50);
+ALTER TABLE receipts ADD COLUMN IF NOT EXISTS company_website VARCHAR(255);
+ALTER TABLE receipts ADD COLUMN IF NOT EXISTS company_tax_id VARCHAR(100);
 ALTER TABLE receipts ADD COLUMN IF NOT EXISTS customer_company VARCHAR(255);
 ALTER TABLE receipts ADD COLUMN IF NOT EXISTS customer_phone VARCHAR(50);
 ALTER TABLE receipts ADD COLUMN IF NOT EXISTS customer_address TEXT;
