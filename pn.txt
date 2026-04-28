@@ -73,8 +73,8 @@ how do i confirmmm email automatically as i am trying to using fuklly custom ema
 
 isnt it be like this ? wwhile creating vendor the user creation on admin page is 
 
-##VITE_SUPABASE_URL=https://zrfnplvqyfqrxbryoyzz.supabase.co
-##VITE_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpyZm5wbHZxeWZxcnhicnlveXp6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzE1ODE1MTMsImV4cCI6MjA4NzE1NzUxM30.lLUoIBR81Z6hP-CjEIQrJH2YvF9gP2DqL8stM0N8sF0
+##VITE_SUPABASE_URL=https://tofeakbxxsurcugafohe.supabase.co
+##VITE_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRvZmVha2J4eHN1cmN1Z2Fmb2hlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjQwNDQzNDMsImV4cCI6MjA3OTYyMDM0M30.akiEDPoHtewib7l2nWKP11x_WZAXYsMCE55erDLQJeI
 
  1234
  1234
