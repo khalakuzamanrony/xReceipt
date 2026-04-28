@@ -304,13 +304,21 @@ BEGIN
       SET scope = 'vendor'
       WHERE scope IS NULL;
 
-    -- Backfill conflict_key for existing rows
-    UPDATE brand_settings
-      SET conflict_key = CASE
-        WHEN scope = 'global' THEN 'global'
-        ELSE ('vendor:' || vendor_id::text)
-      END
-      WHERE conflict_key IS NULL;
+    -- Backfill conflict_key for existing rows (only if not a generated column)
+    IF NOT EXISTS (
+      SELECT 1 FROM information_schema.columns
+      WHERE table_schema = 'public'
+        AND table_name = 'brand_settings'
+        AND column_name = 'conflict_key'
+        AND is_generated = 'ALWAYS'
+    ) THEN
+      UPDATE brand_settings
+        SET conflict_key = CASE
+          WHEN scope = 'global' THEN 'global'
+          ELSE ('vendor:' || vendor_id::text)
+        END
+        WHERE conflict_key IS NULL;
+    END IF;
   END IF;
 END $$;
 

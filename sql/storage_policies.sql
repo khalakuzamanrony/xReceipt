@@ -12,27 +12,97 @@ BEGIN
     BEGIN
       ALTER TABLE storage.objects ENABLE ROW LEVEL SECURITY;
 
-      -- Vendor images (shop images)
-      DROP POLICY IF EXISTS "Vendor images read (auth)" ON storage.objects;
-      DROP POLICY IF EXISTS "Vendor images insert (auth)" ON storage.objects;
-      DROP POLICY IF EXISTS "Vendor images update (auth)" ON storage.objects;
-      DROP POLICY IF EXISTS "Vendor images delete (auth)" ON storage.objects;
+      -- admin-profiles bucket (full access for anon + authenticated)
+      DROP POLICY IF EXISTS "admin-profiles read" ON storage.objects;
+      DROP POLICY IF EXISTS "admin-profiles insert" ON storage.objects;
+      DROP POLICY IF EXISTS "admin-profiles update" ON storage.objects;
+      DROP POLICY IF EXISTS "admin-profiles delete" ON storage.objects;
 
-      CREATE POLICY "Vendor images read (auth)" ON storage.objects
+      CREATE POLICY "admin-profiles read" ON storage.objects
+        FOR SELECT TO anon, authenticated
+        USING (bucket_id = 'admin-profiles');
+
+      CREATE POLICY "admin-profiles insert" ON storage.objects
+        FOR INSERT TO anon, authenticated
+        WITH CHECK (bucket_id = 'admin-profiles');
+
+      CREATE POLICY "admin-profiles update" ON storage.objects
+        FOR UPDATE TO anon, authenticated
+        USING (bucket_id = 'admin-profiles')
+        WITH CHECK (bucket_id = 'admin-profiles');
+
+      CREATE POLICY "admin-profiles delete" ON storage.objects
+        FOR DELETE TO anon, authenticated
+        USING (bucket_id = 'admin-profiles');
+
+      -- vendor-image bucket (full access for anon + authenticated)
+      DROP POLICY IF EXISTS "vendor-image read" ON storage.objects;
+      DROP POLICY IF EXISTS "vendor-image insert" ON storage.objects;
+      DROP POLICY IF EXISTS "vendor-image update" ON storage.objects;
+      DROP POLICY IF EXISTS "vendor-image delete" ON storage.objects;
+
+      CREATE POLICY "vendor-image read" ON storage.objects
         FOR SELECT TO anon, authenticated
         USING (bucket_id = 'vendor-image');
 
-      CREATE POLICY "Vendor images insert (auth)" ON storage.objects
+      CREATE POLICY "vendor-image insert" ON storage.objects
         FOR INSERT TO anon, authenticated
         WITH CHECK (bucket_id = 'vendor-image');
 
-      CREATE POLICY "Vendor images update (auth)" ON storage.objects
+      CREATE POLICY "vendor-image update" ON storage.objects
         FOR UPDATE TO anon, authenticated
-        USING (bucket_id = 'vendor-image');
+        USING (bucket_id = 'vendor-image')
+        WITH CHECK (bucket_id = 'vendor-image');
 
-      CREATE POLICY "Vendor images delete (auth)" ON storage.objects
+      CREATE POLICY "vendor-image delete" ON storage.objects
         FOR DELETE TO anon, authenticated
         USING (bucket_id = 'vendor-image');
+
+      -- receipt-exports bucket (full access for anon + authenticated)
+      DROP POLICY IF EXISTS "receipt-exports read" ON storage.objects;
+      DROP POLICY IF EXISTS "receipt-exports insert" ON storage.objects;
+      DROP POLICY IF EXISTS "receipt-exports update" ON storage.objects;
+      DROP POLICY IF EXISTS "receipt-exports delete" ON storage.objects;
+
+      CREATE POLICY "receipt-exports read" ON storage.objects
+        FOR SELECT TO anon, authenticated
+        USING (bucket_id = 'receipt-exports');
+
+      CREATE POLICY "receipt-exports insert" ON storage.objects
+        FOR INSERT TO anon, authenticated
+        WITH CHECK (bucket_id = 'receipt-exports');
+
+      CREATE POLICY "receipt-exports update" ON storage.objects
+        FOR UPDATE TO anon, authenticated
+        USING (bucket_id = 'receipt-exports')
+        WITH CHECK (bucket_id = 'receipt-exports');
+
+      CREATE POLICY "receipt-exports delete" ON storage.objects
+        FOR DELETE TO anon, authenticated
+        USING (bucket_id = 'receipt-exports');
+
+      -- brand-assets bucket (full access for anon + authenticated)
+      DROP POLICY IF EXISTS "brand-assets read" ON storage.objects;
+      DROP POLICY IF EXISTS "brand-assets insert" ON storage.objects;
+      DROP POLICY IF EXISTS "brand-assets update" ON storage.objects;
+      DROP POLICY IF EXISTS "brand-assets delete" ON storage.objects;
+
+      CREATE POLICY "brand-assets read" ON storage.objects
+        FOR SELECT TO anon, authenticated
+        USING (bucket_id = 'brand-assets');
+
+      CREATE POLICY "brand-assets insert" ON storage.objects
+        FOR INSERT TO anon, authenticated
+        WITH CHECK (bucket_id = 'brand-assets');
+
+      CREATE POLICY "brand-assets update" ON storage.objects
+        FOR UPDATE TO anon, authenticated
+        USING (bucket_id = 'brand-assets')
+        WITH CHECK (bucket_id = 'brand-assets');
+
+      CREATE POLICY "brand-assets delete" ON storage.objects
+        FOR DELETE TO anon, authenticated
+        USING (bucket_id = 'brand-assets');
     EXCEPTION
       WHEN insufficient_privilege THEN
         RAISE EXCEPTION 'Insufficient privileges to create storage policies. Run this in Supabase SQL Editor as a project owner (service role).';
